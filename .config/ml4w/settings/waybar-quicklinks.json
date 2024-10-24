@@ -1,0 +1,57 @@
+{
+    "custom/quicklink1": {
+        "format": "",
+        "on-click": "code-insiders",
+        "tooltip-format": "Open VS code"
+    }, 
+    "custom/quicklink2": {
+        "format": "",
+        "on-click": "~/.config/ml4w/settings/browser.sh",
+        "tooltip-format": "Open Firefox"
+    },
+
+    "custom/quicklink3": {
+        "format": "",
+        "on-click": "vesktop",
+        "tooltip-format": "Open Discord"
+    },
+    "custom/quicklink4": {
+        "format": "B",
+        "on-click": "beeper",
+        "tooltip-format": "Open Beeper"
+    },
+    "custom/quicklink5": {
+        "format": "",
+        "on-click": "~/.config/ml4w/settings/filemanager.sh",
+        "tooltip-format": "Open filemanager"
+    }, 
+    "custom/quicklink6": {
+        "format": "",
+        "on-click": "spotify",
+        "tooltip-format": "Open Spotify"
+    }, 
+    "custom/quicklink7": {
+        "format": "",
+        "on-click": "~/.config/ml4w/settings/calculator.sh",
+        "tooltip-format": "Open calculator"
+    }, 
+    "custom/quicklink8": {
+        "format": "",
+        "on-click": "~/.config/ml4w/settings/emojipicker.sh",
+        "tooltip-format": "Open emoji picker"
+    }, 
+    "custom/quicklinkempty": {
+    }, 
+    "group/quicklinks": {
+        "orientation": "horizontal",
+        "modules": [
+            "custom/quicklink2",
+            "custom/quicklink1",
+            "custom/quicklink3",
+	    "custom/quicklink4",
+	    "custom/quicklink6",
+            "custom/quicklink5",
+            "custom/quicklinkempty"
+        ]
+    }
+}

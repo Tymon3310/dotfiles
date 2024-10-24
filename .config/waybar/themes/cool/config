@@ -1,0 +1,97 @@
+{
+	"layer": "top",
+	"modules-left": ["hyprland/workspaces", "custom/spacer", "hyprland/window"],
+	"modules-center": ["memory", "custom/spacer", "cpu", "custom/spacer", "disk#root", "custom/spacer", "disk#ext", "custom/spacer", "gamemode", "custom/spacer", "pulseaudio", "custom/spacer", "tray"],
+	"modules-right": ["custom/mpris", "custom/spacer", "clock"],
+	"custom/arch": {
+		"format": "",
+		"tooltip": false,
+		"on-click": "sh ~/.local/bin/power-menu-rofi center"
+	},
+	"custom/spacer": {
+		"format": "  "
+	},
+	"custom/mpris": {
+		"exec": "python3 -u ~/.local/bin/scrolling-mpris",
+		"format": "{}",
+		"return-type": "json",
+		"on-click": "playerctl play-pause"
+	},
+	"hyprland/workspaces": {
+		"format": "{icon}",
+		"active-only": true,
+		"format-icons": {
+			"1": "󰲠",
+			"2": "󰲢",
+			"3": "󰲤",
+			"4": "󰲦",
+			"5": "󰲨",
+			"6": "󰲪",
+			"7": "󰲬",
+			"8": "󰲮",
+			"9": "󰲰"
+		}
+	},
+	"hyprland/window": {
+		"format": "<span font_family='SauceCodePro Nerd Font Mono'>{initialTitle}</span>",
+		"rewrite": {
+			"(.*) — Zen Browser": "$1",
+			"^.{0}$": "Nothing"
+		}
+	},
+	"clock": {
+		"format": "   <span font_family='SauceCodePro Nerd Font Mono'>{:%H:%M %d/%m/%G}</span>",
+		"tooltip-format": "<tt><small>{calendar}</small></tt>",
+		"calendar": {
+			"mode": "year",
+			"mode-mon-col": 6,
+			"weeks-pos": "right",
+			"on-scroll": 1,
+			"format": {
+				"months": "<span color='#ffead3'><b>{}</b></span>",
+				"days": "<span color='#ecc6d9'><b>{}</b></span>",
+				"weekdays": "<span color='#ffcc66'><b>{}</b></span>",
+				"weeks": "<span color='#99ffdd'><b>W{}</b></span>",
+				"today": "<span color='#ff6699'><b><u>{}</u></b></span>"
+			}
+		}
+	},
+	"gamemode":{
+		"tooltip": false,
+		"use-icon": false,
+		"glyph": "󰸳",
+		"icon-size": 0,
+		"icoon-spacing": 0,
+		"hide-not-running": false
+	},
+	"pulseaudio": {
+		"format": "{icon}   <span font_family='SauceCodePro Nerd Font Mono'>{volume}%</span>",
+		"format-muted": "󰝟",
+		"tooltip": false,
+		"format-icons": {
+			"headphone": "",
+			"default": ["", "", ""]
+		},
+		"scroll-step": 5,
+		"on-click": "sh $HOME/.local/bin/sinks-picker"
+	},
+	"tray": {
+		"spacing": 10
+	},
+	"memory": {
+		"interval": 10,
+		"format": "   <span font_family='SauceCodePro Nerd Font Mono'>{}%</span>"
+	},
+	"cpu": {
+		"interval": 5,
+		"format": "   <span font_family='SauceCodePro Nerd Font Mono'>{usage}%</span>"
+	},
+	"disk#root": {
+		"path": "/",
+		"format": "   <span font_family='SauceCodePro Nerd Font Mono'>/ {percentage_used}%</span>"
+	},
+	"disk#ext": {
+		"path": "/mnt/Games",
+		"format": "   <span font_family='SauceCodePro Nerd Font Mono'>/mnt/Games {percentage_used}%</span>"
+	}
+}

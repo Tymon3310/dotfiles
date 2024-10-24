@@ -1,0 +1,56 @@
+* {
+  font-family: 'Symbols Nerd Font Mono';
+  font-size: 16px;
+  font-feature-settings: '"zero", "ss01", "ss02", "ss03", "ss04", "ss05", "cv31"';
+  margin-bottom: 0px;
+  margin-top: 1px;
+  color: #cdd6f4;
+}
+
+
+.modules-left {
+  background-color: rgba(17, 17, 27, 0.5);
+  border-radius: 10px;
+  margin-left: 10px;
+  margin-right: 10px;
+}
+
+
+#workspaces button, #window {
+  padding: 10px;
+}
+
+window#waybar {
+  background-color: rgba(0, 0, 0, 0);
+}
+
+
+.modules-center {
+  background-color: rgba(17, 17, 27, 0.5);
+  border-radius: 10px;
+}
+
+#pulseaudio, #bluetooth, #network, #tray, #cpu, #memory, #disk, #gamemode {
+  padding: 10px;
+}
+
+#gamemode.running{
+  color: #90f542;
+}
+
+.modules-right {
+  background-color: rgba(17, 17, 27, 0.5);
+  border-radius: 10px;
+  margin-right: 10px;
+
+}
+
+#clock {
+  padding: 10px;
+}
+
+
+#custom-mpris {
+  padding: 10px;
+  font-family: "SauceCodePro Nerd Font Mono";
+}
