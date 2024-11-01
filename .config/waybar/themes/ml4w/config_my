@@ -11,7 +11,7 @@
 {
     // General Settings
     "layer": "top",
-    "margin-top": 0,
+    "margin-top": 14,
     "margin-bottom": 0,
     "layer": "top",
     "margin-left": 0,
@@ -28,8 +28,7 @@
     "modules-left": [
         "custom/appmenu",
         "group/links",
-        "group/settings",
-        //"wlr/taskbar",
+        "wlr/taskbar",
         "group/quicklinks",
         "hyprland/window",
         "custom/empty"
@@ -42,17 +41,16 @@
 
     // Modules Right    
     "modules-right": [
+        "custom/mpris",
         "custom/updates",
         "pulseaudio",
-        //"backlight",
-        "bluetooth",
-        "battery", 
-        "network",
-        "group/hardware",
-        "group/tools",
+        "custom/weather",
+        // "bluetooth",
+        //"network",
+        "cpu", "memory",
         "tray",
         "custom/exit",
-        "custom/ml4w-welcome",
+        // "custom/sidebar",
         "clock"
     ]
 }

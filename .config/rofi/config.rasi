@@ -5,13 +5,12 @@
 # |  _ < (_) |  _| | 
 # |_| \_\___/|_| |_| 
 #                    
-# by Stephan Raabe (2023) 
 # ----------------------------------------------------- 
 */
 
 /* ---- Configuration ---- */
 configuration {
-    modi:                       "drun,run";
+    modi:                       "drun,run,window";
     font:                       "Fira Sans 11";
     show-icons:                 true;
     icon-theme:                 "kora";
@@ -28,17 +27,6 @@ configuration {
     
 }
 
-/* ---- Load font ---- */
-@import "~/.config/ml4w/settings/rofi-font.rasi"
-
-/* ---- Load pywal colors (custom wal template) ---- */
-@import "~/.cache/wal/colors-rofi-pywal"
-
-/* ---- Load wallpaper ---- */
-@import "~/.config/ml4w/cache/current_wallpaper.rasi"
-
-/* ---- Load border width ---- */
-@import "~/.config/ml4w/settings/rofi-border.rasi"
 
 /* ---- Window ---- */
 window {
@@ -262,4 +250,4 @@ error-message {
     text-color:                  @foreground;
 }
 
-@theme "/home/tymon/.local/share/rofi/themes/rounded-blue-dark.rasi"
+@theme "/home/tymon/.config/rofi/rounded-blue-dark.rasi"

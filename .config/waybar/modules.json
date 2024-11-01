@@ -20,11 +20,12 @@
       "default": ""
     },
     // "persistent-workspaces": {
-      "*": 5
+    //   "*": 5
     // }
   },
+  
   "custom/mpris": {
-		"exec": "python3 -u ~/.local/bin/scrolling-mpris",
+		"exec": "python3 -u ~/.config/waybar/scripts/scrolling-mpris",
 		"format": "{}",
 		"return-type": "json",
 		"on-click": "playerctl --ignore-player=plasma-browser-integration,firefox play-pause",
@@ -61,16 +62,12 @@
   // Hyprland Window
   "hyprland/window": {
     "rewrite": {
-      "(.*) - Brave": "$1",
-      "(.*) - Chromium": "$1",
-      "(.*) - Brave Search": "$1",
-      "(.*) - Outlook": "$1",
-      "(.*) Microsoft Teams": "$1"
+      "Zen-Twilight": "Zen Browser"
     },
     "separate-outputs": true
   },
 
-  // ML4W Welcome App
+  // Sidebar
   "custom/sidebar": {
     "on-click": "ags -t sidebar",
     "on-click-right": "sleep 0.1 && ~/.config/ml4w/apps/ML4W_Welcome-x86_64.AppImage",
@@ -84,11 +81,6 @@
     "format": ""
   },
 
- // Empty
-  // "custom/tools": {
-  //   "format": "",
-  //   "tooltip-format": "Tools"
-  // },`
 
   // Cliphist
   "custom/cliphist": {
@@ -104,32 +96,9 @@
     "format": "  {}",
     "escape": true,
     "return-type": "json",
-    "exec": "~/.config/ml4w/scripts/updates.sh",
+    "exec": "~/.config/waybar/scripts/updates.sh",
     "restart-interval": 60,
     "on-click": "alacritty --class Alacritty,floating -T floating -e ~/.config/ml4w/scripts/installupdates.sh",
-    "on-click-right": "~/.config/ml4w/settings/software.sh"
-  },
-
-  // Wallpaper
-  "custom/wallpaper": {
-    "format": "",
-    "on-click": "waypaper",
-    "on-click-right": "~/.config/hypr/scripts/wallpaper-effects.sh",
-    "tooltip-format": "Left: Select a wallpaper\nRight: Select wallpaper effect"
-  },
-
-  // Waybar Themes
-  "custom/waybarthemes": {
-    "format": "",
-    "on-click": "~/.config/waybar/themeswitcher.sh",
-    "tooltip-format": "Select a waybar theme"
-  },
-
-  // Settings
-  "custom/settings": {
-    "format": "",
-    "on-click": "~/.config/ml4w/apps/ML4W_Dotfiles_Settings-x86_64.AppImage",
-    "tooltip-format": "ML4W Dotfiles Settings"
   },
 
   // Keybindings
@@ -226,10 +195,9 @@
   "clock": {
     "format": "{:%H:%M %a %Od.%Om}",
     "timezone": "Poland",
-    "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
-    // START CLOCK FORMAT
-    // "format-alt": "{:%Y-%m-%d
-    // END CLOCK FORMAT
+    // "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
+    "on-click": "ags -t calendar",
+    "tooltip": false
   },
 
   // System
@@ -257,7 +225,15 @@
     "path": "/",
     "on-click": "alacritty --class Alacritty,floating -T floating -e btop --update 1000"
   },
-
+  
+  "temperature": {
+    "format": " {temperatureC}°C ",
+    "format-critical": "<span color=\"#ed7a2d\">  {temperatureC}°C</span> ",
+    "hwmon-path": "/sys/class/hwmon/hwmon4/temp2_input",
+    "interval": 1,
+    "critical-threshold": 90,
+    "on-click": "alacritty --class Alacritty,floating -T floating -e btop --update 1000"
+  },
 
   // Group Hardware
   "group/hardware": {
@@ -286,29 +262,7 @@
     ]
   },
 
-  // Group Links
-  "group/links": {
-    "orientation": "horizontal",
-    "modules": [
-      //"custom/chatgpt",
-      "custom/empty"      
-    ]
-  },
 
-  // Group Settings
-  // "group/settings": {
-  //   "orientation": "inherit",
-  //   "drawer": {
-  //     "transition-duration": 300,
-  //     "children-class": "not-memory",
-  //     "transition-left-to-right": true
-  //   },
-  //   "modules": [
-  //     "custom/settings",
-  //     "custom/waybarthemes",
-  //     "custom/wallpaper"
-  //   ]
-  // },
 
   // Network
   "network": {

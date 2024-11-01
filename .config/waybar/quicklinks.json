@@ -22,7 +22,7 @@
     },
     "custom/quicklink5": {
         "format": "",
-        "on-click": "~/.config/ml4w/settings/filemanager.sh",
+        "on-click": "dolphin",
         "tooltip-format": "Open filemanager"
     }, 
     "custom/quicklink6": {
@@ -48,8 +48,8 @@
             "custom/quicklink2",
             "custom/quicklink1",
             "custom/quicklink3",
-	    "custom/quicklink4",
-	    "custom/quicklink6",
+            "custom/quicklink4",
+            "custom/quicklink6",
             "custom/quicklink5",
             "custom/quicklinkempty"
         ]

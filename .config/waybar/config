@@ -5,7 +5,6 @@
 //    \_/\_/ \__,_|\__, |_.__/ \__,_|_|    
 //                 |___/                   
 //  
-// by Stephan Raabe (2023) 
 // ----------------------------------------------------- 
 //
 {
@@ -20,7 +19,7 @@
 
     // Load Modules
     "include": [
-        "~/.config/ml4w/settings/waybar-quicklinks.json",
+        "~/.config/waybar/quicklinks.json",
         "~/.config/waybar/modules.json"
     ],
 
@@ -47,7 +46,7 @@
         "custom/weather",
         // "bluetooth",
         //"network",
-        "cpu", "memory",
+        "cpu", "temperature", "memory", 
         "tray",
         "custom/exit",
         // "custom/sidebar",
