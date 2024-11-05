@@ -3,4 +3,4 @@ Based on  [ML4W](ttps://github.com/mylinuxforwork/dotfiles/)from [@mylinuxforwor
 
 ![image](https://github.com/user-attachments/assets/0a157ffd-1d67-471b-870e-9f8d84c5ca91)
 
-[Packages](github.com/Tymon3310/dotfiles/PACKAGES.md)
+[Packages](PACKAGES.md)
