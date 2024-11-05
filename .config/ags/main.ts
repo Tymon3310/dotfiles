@@ -49,36 +49,6 @@ const ramval = Variable(0, {
         .splice(1, 2))*100).toString() + "%"],
 })
 
-// Fetch weather data
-async function getWeather() {
-    try {
-      const output = await Utils.spawn('curl', ['wttr.in?format=3']); // Get weather in a simplified format
-      return output.trim(); // Remove any extra whitespace
-    } catch (error) {
-      print('Error fetching weather:', error);
-      return "Unable to fetch weather";
-    }
-  }
-  // Weather widget
-  const weatherLabel = Widget.Label({
-    className: "weather-label",
-    label: "Loading weather...",
-  });
-  // Update weather information
-  
-  async function updateWeather() {
-    const weather = await getWeather();
-    print ('Weather:', weather);
-  
-    if (typeof weather === 'number') {
-      weatherLabel.label = weather.toString() + "°C"; // Add °C if it's a number (temperature)
-    } else {
-      weatherLabel.label = weather; // Keep as is if it's already a string
-    }
-  }
-  
-  updateWeather(); // Initial update
-  setInterval(updateWeather, 600000);
 
 // Calendar Widget
 const cld = Widget.Calendar({

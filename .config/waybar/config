@@ -8,48 +8,45 @@
 // ----------------------------------------------------- 
 //
 {
-    // General Settings
-    "layer": "top",
-    "margin-top": 14,
-    "margin-bottom": 0,
-    "layer": "top",
-    "margin-left": 0,
-    "margin-right": 0,    
-    "spacing": 0,
-
-    // Load Modules
-    "include": [
-        "~/.config/waybar/quicklinks.json",
-        "~/.config/waybar/modules.json"
-    ],
-
-    // Modules Left
-    "modules-left": [
-        "custom/appmenu",
-        "group/links",
-        "wlr/taskbar",
-        "group/quicklinks",
-        "hyprland/window",
-        "custom/empty"
-    ],
-
-    // Modules Center
-    "modules-center": [
-        "hyprland/workspaces"
-    ],
-
-    // Modules Right    
-    "modules-right": [
-        "custom/mpris",
-        "custom/updates",
-        "pulseaudio",
-        "custom/weather",
-        // "bluetooth",
-        //"network",
-        "cpu", "temperature", "memory", 
-        "tray",
-        "custom/exit",
-        // "custom/sidebar",
-        "clock"
-    ]
+  // General Settings
+  "layer": "top",
+  "margin-top": 14,
+  "margin-bottom": 0,
+  "layer": "top",
+  // "output": "DP-1",
+  "margin-left": 0,
+  "margin-right": 0,
+  "spacing": 0,
+  // Load Modules
+  "include": [
+    "~/.config/waybar/quicklinks.jsonc",
+    "~/.config/waybar/modules.jsonc"
+  ],
+  // Modules Left
+  "modules-left": [
+    "custom/appmenu",
+    // "wlr/taskbar",
+    "group/quicklinks",
+    "hyprland/window",
+  ],
+  // Modules Center
+  "modules-center": [
+    "hyprland/workspaces",
+    "custom/empty",
+    "custom/mpris",
+  ],
+  // Modules Right    
+  "modules-right": [
+    // "bluetooth",
+    //"network",
+    // "cpu", "temperature", "memory",
+    "tray",
+    "group/cpu",
+    "memory",
+    "custom/weather",
+    // "custom/sidebar",
+    "custom/updates",
+    "clock",
+    "custom/exit",
+  ]
 }

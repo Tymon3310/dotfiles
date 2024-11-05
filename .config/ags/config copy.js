@@ -33,7 +33,7 @@ const audio = await Service.import('audio');
 
 async function getWeather() {
     try {
-      const out = await Utils.execAsync(['curl', 'wttr.in/trzebnica/?format=3']);
+      const out = await Utils.execAsync(['curl', 'wttr.in/?format=3']);
       const temp = out?.trim() || 'N/A';
       return temp.match(/[0-9Â°]+/)?.[0] || 'N/A';
     } catch (error) {

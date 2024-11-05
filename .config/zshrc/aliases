@@ -1,0 +1,66 @@
+# -----------------------------------------------------
+# ALIASES
+# -----------------------------------------------------
+
+# -----------------------------------------------------
+# General
+# -----------------------------------------------------
+alias c='clear'
+alias nf='fastfetch'
+alias pf='fastfetch'
+alias ff='fastfetch'
+alias ls='eza -a --icons'
+alias ll='eza -al --icons'
+alias lt='eza -a --tree --level=1 --icons'
+alias shutdown='systemctl poweroff'
+alias v='$EDITOR'
+alias vim='$EDITOR'
+alias ts='~/.config/ml4w/scripts/snapshot.sh'
+alias wifi='nmtui'
+alias cd ...='cd ../..'
+
+# -----------------------------------------------------
+# ML4W Apps
+# -----------------------------------------------------
+alias ml4w='~/.config/ml4w/apps/ML4W_Welcome-x86_64.AppImage'
+alias ml4w-settings='~/.config/ml4w/apps/ML4W_Dotfiles_Settings-x86_64.AppImage'
+alias ml4w-sidebar='ags -t sidebar'
+alias ml4w-hyprland='~/.config/ml4w/apps/ML4W_Hyprland_Settings-x86_64.AppImage'
+alias ml4w-diagnosis='~/.config/hypr/scripts/diagnosis.sh'
+alias ml4w-hyprland-diagnosis='~/.config/hypr/scripts/diagnosis.sh'
+alias ml4w-qtile-diagnosis='~/.config/ml4w/qtile/scripts/diagnosis.sh'
+alias ml4w-update='~/.config/ml4w/update.sh'
+
+# -----------------------------------------------------
+# Window Managers
+# -----------------------------------------------------
+
+alias Hyprland='Hyprland'
+# Hyprland with Hyprland
+
+# -----------------------------------------------------
+# Git
+# -----------------------------------------------------
+alias gs="git status"
+alias ga="git add"
+alias gc="git commit -m"
+alias gp="git push"
+alias gpl="git pull"
+alias gst="git stash"
+alias gsp="git stash; git pull"
+alias gcheck="git checkout"
+alias gcredential="git config credential.helper store"
+alias gfo="git fetch origin"
+
+# -----------------------------------------------------
+# Scripts
+# -----------------------------------------------------
+alias ascii='~/.config/hypr/scripts/ascii-text.sh'
+
+# -----------------------------------------------------
+# System
+# -----------------------------------------------------
+alias update-grub='sudo grub-mkconfig -o /boot/grub/grub.cfg'
+
+
+alias pacunl='sh ~/.config/hypr/scripts/unlock-pacman.sh'
