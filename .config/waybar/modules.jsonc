@@ -136,7 +136,7 @@
   // Calculator
   "custom/calculator": {
     "format": "",
-    "on-click": "qalculate-gtk",
+    "on-click": "gnome-calculator",
     "tooltip-format": "Open calculator"
   },
   // Windows VM
