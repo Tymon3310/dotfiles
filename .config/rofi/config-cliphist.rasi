@@ -4,8 +4,6 @@
 # | |_) / _ \| |_| | 
 # |  _ < (_) |  _| | 
 # |_| \_\___/|_| |_| 
-#                    
-# by Stephan Raabe (2023) 
 # ----------------------------------------------------- 
 */
 
@@ -26,19 +24,33 @@ configuration {
     window-format:              "{w} · {c} · {t}";
     
 }
+/* ---- Load colors  ---- */
 
-/* ---- Load font ---- */
-@import "~/.config/ml4w/settings/rofi-font.rasi"
-
-/* ---- Load pywal colors (custom wal template) ---- */
-@import "~/.cache/wal/colors-rofi-pywal"
-
+* {
+    background: rgba(0,0,1,0.5);
+    foreground: #FFFFFF;
+    color0:     #00091C;
+    color1:     #005090;
+    color2:     #0058AB;
+    color3:     #0069B0;
+    color4:     #012DD7;
+    color5:     #0071CA;
+    color6:     #0079EA;
+    color7:     #77bae2;
+    color8:     #53829e;
+    color9:     #005090;
+    color10:    #0058AB;
+    color11:    #0069B0;
+    color12:    #012DD7;
+    color13:    #0071CA;
+    color14:    #0079EA;
+    color15:    #77bae2;
+}
 /* ---- Load wallpaper ---- */
 @import "~/.cache/wallpaper/current_wallpaper.rasi"
 
 /* ---- Load border width ---- */
-@import "~/.config/ml4w/settings/rofi-border.rasi"
-
+* { border-width: 0px; }
 /* ---- Window ---- */
 window {
     width:                        400px;
