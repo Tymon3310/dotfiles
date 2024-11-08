@@ -226,8 +226,40 @@ const sidebar = Widget.Window({
   }),
 });
 
+const cld = Widget.Calendar({
+  showDayNames: true,
+  showDetails: false,
+  showHeading: true,
+  showWeekNumbers: true,
+  className: "cld"
+})
+const Calendar = Widget.Box({
+  spacing: 8,
+  vertical: true,
+  className: "calendar",
+  children: [
+    Widget.Box({
+      className: "group",
+      homogeneous: true,
+      children: [cld]
+    })
+  ]
+})
+const CalendarWindow = Widget.Window({
+  name: 'calendar',
+  className: "window",
+  anchor: ['top', 'right'],
+  // Start with hidden window, toggle with ags -t sidebar
+  // visible: true,
+  visible: false,
+  child: Widget.Box({
+    css: 'padding: 1px;',
+    child: Calendar,
+  })
+})
 
 const css = `
+
 
 .sidebar {
     background: #222222;
@@ -240,11 +272,21 @@ const css = `
     padding:20px;
 }
 
-.window {
-    background: transparent;
-
+.calendar {
+    background: #222222;
+    padding: 12px;
+    margin:14px;
+    border-radius: 12px;
+    font-weight: bold;
+    border: 3px solid @color11;
+    box-shadow: 0px 0px 10px 1px rgba(0, 0, 0, 0.8);
+    padding:20px;
+    min-width:320px;
 }
 
+.window {
+    background:transparent;
+}
 
 
 .quick-settings, .row, .network-controls {
@@ -281,7 +323,15 @@ const css = `
 }
 `;
 
+App.connect("window-toggled", (_, name, visible) => {
+  if (visible && name == 'calendar') {
+    const d = new Date();
+    cld.select_day(d.getDate())
+    cld.select_month(d.getMonth(), d.getFullYear())
+  }
+})
+
 App.config({
   css: css,
-  windows: [sidebar]
+  windows: [sidebar, CalendarWindow],
 });

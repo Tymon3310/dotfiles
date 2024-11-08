@@ -7,6 +7,7 @@ local map = vim.keymap.set
 
 map("i", "<C-z>", "<Esc>:undo<CR>a", { desc = "Undo", remap = false })
 map("i", "<C-y>", "<Esc>:redo<CR>a", { desc = "redo", remap = false })
+map("n", "r", "<Esc>:redo<CR>", { desc = "redo", remap = false })
 api.nvim_set_keymap("i", "<C-a>", "<Esc>V", { noremap = true })
 
 map("n", "%", ":source %<CR>", { desc = "Source current config", noremap = true })
