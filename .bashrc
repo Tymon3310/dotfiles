@@ -1,24 +1,26 @@
-#    _               _              
-#   | |__   __ _ ___| |__  _ __ ___ 
+#    _               _
+#   | |__   __ _ ___| |__  _ __ ___
 #   | '_ \ / _` / __| '_ \| '__/ __|
-#  _| |_) | (_| \__ \ | | | | | (__ 
+#  _| |_) | (_| \__ \ | | | | | (__
 # (_)_.__/ \__,_|___/_| |_|_|  \___|
-# 
-# -----------------------------------------------------
-# ML4W bashrc loader
+#
 # -----------------------------------------------------
 
-# DON'T CHANGE THIS FILE
+# -----------------------------------------------------
+# Exports
+# -----------------------------------------------------
+export EDITOR=nvim
+export PATH="/usr/lib/ccache/bin/:$PATH"
 
-# You can define your custom configuration by adding
-# files in ~/.config/bashrc 
-# or by creating a folder ~/.config/zshrc/custom
-# with copies of files from ~/.config/zshrc 
+eval "$(oh-my-posh init bash --config ~/.config/ohmyposh/kushal.omp.json)"
+
+fastfetch -c arch
+
+echo "YOU ARE IN BASH, TYPE ZSH FOR MORE FULL FEATURED SHELL"
+
+# -----------------------------------------------------
+#aliases
 # -----------------------------------------------------
 
-for f in ~/.config/bashrc/*; do 
-    if [ ! -d $f ] ;then
-        c=`echo $f | sed -e "s=.config/bashrc=.config/bashrc/custom="`
-        [[ -f $c ]] && source $c || source $f
-    fi
-done
+source ~/.config/zshrc/aliases
+
