@@ -1,8 +1,4 @@
-# -----------------------------------------------------
-#aliases
-# -----------------------------------------------------
 
-source ~/.config/zshrc/aliases
 
 # -----------------------------------------------------
 #OH-MY-ZSH
@@ -20,7 +16,7 @@ plugins=(
     fast-syntax-highlighting
     copyfile
     copybuffer
-    dirhistory
+    # dirhistory
     vscode
 )
 source $ZSH/oh-my-zsh.sh
@@ -81,3 +77,9 @@ eval $(thefuck --alias)
 
 export PATH=$PATH:/home/tymon/.spicetify
 bindkey '^X' create_completion
+
+# -----------------------------------------------------
+#aliases
+# -----------------------------------------------------
+
+source ~/.config/zshrc/aliases

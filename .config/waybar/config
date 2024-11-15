@@ -25,7 +25,8 @@
     "custom/appmenu",
     // "wlr/taskbar",
     "group/quicklinks",
-    "hyprland/window",
+    "hyprland/window"
+    // "custom/cava",
   ],
   // Modules Center
   "modules-center": [
