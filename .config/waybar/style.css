@@ -58,7 +58,7 @@ window#waybar {
     font-size: 16px;
     color: @textcolor1;
 }
-
+#workspaces.scratchpad { min-width: 0px; background: transparent; }
 #workspaces button {
     padding: 0px;
     margin: 4px 3px;
@@ -105,6 +105,7 @@ window#waybar {
     border-radius: 15%;
 
 }
+
 /* -----------------------------------------------------
  * Tooltips
  * ----------------------------------------------------- */
@@ -139,6 +140,7 @@ tooltip label {
 window#waybar.empty #window {
     background-color:transparent;
 }
+
 
 /* -----------------------------------------------------
  * Taskbar
@@ -283,6 +285,11 @@ window#waybar.empty #window {
     border:3px solid @bordercolor;
 
 
+}
+
+#submap.VM{
+  padding: 0px 10px 0px 10px;
+  color: red;
 }
 
 /* -----------------------------------------------------

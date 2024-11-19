@@ -29,16 +29,6 @@
     "on-click": "spotify",
     "tooltip-format": "Open Spotify"
   },
-  "custom/quicklink7": {
-    "format": "",
-    "on-click": "~/.config/ml4w/settings/calculator.sh",
-    "tooltip-format": "Open calculator"
-  },
-  "custom/quicklink8": {
-    "format": "",
-    "on-click": "~/.config/ml4w/settings/emojipicker.sh",
-    "tooltip-format": "Open emoji picker"
-  },
   "custom/quicklinkempty": {},
   "group/quicklinks": {
     "orientation": "horizontal",

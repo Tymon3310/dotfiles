@@ -94,6 +94,37 @@ return {
       "3rd/image.nvim", -- Optional image support in preview window: See `# Preview Mode` for more information
     },
     opts = {
+      sources = {
+        "filesystem",
+        "buffers",
+        "git_status",
+        "document_symbols",
+      },
+      auto_clean_after_session_restore = true, -- Automatically clean up broken neo-tree buffers saved in sessions
+      close_if_last_window = true, -- Close Neo-tree if it is the last window left in the tab
+      default_source = "filesystem", -- you can choose a specific source `last` here which indicates the last used source
+      enable_diagnostics = true,
+      enable_git_status = true,
+      enable_modified_markers = true, -- Show markers for files with unsaved changes.
+      enable_opened_markers = true, -- Enable tracking of opened files. Required for `components.name.highlight_opened_files`
+      icon = {
+        git_status = {
+          symbols = {
+            -- Change type
+            added = "✚", -- NOTE: you can set any of these to an empty string to not show them
+            deleted = "✖",
+            modified = "",
+            renamed = "󰁕",
+            -- Status type
+            untracked = "",
+            ignored = "",
+            unstaged = "󰄱",
+            staged = "",
+            conflict = "",
+          },
+          align = "right",
+        },
+      },
       filesystem = {
         filtered_items = {
           visible = true, -- when true, they will just be displayed differently than normal items

@@ -1,0 +1,49 @@
+* {
+    font-family: "Fira Sans Semibold", FontAwesome, Roboto, Helvetica, Arial, sans-serif;
+	transition: 20ms;
+	box-shadow: none;
+}
+
+window {
+  border-radius: 8px;
+  background: rgba (0, 0, 0, 0.5);
+}
+
+/* Outer bar container, takes all the window width/height */
+#outer-box {
+  margin: 0;
+}
+
+/* Inner bar container, surrounds buttons */
+#inner-box {
+  margin: 0;
+  padding: 12px;
+  border: none;
+  border-radius: 7px;
+  background: rgba (0, 0, 0, 0.5);
+}
+
+button, image {
+  border: none;
+  box-shadow: none;
+  background: none;
+}
+
+image {
+  margin-bottom: 20px;
+}
+
+button {
+  margin: 12px;
+  padding: 72px 42px;
+  font-size: 18px;
+  font-weight: 600;
+  outline: none;
+  border-radius: 5px;
+  background: rgba (0, 0, 0, 0.50);
+}
+
+button:focus, button:hover {
+  color: #32f8f4;
+  background: rgba (255, 255, 255, 0.15);
+}

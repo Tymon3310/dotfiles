@@ -33,12 +33,14 @@
     "hyprland/workspaces",
     "custom/empty",
     "custom/mpris",
+    "hyprland/workspaces#scratchpad",
   ],
   // Modules Right    
   "modules-right": [
     // "bluetooth",
     //"network",
     // "cpu", "temperature", "memory",
+    "hyprland/submap",
     "tray",
     "group/cpu",
     // "memory",

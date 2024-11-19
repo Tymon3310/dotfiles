@@ -13,8 +13,7 @@
     "on-click": "activate",
     "active-only": false,
     "all-outputs": false,
-    "show-special": true,
-    "special-visible-only": true,
+    "show-special": false,
     "format": "{name}{icon}",
     "format-icons": {
       "urgent": "",
@@ -26,6 +25,22 @@
       "11": "  ",
       "13": "  ",
     },
+  },
+  "hyprland/workspaces#scratchpad": {
+    "all-outputs": true,
+    "active-only": true,
+    "show-special": true,
+    "disable-scroll": true,
+    "special-visible-only": true,
+    "ignore-workspaces": [
+      "\\d+$"
+    ]
+  },
+  "hyprland/submap": {
+    "format": "[ {} ]",
+    "tooltip": true,
+    "always-on": false,
+    "on-click": "hyprctl dispatch submap reset",
   },
   "custom/mpris": {
     // "exec": "python3 -u ~/.config/waybar/scripts/scrolling-mpris",
@@ -138,7 +153,8 @@
   // Power Menu
   "custom/exit": {
     "format": "",
-    "on-click": "wlogout",
+    // "on-click": "wlogout",
+    "on-click": "nwg-bar",
     "tooltip-format": "Power Menu"
   },
   // Hypridle inhibitor

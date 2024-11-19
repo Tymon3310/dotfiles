@@ -34,8 +34,8 @@ eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/kushal.omp.json)"
 #AUTOSTART
 # -----------------------------------------------------
 
-# fastfetch -c groups
-fastfetch -c arch
+fastfetch -c groups
+# fastfetch -c arch
 
 # -----------------------------------------------------
 # Exports

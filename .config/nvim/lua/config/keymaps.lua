@@ -21,3 +21,5 @@ map("i", "C-E", ":Copilot suggestion dismiss<CR>", { desc = "Dismiss Copilot sug
 -- map({ "i", "n" }, "<CR>", "<ESC>:Copilot suggestion dismiss<CR><ESC>o", { desc = "Insert newline below", remap = true })
 
 map("i", "C- TAB ", ":Copilot sugestion accept<CR>", { desc = "Accept Copilot suggestion", remap = true })
+
+map("n", "qq", "<nop>", { remap = true })
