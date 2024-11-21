@@ -87,7 +87,7 @@
     "icon-size": 16,
     "rewrite": {
       "(.*) Youtube (.*)": "$1 󰗃",
-      "(.*) — Zen Twilight": ": $1",
+      "(.*) — Zen Twilight": "$1",
       "(.*) - Visual Studio Code - Insiders": "VS Code: $1",
     },
     "separate-outputs": true
