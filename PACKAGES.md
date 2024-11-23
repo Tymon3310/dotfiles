@@ -16,7 +16,7 @@ Requiared packages:
 - kitty
 - qt5-wayland 
 - qt6-wayland
-- 
+- nwg-bar
 
 Opcional packages:
 - cmatrix
