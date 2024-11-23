@@ -3,6 +3,7 @@ Requiared packages:
 - hyprpaper
 - hyprlock
 - hypridle
+- waypaper
 - wlogout
 - rofi-wayland
 - waybar and modules: waybar-module-pacman-updates & wttrbar
