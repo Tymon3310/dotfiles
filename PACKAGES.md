@@ -4,7 +4,7 @@ Requiared packages:
 - hyprlock
 - hypridle
 - wlogout
-- rofi
+- rofi-wayland
 - waybar and modules: waybar-module-pacman-updates & wttrbar
 - zsh
 - oh-my-zsh and all the autocopmites modules
