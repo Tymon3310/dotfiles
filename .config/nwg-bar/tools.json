@@ -1,0 +1,22 @@
+[
+  {
+    "label": "Terminal",
+    "exec": "kitty --class float",
+    "icon": "~/dotfiles/icons/terminal.svg"
+  },
+  {
+    "label": "Picker",
+    "exec": "hyprpicker | wl-copy",
+    "icon": "~/dotfiles/icons/picker.svg"
+  },
+  {
+    "label": "Killmode",
+    "exec": "hyprctl kill",
+    "icon": "/home/tymon/Pictures/skul.png"
+  },
+  {
+    "label": "Network",
+    "exec": "nmtui",
+    "icon": "~/dotfiles/icons/wifi.svg"
+  }
+]

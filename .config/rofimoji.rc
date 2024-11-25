@@ -1,0 +1,3 @@
+action = copy
+files = [emojis, math, nerd_font, fontawesome6]
+skin-tone = moderate

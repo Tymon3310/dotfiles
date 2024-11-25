@@ -10,7 +10,7 @@
     "foreground": "#FEF5ED",
     "background": "transparent"
   },
-  "console_title_template": "{{ if .Root }}root @ {{ end }}{{ .Shell }} in {{ .Folder }}",
+  "console_title_template": "{{.PWD}}",
   "blocks": [
     {
       "type": "prompt",

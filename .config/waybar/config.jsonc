@@ -23,14 +23,16 @@
   // Modules Left
   "modules-left": [
     "custom/appmenu",
+    "hyprland/workspaces",
+    "custom/empty",
     // "wlr/taskbar",
-    "group/quicklinks",
+    // "group/quicklinks",
     "hyprland/window"
     // "custom/cava",
   ],
   // Modules Center
   "modules-center": [
-    "hyprland/workspaces",
+    // "hyprland/workspaces",
     "custom/empty",
     "custom/mpris",
     "hyprland/workspaces#scratchpad",
