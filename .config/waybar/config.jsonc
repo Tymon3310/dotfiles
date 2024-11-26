@@ -50,6 +50,7 @@
     "custom/weather",
     // "custom/sidebar",
     "custom/updates",
+    "pulseaudio",
     "clock",
     "custom/exit",
   ]

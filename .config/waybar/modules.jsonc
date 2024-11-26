@@ -218,13 +218,15 @@
   },
   // CPU
   "cpu": {
+    "interval": 1,
     "format": " {usage}% ",
     "on-click": "kitty --class kitty,floating -T floating -e btop --update 1000"
   },
   // Memory
   "memory": {
+    "interval": 1,
     "format": "/  {}%  ",
-    "tooltip-format": "Memory: {}GB Used",
+    "tooltip-format": "Memory: {used}GiB Used",
     "on-click": "kitty --class kitty,floating -T floating -e btop --update 1000"
   },
   "custom/gpu": {
@@ -311,7 +313,9 @@
         ""
       ]
     },
-    "on-click": "pavucontrol"
+    "on-click": "pavucontrol",
+    "on-click-right": "pactl set-sink-mute @DEFAULT_SINK@ toggle",
+    "on-click-middle": "pactl set-source-mute @DEFAULT_SOURCE@ toggle",
   },
   // Bluetooth
   "bluetooth": {

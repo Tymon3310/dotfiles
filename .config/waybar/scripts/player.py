@@ -14,6 +14,7 @@ def get_title():
         .decode("utf-8")
         .strip()
         .split("(")[0]
+        .replace("&", "&amp;")
     )
 
 
