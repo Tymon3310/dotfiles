@@ -16,6 +16,7 @@ alias shutdown='systemctl poweroff'
 alias v='$EDITOR'
 alias vi='$EDITOR'
 alias vim='$EDITOR'
+alias icat='kitten icat'
 
 #-----------------------------------------------------
 # Window Managers
@@ -29,7 +30,7 @@ alias Hyprland='Hyprland'
 # -----------------------------------------------------
 alias gs="git status"
 alias ga="git add"
-alias gaa="git add . & git commit -m"
+alias gaa="git add . ; git commit -m"
 alias gc="git commit -m"
 alias gp="git push"
 alias gpl="git pull"
