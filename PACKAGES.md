@@ -1,4 +1,6 @@
 Requiared packages:
+
+- yay
 - Hyprland
 - hyprpaper
 - hyprlock
@@ -10,16 +12,17 @@ Requiared packages:
 - zsh
 - oh-my-zsh and all the autocopmites modules
 - ohmyposh
-- noto-fonts
+- noto-fonts & ttf-fira-code
 - xdg-desktop-portal-hyprland & xdg-desktop-portal-gtk & xdg-desktop-portal
 - libnotify
 - dunst
 - kitty
-- qt5-wayland 
+- qt5-wayland
 - qt6-wayland
 - nwg-bar
 
 Opcional packages:
+
 - cmatrix
 - nvim
 - Vesktop
@@ -29,6 +32,6 @@ Opcional packages:
 - btop
 - fastfetch
 - playerctl
-- gnome-calculator
+- qalculate-gtk
 - blueman
 - networkmanager & nmtui
