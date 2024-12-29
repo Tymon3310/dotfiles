@@ -7,6 +7,7 @@
 window {
   border-radius: 8px;
   background: rgba (0, 0, 0, 0.5);
+  border: 2px solid rgba (34, 154, 240, 0.7);
 }
 
 /* Outer bar container, takes all the window width/height */

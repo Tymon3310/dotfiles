@@ -21,16 +21,18 @@
 @define-color textcolor1 #0070D8;
 @define-color textcolor2 #FFFFFF;
 
-
 /* -----------------------------------------------------
  * General 
  * ----------------------------------------------------- */
 
 * {
-    font-family: "Fira Sans Semibold", "Font Awesome 6 Free", FontAwesome, Roboto, Helvetica, Arial, sans-serif, material-design-icons;
+    font-family: "Fira Sans Semibold", "Font Awesome 6 Free", FontAwesome, Roboto, Helvetica, Arial, sans-serif, material-design-icons, "Monaspace Neon";
     border: none;
     border-radius: 0px;
 }
+
+#cava {font-family: "monospace";}
+#custom-cava {font-family: "monospace";}
 
 
 window#waybar {
@@ -58,7 +60,12 @@ window#waybar {
     font-size: 16px;
     color: @textcolor1;
 }
-#workspaces.scratchpad { min-width: 0px; background: transparent; }
+
+#workspaces.scratchpad { 
+  min-width: 0px;
+  background: transparent;
+}
+
 #workspaces button {
     padding: 0px;
     margin: 4px 4px;
@@ -75,8 +82,7 @@ window#waybar {
 #workspaces button.visible{
     margin: 4px 4px;
     color: black;
-    /* background: #82b2e0; */
-  background: @color2;
+    background: @color2;
     border-radius: 25px;
     min-width: 40px;
     transition: all 0.3s ease-in-out;
@@ -104,6 +110,11 @@ window#waybar {
     background: #edc351;
     border-radius: 25px;
 
+}
+
+#workspaces buton.urgent {
+    background: red;
+    color: red;
 }
 
 /* -----------------------------------------------------
@@ -181,7 +192,19 @@ window#waybar.empty #window {
 .modules-right > widget:last-child > #workspaces {
     margin-right: 0;
 }
-
+#custom-notification {
+  background: @color1;
+    margin: 5px 15px 5px 0px;
+    padding: 2px 10px 0px 10px;
+    border-radius: 8px;
+    color:@textcolor2;
+    font-size:16px;
+    font-weight:normal;
+    opacity:0.8;
+}
+#custom-notification:hover {
+  opacity: 1;
+}
 /* -----------------------------------------------------
  * Custom Quicklinks
  * ----------------------------------------------------- */
@@ -384,7 +407,7 @@ window#waybar.empty #window {
     background-color: @color1;
     font-size: 16px;
     color: @textcolor2;
-    border-radius: 15px;
+    border-radius: 8px;
     padding: 2px 10px 0px 10px;
     margin: 5px 15px 5px 0px;
     opacity:0.8;

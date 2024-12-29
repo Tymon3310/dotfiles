@@ -33,8 +33,8 @@
   // Modules Center
   "modules-center": [
     // "hyprland/workspaces",
-    "custom/empty",
-    "custom/mpris",
+    // "custom/empty",
+    "custom/spotify",
     "hyprland/workspaces#scratchpad",
   ],
   // Modules Right    
@@ -50,7 +50,9 @@
     "custom/weather",
     // "custom/sidebar",
     "custom/updates",
+    // "cava",
     "pulseaudio",
+    "custom/notification",
     "clock",
     "custom/exit",
   ]
