@@ -17,13 +17,7 @@ alias v='$EDITOR'
 alias vi='$EDITOR'
 alias vim='$EDITOR'
 alias icat='kitten icat'
-
-#-----------------------------------------------------
-# Window Managers
-# -----------------------------------------------------
-
-alias Hyprland='Hyprland'
-# Hyprland with Hyprland
+alias cat='bat'
 
 # -----------------------------------------------------
 # Git
@@ -44,6 +38,7 @@ alias gfo="git fetch origin"
 # Scripts
 # -----------------------------------------------------
 alias ascii='~/.config/hypr/scripts/ascii-text.sh'
+alias matrix='unimatrix -a -f -s 95'
 
 # -----------------------------------------------------
 # System
@@ -52,3 +47,4 @@ alias update-grub='sudo grub-mkconfig -o /boot/grub/grub.cfg'
 
 
 alias pacunl='sh ~/.config/hypr/scripts/unlock-pacman.sh'
+alias dg='sudo downgrade'

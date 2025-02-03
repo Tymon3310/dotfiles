@@ -31,7 +31,8 @@ plugins=(
     vscode
     fzf
     pip python
- 
+    rbw
+    aliases
 
 )
 source $ZSH/oh-my-zsh.sh
@@ -49,15 +50,19 @@ eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/kushal.omp.json)"
 #AUTOSTART
 # -----------------------------------------------------
 
-fastfetch -c groups
+# fastfetch -c groups
 # fastfetch -c arch
-
+fastfetch -c hypr
 # -----------------------------------------------------
 # Exports
 # -----------------------------------------------------
 
+#Private exports
+source ~/.env
+
 export EDITOR=nvim
 export PATH="/usr/lib/ccache/bin/:$PATH"
+export SSH_AUTH_SOCK=/home/tymon/.bitwarden-ssh-agent.sock
 
 
 #nodejs
@@ -99,5 +104,6 @@ bindkey '^X' create_completion
 
 source ~/.config/zshrc/aliases
 
-# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
-# [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+
+
+

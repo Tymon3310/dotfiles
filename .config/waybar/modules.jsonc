@@ -7,7 +7,7 @@
 //
 {
   "cava": {
-    //        "cava_config": "$XDG_CONFIG_HOME/cava/cava.conf",
+    // "cava_config": "$XDG_CONFIG_HOME/cava/cava.conf",
     "framerate": 30,
     "autosens": 1,
     // "sensitivity": 100,
@@ -45,18 +45,102 @@
     "active-only": false,
     "all-outputs": false,
     "show-special": false,
-    "format": "{name}",
+    "format": "  {icon}  {windows}  ",
     // "format": "{icon}",
-    "format-icons": {
-      "urgent": "",
-      "active": "",
-      "default": "",
-      "special": "",
-      "1": "",
-      "3": "",
-      "11": "",
-      "13": "",
+    "format-window-separator": " / ",
+    "window-rewrite-default": "",
+    "window-rewrite": {
+      "class<.*minecraft.*>": "󰍳",
+      "title<.*youtube.*>": "",
+      "class<.*zen twilight.*>": "󰬡",
+      "title<.*visual studio code.*>": "󰨞",
+      "title<.*firefox.*>": "",
+      "title<.*discord.*>": "",
+      "title<.*vesktop.*>": "",
+      "class<.*kitty.*>": "",
+      "class<.*dolphin.*>": "",
+      "class<.*btop.*>": "",
+      "title<.*beeper.*>": "󰬉", 
+      "class<.*steam.*>": "",
+      "title<.*prism.*>": "󰍳",
+      "title<.*bitwarden.*>": "",
+      "class<.*spotify.*>": "",
+      "class<.*streamcontroller.*>": "󱒐",
+      "class<.*thunderbird.*>": "",
+      "class<.*libreoffice.*>": "",
+      "class<.*gimp.*>": "",
+      "class<.*vlc.*>": "嗢",
+      "class<.*obs.*>": "",
+      "class<.*telegram.*>": "",
+      "class<.*slack.*>": "",
+      "class<.*evolution.*>": "",
+      "class<.*remmina.*>": "",
+      "class<.*transmission.*>": "",
+      "class<.*audacity.*>": "",
+      "class<.*blender.*>": "",
+      "class<.*kdenlive.*>": "",
+      "class<.*gparted.*>": "",
+      "class<.*virtualbox.*>": "",
+      "class<.*wireshark.*>": "",
+      "class<.*notepadqq.*>": "",
+      "class<.*keepassxc.*>": "",
+      "class<.*signal.*>": "",
+      "class<.*zoom.*>": "",
+      "class<.*teams.*>": "",
+      "class<.*remmina.*>": "",
+      "class<.*lutris.*>": "",
+      "class<.*gog-galaxy.*>": "",
+      "class<.*heroic.*>": "",
+      "class<.*epic-games.*>": "",
+      "class<.*battle.net.*>": "",
+      "class<.*origin.*>": "",
+      "class<.*uplay.*>": "",
+      "class<.*itch.*>": "",
+      "class<.*rockstar.*>": "",
+      "class<.*osu.*>": "",
+      "class<.*retroarch.*>": "",
+      "class<.*dolphin-emu.*>": "",
+      "class<.*pcsx2.*>": "",
+      "class<.*citra.*>": "",
+      "class<.*yuzu.*>": "",
+      "class<.*rpcs3.*>": "",
+      "class<.*xemu.*>": "",
+      "class<.*ppsspp.*>": "",
+      "class<.*scummvm.*>": "",
+      "class<.*dosbox.*>": "",
+      "class<.*wine.*>": "",
+      "class<.*proton.*>": "",
+      "class<.*playonlinux.*>": "",
+      "class<.*crossover.*>": "",
+      "class<.*bottles.*>": "",
+      "class<.*lutris.*>": "",
+      "class<.*heroic.*>": "",
+      "class<.*itch.*>": "",
+      "class<.*rockstar.*>": "",
+      "class<.*osu.*>": "",
+      "class<.*retroarch.*>": "",
+      "class<.*dolphin-emu.*>": "",
+      "class<.*pcsx2.*>": "",
+      "class<.*citra.*>": "",
+      "class<.*yuzu.*>": "",
+      "class<.*rpcs3.*>": "",
+      "class<.*xemu.*>": "",
+      "class<.*ppsspp.*>": "",
+      "class<.*scummvm.*>": "",
+      "class<.*dosbox.*>": "",
+      "class<.*wine.*>": "",
+      "class<.*proton.*>": "",
+      "class<.*playonlinux.*>": "",
+      "class<.*crossover.*>": "",
+      "class<.*bottles.*>": ""
     },
+    "format-icons": {
+      // "empty": "  ",
+      // "urgent": "",
+      // "active": "",
+      // "default": " ",
+      // "special": "",
+    }
   },
   "hyprland/workspaces#scratchpad": {
     "all-outputs": true,
@@ -72,7 +156,7 @@
     "format": "[ {} ]",
     "tooltip": true,
     "always-on": false,
-    "on-click": "hyprctl dispatch submap reset",
+    "on-click": "hyprctl dispatch submap reset"
   },
   "custom/spotify": {
     // "exec": "python3 -u ~/.config/waybar/scripts/scrolling-mpris",
@@ -83,7 +167,9 @@
     "on-click": "playerctl -p spotify play-pause",
     "on-scroll-up": "playerctl -p spotify volume 0.1+",
     "on-scroll-down": "playerctl -p spotify volume 0.1-",
-    "ignored-players": "[firefox, zen-browser, zen-twilight, org.mpris.MediaPlayer2.plasma-browser-integration, org.mpris.MediaPlayer2.firefox.instance_1_47933]"
+    "ignored-players": "[firefox, zen-browser, zen-twilight, org.mpris.MediaPlayer2.plasma-browser-integration, org.mpris.MediaPlayer2.firefox.instance_1_47933]",
+    "tooltip": "true",
+    "tooltip-format": "test"
     // "on-click": "playerctl --ignore-player=plasma-browser-integration,firefox play-pause",
     // "on-scroll-up": "playerctl --ignore-player=plasma-browser-integration,firefox volume 0.1+",
     // "on-scroll-down": "playerctl --ignore-player=plasma-browser-integration,firefox volume 0.1-",
@@ -105,7 +191,7 @@
     "on-click": "activate",
     "on-click-middle": "close",
     "ignore-list": [
-      "kitty",
+      "kitty"
     ],
     "app_ids-mapping": {
       "firefoxdeveloperedition": "firefox-developer-edition"
@@ -124,7 +210,7 @@
     "rewrite": {
       "(.*) Youtube (.*)": "$1 󰗃",
       "(.*) — Zen Twilight": "$1",
-      "(.*) - Visual Studio Code - Insiders": "VS Code: $1",
+      "(.*) - Visual Studio Code - Insiders": "VS Code: $1"
       // "zsh (.*) tymon": "~",
       // "zsh in (.*)": "$1",
     },
@@ -141,16 +227,17 @@
   "custom/empty": {
     "format": "    "
   },
-  "custom/updates": {
-    "format": "{} {icon}",
+  //Updates
+  "custom/pacman": {
     "return-type": "json",
+    "format": "{icon}{text}",
     "format-icons": {
-      "has-updates": "󱍷",
-      "updated": "󰂪"
+      "pending-updates": " ",
+      "updated": ""
     },
-    "exec-if": "which waybar-module-pacman-updates",
-    "exec": "waybar-module-pacman-updates --interval-seconds 5 --network-interval-seconds 300",
-    "on-click": "kitty --class kitty,floating -T floating -e ~/.config/hypr/scripts/installupdates.sh",
+    "exec-if": "which waybar-updates",
+    "exec": "waybar-updates -f '{  :pacman} {  :aur}'",
+    "on-click": "kitty --class kitty,floating -T floating -e ~/.config/hypr/scripts/installupdates.sh"
   },
   // Cliphist
   "custom/cliphist": {
@@ -160,33 +247,13 @@
     "on-click-middle": "sleep 0.1 && ~/.config/ml4w/scripts/cliphist.sh w",
     "tooltip-format": "Clipboard Manager"
   },
-  // Updates Count
-  "custom/updates-old": {
-    "format": "  {}",
-    "escape": true,
-    "return-type": "json",
-    "exec": "~/.config/waybar/scripts/updates.sh",
-    "restart-interval": 60,
-    "on-click": "kitty --class kitty,floating -T floating -e ~/.config/hypr/scripts/installupdates.sh"
-  },
-  // Keybindings
-  "custom/keybindings": {
-    "format": "",
-    "on-click": "~/.config/hypr/scripts/keybindings.sh",
-    "tooltip": false
-  },
-  // Calculator
-  "custom/calculator": {
-    "format": "",
-    "on-click": "gnome-calculator",
-    "tooltip-format": "Open calculator"
-  },
   // Rofi Application Launcher
-  "custom/appmenu": {
+  "custom/arch": {
     "format": " 󰣇 ",
     "on-click": "rofi -show drun -replace",
-    "on-click-right": "~/.config/hypr/scripts/keybindings.sh",
-    "tooltip-format": "Left: Open the application launcher\nRight: Show all keybindings"
+    // "on-click-right": "~/.config/hypr/scripts/keybindings.sh",
+    // "tooltip-format": "Left: Open the application launcher\nRight: Show all keybindings"
+    "tooltip": false
   },
   // Power Menu
   "custom/exit": {
@@ -236,7 +303,7 @@
         "weeks": "<span color='#99ffdd'><b>W{}</b></span>",
         "weekdays": "<span color='#ffcc66'><b>{}</b></span>",
         "today": "<span color='#ff6699'><b><u>{}</u></b></span>"
-      },
+      }
     },
     "actions": {
       "on-click-right": "mode",
@@ -262,7 +329,7 @@
   "memory": {
     "interval": 1,
     "format": "/  {}%  ",
-    "tooltip-format": "Memory: {used}GiB Used, Swap {swapUsed}GiB Used",
+    "tooltip-format": "Memory: {used}/{total}GiB Used, Swap {swapUsed}/{swapTotal}GiB Used",
     "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
   },
   "custom/gpu": {
@@ -282,7 +349,7 @@
     },
     "modules": [
       "memory",
-      "custom/gpu",
+      "custom/gpu"
     ]
   },
   // Harddisc space used
@@ -349,9 +416,10 @@
         ""
       ]
     },
-    "on-click": "pavucontrol",
+    // "on-click": "pavucontrol",
+    "on-click": "pwvucontrol",
     "on-click-right": "pactl set-sink-mute @DEFAULT_SINK@ toggle",
-    "on-click-middle": "pactl set-source-mute @DEFAULT_SOURCE@ toggle",
+    "on-click-middle": "pactl set-source-mute @DEFAULT_SOURCE@ toggle"
   },
   // Bluetooth
   "bluetooth": {
@@ -390,4 +458,27 @@
     "tooltip-format": "Open Notifications",
     "escape": true
   },
+  "mpris": {
+    // "interval": 0.5,
+    // "format": "{player_icon} {artist} - {title}  [{position}/{length}]",
+    "format": "{player_icon} {dynamic}",
+    "dynamic-order": "{artist} {title} {position}",
+    "dynamic-importance-order": "{artist} {title} {position}",
+    "format-paused": "{status_icon} {artist} - {title}  [{position}/{length}]",
+    "player": "spotify",
+    "player-icons": {
+      "default": "⏸ ",
+      "mpv": "🎵",
+      // "spotify": "  ",
+    },
+    "status-icons": {
+      "paused": "▶"
+    },
+    "ignored-players": [
+      "firefox"
+    ],
+    "on-click": "playerctl -p spotify play-pause",
+    "on-scroll-up": "playerctl -p spotify volume 0.1+",
+    "on-scroll-down": "playerctl -p spotify volume 0.1-",
+  }
 }

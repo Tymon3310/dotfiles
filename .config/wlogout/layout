@@ -1,36 +1,30 @@
 {
     "label" : "lock",
-    "action" : "hyprlock",
+    "action" : "~/.config/hypr/scripts/power.sh lock",
     "text" : "Lock",
     "keybind" : "l"
 }
 {
-    "label" : "hibernate",
-    "action" : "systemctl hibernate",
-    "text" : "Hibernate",
-    "keybind" : "h"
-}
-{
     "label" : "logout",
-    "action" : "hyprctl dispatch exit",
-    "text" : "Exit",
+    "action" : "~/.config/hypr/scripts/power.sh exit",
+    "text" : "Log Out",
     "keybind" : "e"
 }
 {
-    "label" : "shutdown",
-    "action" : "systemctl poweroff",
-    "text" : "Shutdown",
-    "keybind" : "s"
-}
-{
     "label" : "suspend",
-    "action" : "systemctl suspend",
+    "action" : "~/.config/hypr/scripts/power.sh suspend",
     "text" : "Suspend",
     "keybind" : "u"
 }
 {
     "label" : "reboot",
-    "action" : "systemctl reboot",
-    "text" : "Reboot",
+    "action" : "~/.config/hypr/scripts/power.sh reboot",
+    "text" : "Restart",
     "keybind" : "r"
+}
+{
+    "label" : "shutdown",
+    "action" : "~/.config/hypr/scripts/power.sh shutdown",
+    "text" : "Power Off",
+    "keybind" : "s"
 }

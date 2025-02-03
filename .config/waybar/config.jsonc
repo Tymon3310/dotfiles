@@ -22,7 +22,7 @@
   ],
   // Modules Left
   "modules-left": [
-    "custom/appmenu",
+    "custom/arch",
     "hyprland/workspaces",
     "custom/empty",
     // "wlr/taskbar",
@@ -35,6 +35,7 @@
     // "hyprland/workspaces",
     // "custom/empty",
     "custom/spotify",
+    // "mpris",
     "hyprland/workspaces#scratchpad",
   ],
   // Modules Right    
@@ -49,7 +50,8 @@
     "group/memgpu",
     "custom/weather",
     // "custom/sidebar",
-    "custom/updates",
+    "custom/pacman",
+    // "custom/updates",
     // "cava",
     "pulseaudio",
     "custom/notification",
