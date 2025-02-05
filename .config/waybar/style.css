@@ -418,7 +418,7 @@ window#waybar.empty #window {
  * ----------------------------------------------------- */
 
 #memory, #cpu, #custom-gpu, #temperature, #group-memgpu, #group-cpu {
-    margin: 0px;
+    margin: 2px 0px 0px 0px;
     padding: 0px;
     font-size: 16px;
     color: @color2;
@@ -541,7 +541,7 @@ window#waybar.empty #window {
  * ----------------------------------------------------- */
 
 #tray {
-    padding: 2px 15px 0px 2px;
+    padding: 4px 15px 0px 2px;
 }
 
 #tray > .passive {
