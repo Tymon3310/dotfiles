@@ -60,7 +60,7 @@
       "class<.*kitty.*>": "",
       "class<.*dolphin.*>": "",
       "class<.*btop.*>": "",
-      "title<.*beeper.*>": "󰬉", 
+      "title<.*beeper.*>": "󰬉",
       "class<.*steam.*>": "",
       "title<.*prism.*>": "󰍳",
       "title<.*bitwarden.*>": "",
@@ -159,7 +159,7 @@
     "on-scroll-down": "playerctl -p spotify volume 0.1-",
     "ignored-players": "[firefox, zen-browser, zen-twilight, org.mpris.MediaPlayer2.plasma-browser-integration, org.mpris.MediaPlayer2.firefox.instance_1_47933]",
     "tooltip": "true",
-    "tooltip-format": "test"
+    "tooltip-format": "{}"
     // "on-click": "playerctl --ignore-player=plasma-browser-integration,firefox play-pause",
     // "on-scroll-up": "playerctl --ignore-player=plasma-browser-integration,firefox volume 0.1+",
     // "on-scroll-down": "playerctl --ignore-player=plasma-browser-integration,firefox volume 0.1-",

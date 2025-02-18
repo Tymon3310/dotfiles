@@ -1,10 +1,10 @@
 #!/bin/bash
-# __  ______   ____ 
+# __  ______   ____
 # \ \/ /  _ \ / ___|
-#  \  /| | | | |  _ 
+#  \  /| | | | |  _
 #  /  \| |_| | |_| |
 # /_/\_\____/ \____|
-#                   
+#
 
 sleep 1
 
@@ -23,11 +23,17 @@ sleep 1
 sleep 2
 
 # start xdg-desktop-portal-gtk
-if [ -f /usr/lib/xdg-desktop-portal-gtk ] ;then
-    /usr/lib/xdg-desktop-portal-gtk &
-    sleep 1
+if [ -f /usr/lib/xdg-desktop-portal-gtk ]; then
+  /usr/lib/xdg-desktop-portal-gtk &
+  sleep 1
+fi
+
+if [ -f /usr/lib/xdg-desktop-portal-kde ]; then
+  /usr/lib/xdg-desktop-portal-kde &
+  sleep 1
 fi
 
 # start xdg-desktop-portal
 /usr/lib/xdg-desktop-portal &
 sleep 1
+
