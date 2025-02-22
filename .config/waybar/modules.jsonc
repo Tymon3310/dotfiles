@@ -149,17 +149,21 @@
     "on-click": "hyprctl dispatch submap reset"
   },
   "custom/spotify": {
+    "type": "custom/script",
+    "return-type": "json",
     // "exec": "python3 -u ~/.config/waybar/scripts/scrolling-mpris",
     "exec": "~/.config/waybar/scripts/player.py",
     "format": "{}",
-    "restart-interval": 1,
+    // "restart-interval": 1,
     // "return-type": "json",
     "on-click": "playerctl -p spotify play-pause",
     "on-scroll-up": "playerctl -p spotify volume 0.1+",
     "on-scroll-down": "playerctl -p spotify volume 0.1-",
+    "on-click-right": "playerctl -p spotify ",
+    "on-scroll-left": "playerctl -p spotify previous",
+    "on-scroll-right": "playerctl -p spotify next",
     "ignored-players": "[firefox, zen-browser, zen-twilight, org.mpris.MediaPlayer2.plasma-browser-integration, org.mpris.MediaPlayer2.firefox.instance_1_47933]",
     "tooltip": "true",
-    "tooltip-format": "{}"
     // "on-click": "playerctl --ignore-player=plasma-browser-integration,firefox play-pause",
     // "on-scroll-up": "playerctl --ignore-player=plasma-browser-integration,firefox volume 0.1+",
     // "on-scroll-down": "playerctl --ignore-player=plasma-browser-integration,firefox volume 0.1-",
