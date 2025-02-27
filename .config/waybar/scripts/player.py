@@ -137,14 +137,14 @@ def get_loop():  # returns loop character if loops, not_loop character if not
         return not_loop_icon
 
 
-def get_shuffle():  # returns shuffle character if shuffles, not_shuffle character if not
+def get_shuffle():  # returns shuffle character if on, not_shuffle character if off
     try:
         status = (
             subprocess.check_output(["playerctl", "-p", player, "shuffle"])
             .decode("utf-8")
             .strip()
         )
-        return shuffle_icon if status == "Shuffle" else not_shuffle_icon
+        return shuffle_icon if status == "On" else not_shuffle_icon
     except Exception:
         return not_shuffle_icon
 
