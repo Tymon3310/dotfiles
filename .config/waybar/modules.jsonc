@@ -122,7 +122,22 @@
       "title<.*firefox dev tools.*>": "",
       "title<.*browser tool box.*>": "",
       "title<.*quickcss editor.*>": "",
-      "title<.*electron dev tools.*>": ""
+      "title<.*electron dev tools.*>": "",
+      "class<.*kate.*>": "",
+      "class<.*konsole.*>": "",
+      "class<.*gedit.*>": "",
+      "class<.*code-oss.*>": "",
+      "class<.*sublime_text.*>": "",
+      "class<.*kate.*>": "",
+      "class<.*konsole.*>": "",
+      "class<.*kwrite.*>": "",
+      "class<.*kmail.*>": "",
+      "class<.*kcalc.*>": "",
+      "class<.*brave-browser.*>": "",
+      "class<.*pwvucontrol.*>": "",
+      "class<.*gwenview.*>": "",
+      "class<.*kcolorchooser.*>": "",
+      "class<.*okular.*>": ""
     },
     "format-icons": {
       // "empty": "  ",

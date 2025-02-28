@@ -23,4 +23,3 @@ echo "YOU ARE IN BASH, TYPE ZSH FOR MORE FULL FEATURED SHELL"
 # -----------------------------------------------------
 
 source ~/.config/zshrc/aliases
-

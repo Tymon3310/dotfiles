@@ -19,6 +19,7 @@
   "include": [
     "~/.config/waybar/quicklinks.jsonc",
     "~/.config/waybar/modules.jsonc"
+    // "~/.config/waybar/workspaces.jsonc"
   ],
   // Modules Left
   "modules-left": [
