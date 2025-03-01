@@ -16,37 +16,37 @@ if status is-interactive
         bind --preset ctrl-l "ls -la"
         bind --preset escape 'for cmd in sudo doas please; if command -q $cmd; fish_commandline_prepend $cmd; break; end; end'
     end
-    
+
     # Enable fzf integration
     if command -v fzf &>/dev/null
         fzf_key_bindings
     end
-    
+
     set -g async_prompt_functions _tide_item_git
-    
+
     # -----------------------------------------------------
     # ABBREVIATIONS
     # -----------------------------------------------------
 
     # General
-    abbr -a c 'clear'
-    abbr -a nf 'fastfetch'
-    abbr -a pf 'fastfetch'
-    abbr -a ff 'fastfetch'
-    abbr -a ls 'eza -a --icons'
-    abbr -a ll 'eza -al --icons'
-    abbr -a lt 'eza -a --tree --level=1 --icons'
+    abbr -a c clear
+    abbr -a nf fastfetch
+    abbr -a pf fastfetch
+    abbr -a ff fastfetch
+    alias ls='eza -a --icons'
+    alias ll='eza -al --icons'
+    alias lt='eza -a --tree --level=1 --icons'
     abbr -a sd 'systemctl poweroff'
     abbr -a v '$EDITOR'
     abbr -a vi '$EDITOR'
     abbr -a vim '$EDITOR'
     abbr -a icat 'kitten icat'
-    abbr -a cat 'bat'
-    
+    abbr -a cat bat
+
     # -----------------------------------------------------
-    # CUSTOM CD COMMAND
+    # CUSTOM ARGUMENTS
     # -----------------------------------------------------
-    
+
     function cd
         # Handle special patterns
         switch $argv[1]
@@ -62,7 +62,16 @@ if status is-interactive
                 builtin cd $argv
         end
     end
-    
+
+    # Enhanced fastfetch with options
+    function fastfetch
+        if test "$argv[1]" = --full
+            command fastfetch -c ~/.config/fastfetch/config-full.jsonc $argv[2..-1]
+        else
+            command fastfetch $argv
+        end
+    end
+
     # -----------------------------------------------------
     # GIT ABBREVIATIONS
     # -----------------------------------------------------
@@ -78,30 +87,30 @@ if status is-interactive
     abbr -a gcred 'git config credential.helper store'
     abbr -a gfo 'git fetch origin'
     abbr -a guncommit 'git reset --soft HEAD~1'
-    
+
     function gaa
         git add .
         git commit -m "$argv"
         git push
     end
-    
+
     # -----------------------------------------------------
     # SCRIPT ABBREVIATIONS
     # -----------------------------------------------------
 
     abbr -a ascii '~/.config/hypr/scripts/ascii-text.sh'
     abbr -a matrix 'unimatrix -a -f -s 95'
-    
+
     # -----------------------------------------------------
     # SYSTEM ABBREVIATIONS
     # -----------------------------------------------------
-    
+
     # System
     abbr -a update-grub 'sudo grub-mkconfig -o /boot/grub/grub.cfg'
     abbr -a pacunl 'sh ~/.config/hypr/scripts/unlock-pacman.sh'
     abbr -a dg 'sudo downgrade'
-    
-    
+    abbr -a vsc code-insiders
+
     # Pacman
     abbr -a pacupg 'sudo pacman -Syu'
     abbr -a pacin 'sudo pacman -S'
@@ -122,12 +131,11 @@ if status is-interactive
     abbr -a pacls 'pacman -Ql'
     abbr -a pacown 'pacman -Qo'
     abbr -a pacupd 'sudo pacman -Sy'
-    
+
     function pacrmorphans
         sudo pacman -Rs (pacman -Qtdq)
     end
-    
-    
+
     # Yay
     if command -v yay &>/dev/null
         abbr -a yaconf 'yay -Pg'
@@ -149,10 +157,10 @@ if status is-interactive
         abbr -a yamir 'yay -Syy'
         abbr -a yaupd 'yay -Sy'
     end
-    
+
     # Flatpak
     if command -v flatpak &>/dev/null
-        abbr -a fpk 'flatpak'
+        abbr -a fpk flatpak
         abbr -a fpkin 'flatpak install'
         abbr -a fpkup 'flatpak update'
         abbr -a fpkupg 'flatpak update -y'
@@ -173,14 +181,28 @@ if status is-interactive
     end
 
     # -----------------------------------------------------
+    # SYSTEM COMMANDS
+    # -----------------------------------------------------
+
+    # Allow using vanilla ls command (bypassing alias)
+    function lsv
+        command ls $argv
+    end
+
+    # Allow using vanilla cat command (bypassing alias)
+    function catv
+        command cat $argv
+    end
+
+    # -----------------------------------------------------
     # SETTINGS
     # -----------------------------------------------------
 
     set -g fish_history_path ~/.local/share/fish/fish_history
     set -g fish_history_max_age 3650
-    
+
     set -gx GREP_OPTIONS "--color=auto"
-    
+
     # FZF settings
     set -gx FZF_DEFAULT_OPTS "--height 40% --layout=reverse --border --inline-info"
     set -gx FZF_DEFAULT_COMMAND "fd --type f --hidden --follow --exclude .git"
@@ -227,6 +249,13 @@ if status is-interactive
         thefuck --alias | source
     end
 
+    #VSCode
+    string match -q "$TERM_PROGRAM" vscode
+    and . (code-insiders --locate-shell-integration-path fish)
+    # if set -q TERM_PROGRAM; and test "$TERM_PROGRAM" = vscode
+    #     eval "$(oh-my-posh init fish --config ~/.config/ohmyposh/kushal.omp.json)"
+    # end
+
     # -----------------------------------------------------
     # FUNCTIONS
     # -----------------------------------------------------
@@ -258,42 +287,42 @@ if status is-interactive
         end
     end
 
-     # Update system packages
+    # Update system packages
     function update
-        echo "Updating Pacman packages..."
-        sudo pacman -Syu
-        
+
         if command -v yay &>/dev/null
-            echo "Updating AUR packages..."
+            echo "Updating Pacman and AUR packages..."
             yay -Syu
-            
-      echo "Updating Zen Twilight..."
+
+            echo "Updating Zen Twilight..."
             # Only update Zen Twilight if it's already installed
             if pacman -Q zen-twilight-bin &>/dev/null
                 # First remove the old package if installed
                 yay -R zen-twilight-bin --noconfirm
-                
+
                 # Clean the cache directory for zen-twilight-bin
                 if test -d ~/.cache/yay/zen-twilight-bin
                     rm -rf ~/.cache/yay/zen-twilight-bin
                 end
-                
+
                 # Install the package with force rebuild options
                 yay -S zen-twilight-bin --noconfirm --redownload --rebuild --cleanafter
                 echo "Zen Twilight updated successfully!"
             else
                 echo "Zen Twilight not installed, skipping update."
             end
+        else
+            echo "Updating Pacman packages..."
+            sudo pacman -Syu
         end
-        
+
         if command -v flatpak &>/dev/null
             echo "Updating Flatpak packages..."
             flatpak update -y
         end
-        
+
         echo "System update complete!"
     end
-
 
     # -----------------------------------------------------
     # GREETING
