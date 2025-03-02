@@ -342,12 +342,118 @@
     "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
   },
   "custom/gpu": {
-    "exec": "cat /sys/class/hwmon/hwmon3/device/gpu_busy_percent",
-    "format": " {}% ",
-    "return-type": "",
-    "interval": 1,
-    "tooltip-format": "GPU: {}% Usage",
+    "format": "<span size='x-large' rise='-1500' >󰾲</span> <span rise='+1800'>  {0} </span>",
+    "exec": "gpu-usage-waybar",
+    "return-type": "json",
     "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
+  },
+  "temperature#gpu": {
+    "format": " {temperatureC}°C ",
+    "format-critical": "<span color=\"#ed7a2d\">  {temperatureC}°C</span> ",
+    "hwmon-path": "/sys/class/drm/card1/device/hwmon/hwmon3/temp1_input",
+    "interval": 1,
+    "critical-threshold": 90,
+    "tooltip-format": "GPU: {temperatureC}°C Average",
+    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
+  },
+  "temperature#gpu_power": {
+    "format": " {temperatureC}W ",
+    "hwmon-path": "/sys/class/drm/card1/device/hwmon/hwmon3/power1_average",
+    "interval": 1,
+    "tooltip-format": "GPU: {temperatureC}W Average",
+    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
+  },
+  "temperature#cpu": {
+    "format": " {temperatureC}°C ",
+    "format-critical": "<span color=\"#ed7a2d\">  {temperatureC}°C</span> ",
+    "hwmon-path": "/sys/class/hwmon/hwmon4/temp2_input",
+    "interval": 1,
+    "critical-threshold": 90,
+    "tooltip-format": "CPU: {temperatureC}°C Average",
+    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
+  },
+  "temperature#cpu_power": {
+    "format": " {temperatureC}W ",
+    "hwmon-path": "/sys/class/hwmon/hwmon4/power1_input",
+    "interval": 1,
+    "tooltip-format": "CPU: {temperatureC}W Average",
+    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
+  },
+  "custom/power": {
+  "exec": "~/.config/waybar/scripts/power.py",
+  "format": "{}",
+  "return-type": "json",
+  "interval": 2,
+  "tooltip": true,
+  "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
+  },
+    "custom/cpu_temp": {
+    "exec": "~/.config/waybar/scripts/temp.py cpu",
+    "format": "{}",
+    "return-type": "json",
+    "interval": 2,
+    "tooltip": true,
+    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
+  },
+  
+  "custom/gpu_temp": {
+    "exec": "~/.config/waybar/scripts/temp.py gpu",
+    "format": "{}",
+    "return-type": "json",
+    "interval": 2,
+    "tooltip": true,
+    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
+  },
+  "custom/cpu_usage": {
+  "exec": "~/.config/waybar/scripts/usage.py cpu",
+  "format": "{}",
+  "return-type": "json",
+  "interval": 2,
+  "tooltip": true,
+  "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
+},
+
+"custom/gpu_usage": {
+  "exec": "~/.config/waybar/scripts/usage.py gpu",
+  "format": "{}",
+  "return-type": "json",
+  "interval": 2,
+  "tooltip": true,
+  "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
+},
+"custom/memory_usage": {
+  "exec": "~/.config/waybar/scripts/usage.py memory",
+  "format": "{}",
+  "return-type": "json",
+  "interval": 5,
+  "tooltip": true,
+  "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
+},
+  "group/cpu": {
+    "orientation": "inherit",
+    "drawer": {
+      "transition-duration": 300,
+      "children-class": "not-memory",
+      "transition-left-to-right": true
+    },
+    "modules": [
+      "custom/cpu_usage",
+      "custom/cpu_temp",
+      "custom/power"
+      
+    ]
+  },
+  "group/gpu": {
+    "orientation": "inherit",
+    "drawer": {
+      "transition-duration": 300,
+      "children-class": "not-custom/gpu",
+      "transition-left-to-right": true
+    },
+    "modules": [
+      "custom/gpu_usage",
+      "custom/gpu_temp"
+    ]
   },
   "group/memgpu": {
     "orientation": "inherit",
@@ -357,36 +463,8 @@
       "transition-left-to-right": true
     },
     "modules": [
-      "memory",
-      "custom/gpu"
-    ]
-  },
-  // Harddisc space used
-  "disk": {
-    "interval": 30,
-    "format": "D {percentage_used}% ",
-    "path": "/",
-    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-  },
-  "temperature": {
-    "format": " {temperatureC}°C ",
-    "format-critical": "<span color=\"#ed7a2d\">  {temperatureC}°C</span> ",
-    "hwmon-path": "/sys/class/hwmon/hwmon4/temp2_input",
-    "interval": 1,
-    "critical-threshold": 90,
-    "tooltip-format": "CPU: {temperatureC}°C Average",
-    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-  },
-  "group/cpu": {
-    "orientation": "inherit",
-    "drawer": {
-      "transition-duration": 300,
-      "children-class": "not-memory",
-      "transition-left-to-right": true
-    },
-    "modules": [
-      "cpu",
-      "temperature"
+      "custom/memory_usage",
+      "group/gpu"
     ]
   },
   // Network
