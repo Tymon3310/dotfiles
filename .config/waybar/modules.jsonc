@@ -52,6 +52,8 @@
     "window-rewrite": {
       "class<.*minecraft.*>": "󰍳",
       "title<.*youtube.*>": "",
+      "title<.*twitch.*>": "",
+      "class<.*com.github.th_ch.youtube_music.*> title<.*Youtube Music*.>": "",
       "class<.*zen twilight.*>": "󰬡",
       "title<.*visual studio code.*>": "󰨞",
       "title<.*firefox.*>": "",
@@ -171,12 +173,18 @@
     "format": "{}",
     // "restart-interval": 1,
     // "return-type": "json",
-    "on-click": "playerctl -p spotify play-pause",
-    "on-scroll-up": "playerctl -p spotify volume 0.1+",
-    "on-scroll-down": "playerctl -p spotify volume 0.1-",
-    "on-click-right": "playerctl -p spotify ",
-    "on-scroll-left": "playerctl -p spotify previous",
-    "on-scroll-right": "playerctl -p spotify next",
+    // "on-click": "playerctl -p spotify play-pause",
+    // "on-scroll-up": "playerctl -p spotify volume 0.1+",
+    // "on-scroll-down": "playerctl -p spotify volume 0.1-",
+    // "on-click-right": "playerctl -p spotify ",
+    // "on-scroll-left": "playerctl -p spotify previous",
+    // "on-scroll-right": "playerctl -p spotify next",
+    "on-click": "playerctl -p YoutubeMusic play-pause",
+    "on-scroll-up": "playerctl -p YoutubeMusic volume 0.1+",
+    "on-scroll-down": "playerctl -p YoutubeMusic volume 0.1-",
+    "on-click-right": "playerctl -p YoutubeMusic ",
+    "on-scroll-left": "playerctl -p YoutubeMusic previous",
+    "on-scroll-right": "playerctl -p YoutubeMusic next",
     "ignored-players": "[firefox, zen-browser, zen-twilight, org.mpris.MediaPlayer2.plasma-browser-integration, org.mpris.MediaPlayer2.firefox.instance_1_47933]",
     "tooltip": "true",
     // "on-click": "playerctl --ignore-player=plasma-browser-integration,firefox play-pause",
@@ -342,9 +350,11 @@
     "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
   },
   "custom/gpu": {
-    "format": "<span size='x-large' rise='-1500' >󰾲</span> <span rise='+1800'>  {0} </span>",
-    "exec": "gpu-usage-waybar",
-    "return-type": "json",
+    "exec": "cat /sys/class/hwmon/hwmon3/device/gpu_busy_percent",
+    "format": " {}% ",
+    "return-type": "",
+    "interval": 1,
+    "tooltip-format": "GPU: {}% Usage",
     "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
   },
   "temperature#gpu": {
@@ -356,13 +366,6 @@
     "tooltip-format": "GPU: {temperatureC}°C Average",
     "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
   },
-  "temperature#gpu_power": {
-    "format": " {temperatureC}W ",
-    "hwmon-path": "/sys/class/drm/card1/device/hwmon/hwmon3/power1_average",
-    "interval": 1,
-    "tooltip-format": "GPU: {temperatureC}W Average",
-    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-  },
   "temperature#cpu": {
     "format": " {temperatureC}°C ",
     "format-critical": "<span color=\"#ed7a2d\">  {temperatureC}°C</span> ",
@@ -370,13 +373,6 @@
     "interval": 1,
     "critical-threshold": 90,
     "tooltip-format": "CPU: {temperatureC}°C Average",
-    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-  },
-  "temperature#cpu_power": {
-    "format": " {temperatureC}W ",
-    "hwmon-path": "/sys/class/hwmon/hwmon4/power1_input",
-    "interval": 1,
-    "tooltip-format": "CPU: {temperatureC}W Average",
     "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
   },
   "custom/power": {
@@ -443,19 +439,20 @@
       
     ]
   },
-  "group/gpu": {
+  "group/memgpu": {
     "orientation": "inherit",
     "drawer": {
       "transition-duration": 300,
-      "children-class": "not-custom/gpu",
+      "children-class": "not-memory",
       "transition-left-to-right": true
     },
     "modules": [
+      "custom/memory_usage",
       "custom/gpu_usage",
       "custom/gpu_temp"
     ]
   },
-  "group/memgpu": {
+  "group/memgpua": {
     "orientation": "inherit",
     "drawer": {
       "transition-duration": 300,

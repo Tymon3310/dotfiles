@@ -31,6 +31,14 @@ GPU_MEMORY_USED_PATTERNS = [
     "/sys/class/hwmon/hwmon*/device/mem_info_vram_used"
 ]
 
+# Standard colors for all scripts - updated with lighter primary color
+PRIMARY_COLOR = "#48A3FF"     # Lighter blue color that's more visible
+WHITE_COLOR = "#FFFFFF"       # White text color
+WARNING_COLOR = "#ff9a3c"     # Orange warning color from CSS .yellow 
+CRITICAL_COLOR = "#dc2f2f"    # Red critical color from CSS .red
+NEUTRAL_COLOR = "#FFFFFF"     # White for normal text
+HEADER_COLOR = "#48A3FF"      # Lighter blue for section headers
+
 def find_path(patterns):
     """Find existing file path from a list of glob patterns"""
     if isinstance(patterns, str):
@@ -74,14 +82,28 @@ def get_cpu_usage():
     except Exception:
         load1, load5, load15 = None, None, None
     
-    # Format output for Waybar
-    output = {
-        "text": f"<span size='large' rise='-2000'>󰻠</span> {overall:.1f}% ",
-        "tooltip": f"<span color='#8bd5ca'>󰻠 CPU Usage: {overall:.1f}%</span>\n\n"
-    }
+    # Format output for Waybar with conditional formatting for high usage
+    if overall > 90:
+        output = {
+            "text": f"<span size='large' rise='-1000'>󰍛</span>\u00A0 <span color='{CRITICAL_COLOR}'>{overall:.1f}%</span> ",
+            "tooltip": f"<span color='{PRIMARY_COLOR}'>󰍛 CPU Usage: {overall:.1f}%</span>\n\n",
+            "class": "critical"
+        }
+    elif overall > 70:
+        output = {
+            "text": f"<span size='large' rise='-1000'>󰍛</span>\u00A0 <span color='{WARNING_COLOR}'>{overall:.1f}%</span> ",
+            "tooltip": f"<span color='{PRIMARY_COLOR}'>󰍛 CPU Usage: {overall:.1f}%</span>\n\n",
+            "class": "high"
+        }
+    else:
+        output = {
+            "text": f"<span size='large' rise='-1000'>󰍛</span>\u00A0 {overall:.1f}% ",
+            "tooltip": f"<span color='{PRIMARY_COLOR}'>󰍛 CPU Usage: {overall:.1f}%</span>\n\n",
+            "class": "normal"
+        }
     
     # Add core-by-core information
-    output["tooltip"] += "<span color='#f4b8e4'>󰘚 Per-Core Usage:</span>\n"
+    output["tooltip"] += f"<span color='{PRIMARY_COLOR}'>󰘚 Per-Core Usage:</span>\n"
     
     cores_per_row = 4
     core_rows = [per_core[i:i+cores_per_row] for i in range(0, len(per_core), cores_per_row)]
@@ -97,13 +119,13 @@ def get_cpu_usage():
             core_num = i * cores_per_row + j
             # Color-code the usage
             if usage > 90:
-                color = "#f38ba8"  # Red for high usage
+                color = CRITICAL_COLOR  # Red for high usage
             elif usage > 70:
-                color = "#fab387"  # Orange for medium-high
+                color = WARNING_COLOR  # Orange for medium-high
             elif usage > 50:
-                color = "#f9e2af"  # Yellow for medium
+                color = PRIMARY_COLOR  # Yellow for medium
             else:
-                color = "#a6e3a1"  # Green for low
+                color = NEUTRAL_COLOR  # Green for low
                 
             core_texts.append(f"Core {core_num}: <span color='{color}'>{usage:.1f}%</span>")
         
@@ -111,25 +133,17 @@ def get_cpu_usage():
     
     # Add frequency information if available
     if current_freq:
-        output["tooltip"] += f"\n<span color='#89b4fa'>󰓅 CPU Frequency:</span> {current_freq/1000:.2f} GHz\n"
+        output["tooltip"] += f"\n<span color='{PRIMARY_COLOR}'>󰓅 CPU Frequency:</span> {current_freq/1000:.2f} GHz\n"
     
     # Add load average information
     if load1 is not None:
-        output["tooltip"] += f"\n<span color='#89b4fa'>󱘲 Load Average:</span>\n"
+        output["tooltip"] += f"\n<span color='{PRIMARY_COLOR}'>󱘲 Load Average:</span>\n"
         output["tooltip"] += f" ├─ 1 min: {load1:.2f}\n"
         output["tooltip"] += f" ├─ 5 min: {load5:.2f}\n"
         output["tooltip"] += f" └─ 15 min: {load15:.2f}\n"
     
     # Add process count
-    output["tooltip"] += f"\n<span color='#89b4fa'>󰅵 Processes:</span> {len(psutil.pids())}\n"
-    
-    # Add class based on usage
-    if overall > 90:
-        output["class"] = "critical"
-    elif overall > 70:
-        output["class"] = "warning"
-    else:
-        output["class"] = "normal"
+    output["tooltip"] += f"\n<span color='{PRIMARY_COLOR}'>󰅵 Processes:</span> {len(psutil.pids())}\n"
     
     return output
 
@@ -170,30 +184,36 @@ def get_gpu_usage():
         mem_total_gib = None
         mem_used_gib = None
     
-    # Format output for Waybar
+    # Format output for Waybar with conditional formatting for high usage
     if usage is not None:
-        output = {
-            "text": f"<span size='x-large' rise='-2000'>󰢮</span>\u00A0\u00A0 {usage}% ",
-            "tooltip": f"<span color='#f4b8e4'>󰢮 GPU Usage: {usage}%</span>\n"
-        }
+        if usage > 90:
+            output = {
+                "text": f"<span size='large' rise='-2000'>󰢮</span>\u00A0 <span color='{CRITICAL_COLOR}'>{usage}%</span> ",
+                "tooltip": f"<span color='{PRIMARY_COLOR}'>󰢮 GPU Usage: {usage}%</span>\n",
+                "class": "critical"
+            }
+        elif usage > 70:
+            output = {
+                "text": f"<span size='large' rise='-2000'>󰢮</span>\u00A0 <span color='{WARNING_COLOR}'>{usage}%</span> ",
+                "tooltip": f"<span color='{PRIMARY_COLOR}'>󰢮 GPU Usage: {usage}%</span>\n",
+                "class": "high"
+            }
+        else:
+            output = {
+                "text": f"<span size='large' rise='-2000'>󰢮</span>\u00A0 {usage}% ",
+                "tooltip": f"<span color='{PRIMARY_COLOR}'>󰢮 GPU Usage: {usage}%</span>\n",
+                "class": "normal"
+            }
         
         # Add memory information if available
         if mem_percent is not None:
-            output["tooltip"] += f"\n<span color='#89b4fa'>󰍛 VRAM Usage:</span>\n"
+            output["tooltip"] += f"\n<span color='{PRIMARY_COLOR}'>󰍹 VRAM Usage:</span>\n"
             output["tooltip"] += f" ├─ Used: {mem_used_gib:.2f} GiB\n"
             output["tooltip"] += f" ├─ Total: {mem_total_gib:.2f} GiB\n"
             output["tooltip"] += f" └─ Percentage: {mem_percent:.1f}%\n"
-        
-        # Add class based on usage
-        if usage > 90:
-            output["class"] = "critical"
-        elif usage > 70:
-            output["class"] = "warning"
-        else:
-            output["class"] = "normal"
     else:
         output = {
-            "text": f"<span size='x-large' rise='-2000'>󰢮</span>\u00A0\u00A0 N/A ",
+            "text": f"<span size='large'>󰢮</span>\u00A0 N/A ",
             "tooltip": "GPU usage sensor not found",
             "class": "error"
         }
@@ -214,21 +234,42 @@ def get_memory_usage():
     swap_total_gib = swap.total / (1024 * 1024 * 1024)
     swap_used_gib = swap.used / (1024 * 1024 * 1024)
     
-    # Format output for Waybar
+    # Format output for Waybar with conditional formatting for high usage
+    # In get_memory_usage function, update all three output blocks:
+    
+    # For high memory usage (>90%)
     output = {
-        "text": f"<span size='x-large' rise='-2000'>󰍛</span>\u00A0 {memory.percent}% ",
-        "tooltip": f"<span color='#8bd5ca'>󰍛 Memory Usage: {memory.percent}%</span>\n\n"
+        "text": f"<span size='large' rise='-2000'></span>\u00A0 <span color='{CRITICAL_COLOR}'>{memory.percent}%</span> ",
+        "tooltip": f"<span color='{PRIMARY_COLOR}'> Memory Usage: {memory.percent}%</span>\n\n",
+        "class": "critical"
     }
     
+    # For medium memory usage (>70%)
+    output = {
+        "text": f"<span size='large' rise='-2000'></span>\u00A0 <span color='{WARNING_COLOR}'>{memory.percent}%</span> ",
+        "tooltip": f"<span color='{PRIMARY_COLOR}'> Memory Usage: {memory.percent}%</span>\n\n",
+        "class": "high"
+    }
+    
+    # For normal memory usage
+    output = {
+        "text": f"<span size='large' rise='-2000'></span>\u00A0 {memory.percent}% ",
+        "tooltip": f"<span color='{PRIMARY_COLOR}'> Memory Usage: {memory.percent}%</span>\n\n",
+        "class": "normal"
+    }
+    
+    # Also update the tooltip RAM icon
+    output["tooltip"] += f"<span color='{PRIMARY_COLOR}'>󰘚 RAM:</span>\n"
+    
     # Add RAM details
-    output["tooltip"] += "<span color='#f4b8e4'>󰘚 RAM:</span>\n"
+    output["tooltip"] += f"<span color='{PRIMARY_COLOR}'>󰘚 RAM:</span>\n"
     output["tooltip"] += f" ├─ Used: {mem_used_gib:.2f} GiB\n"
     output["tooltip"] += f" ├─ Total: {mem_total_gib:.2f} GiB\n"
     output["tooltip"] += f" └─ Available: {mem_available_gib:.2f} GiB\n"
     
     # Add swap details
     if swap_total_gib > 0:
-        output["tooltip"] += f"\n<span color='#89b4fa'>󰓡 Swap:</span>\n"
+        output["tooltip"] += f"\n<span color='{PRIMARY_COLOR}'>󰓡 Swap:</span>\n"
         output["tooltip"] += f" ├─ Used: {swap_used_gib:.2f} GiB ({swap.percent}%)\n"
         output["tooltip"] += f" └─ Total: {swap_total_gib:.2f} GiB\n"
     
@@ -244,20 +285,20 @@ def get_memory_usage():
     top_processes = sorted(processes, key=lambda x: x['memory_percent'], reverse=True)[:5]
     
     if top_processes:
-        output["tooltip"] += f"\n<span color='#f5c2e7'>󰅵 Top Memory Processes:</span>\n"
+        output["tooltip"] += f"\n<span color='{PRIMARY_COLOR}'>󰅵 Top Memory Processes:</span>\n"
         for i, proc in enumerate(top_processes):
             prefix = " └─ " if i == len(top_processes) - 1 else " ├─ "
             try:
                 mem_use = proc['memory_percent']
                 # Color-code the memory usage
                 if mem_use > 10:
-                    color = "#f38ba8"  # Red
+                    color = CRITICAL_COLOR  # Red for high usage
                 elif mem_use > 5:
-                    color = "#fab387"  # Orange
+                    color = WARNING_COLOR  # Orange for medium-high
                 elif mem_use > 1:
-                    color = "#f9e2af"  # Yellow
+                    color = PRIMARY_COLOR  # Blue for medium
                 else:
-                    color = "#a6e3a1"  # Green
+                    color = NEUTRAL_COLOR  # White for low
                 
                 output["tooltip"] += f"{prefix}{proc['name']} (PID: {proc['pid']}): <span color='{color}'>{mem_use:.1f}%</span>\n"
             except:
@@ -267,7 +308,7 @@ def get_memory_usage():
     if memory.percent > 90:
         output["class"] = "critical"
     elif memory.percent > 70:
-        output["class"] = "warning"
+        output["class"] = "high"
     else:
         output["class"] = "normal"
     

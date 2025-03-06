@@ -36,6 +36,14 @@ GPU_ADDITIONAL_PATTERNS = {
     "hotspot": "/sys/class/drm/card*/device/hwmon/hwmon*/temp4_input"
 }
 
+# Standard colors for all scripts - updated with lighter primary color
+PRIMARY_COLOR = "#48A3FF"     # Lighter blue color that's more visible
+WHITE_COLOR = "#FFFFFF"       # White text color
+WARNING_COLOR = "#ff9a3c"     # Orange warning color from CSS .yellow 
+CRITICAL_COLOR = "#dc2f2f"    # Red critical color from CSS .red
+NEUTRAL_COLOR = "#FFFFFF"     # White for normal text
+HEADER_COLOR = "#48A3FF"      # Lighter blue for section headers
+
 def find_path(patterns):
     """Find existing file path from a list of glob patterns"""
     if isinstance(patterns, str):
@@ -83,13 +91,30 @@ def get_cpu_temp():
     # Critical temperature for AMD CPUs is typically around 95°C
     critical_temp = 95.0
     
-    # Format output for Waybar
+    # Format output for Waybar with conditional formatting for high temps
     if temp is not None:
-        output = {
-            "text": f" {temp:.1f}°C ",
-            "tooltip": f"<span color='#8bd5ca'>󰔏 CPU Temperature:</span>\n"
-                      f" ├─ Core: {temp:.1f}°C\n"
-        }
+        # CPU temperature formatting
+        if temp > critical_temp - 5:  # Within 5° of critical
+            output = {
+                "text": f" <span color='{CRITICAL_COLOR}'>{temp:.1f}°C</span> ",
+                "tooltip": f"<span color='{PRIMARY_COLOR}'>󰔏 CPU Temperature:</span>\n",
+                "class": "critical"
+            }
+        elif temp > critical_temp - 15:  # Within 15° of critical
+            output = {
+                "text": f" <span color='{WARNING_COLOR}'>{temp:.1f}°C</span> ",
+                "tooltip": f"<span color='{PRIMARY_COLOR}'>󰔏 CPU Temperature:</span>\n",
+                "class": "high"
+            }
+        else:
+            output = {
+                "text": f" {temp:.1f}°C ",
+                "tooltip": f"<span color='{PRIMARY_COLOR}'>󰔏 CPU Temperature:</span>\n",
+                "class": "normal"
+            }
+        
+        # Add core temperature to tooltip
+        output["tooltip"] += f" ├─ Core: {temp:.1f}°C\n"
         
         # Add additional sensors to tooltip
         if additional_temps:
@@ -101,13 +126,11 @@ def get_cpu_temp():
         else:
             output["tooltip"] += f" └─ Critical: {critical_temp}°C\n"
         
-        # Add warning if temperature is high
-        if temp > critical_temp - 10:
-            output["tooltip"] += f"\n<span color='#f38ba8'>⚠ Warning: CPU temperature is high!</span>"
-            output["class"] = "critical"
+        # For high temperature warning
+        output["tooltip"] += f"\n<span color='{CRITICAL_COLOR}'>⚠ high: CPU temperature is high!</span>"
     else:
         output = {
-            "text": " N/A ",
+            "text": f" N/A ",
             "tooltip": "CPU temperature sensor not found",
             "class": "error"
         }
@@ -135,14 +158,32 @@ def get_gpu_temp():
     
     # Critical temperature for AMD GPUs is typically around 110°C for junction
     critical_temp = 110.0 if "junction" in additional_temps else 95.0
+    junction_temp = additional_temps.get("junction", temp)
     
-    # Format output for Waybar
+    # Format output for Waybar with conditional formatting for high temps
     if temp is not None:
-        output = {
-            "text": f" {temp:.1f}°C ",
-            "tooltip": f"<span color='#f4b8e4'>󰔏 GPU Temperature:</span>\n"
-                      f" ├─ Edge: {temp:.1f}°C\n"
-        }
+        # Similar updates for GPU temperature
+        if junction_temp > critical_temp - 10:  # Within 10° of critical
+            output = {
+                "text": f" <span color='{CRITICAL_COLOR}'>{temp:.1f}°C</span> ",
+                "tooltip": f"<span color='{PRIMARY_COLOR}'>󰔏 GPU Temperature:</span>\n",
+                "class": "critical"
+            }
+        elif junction_temp > critical_temp - 20:  # Within 20° of critical
+            output = {
+                "text": f" <span color='{WARNING_COLOR}'>{temp:.1f}°C</span> ",
+                "tooltip": f"<span color='{PRIMARY_COLOR}'>󰔏 GPU Temperature:</span>\n",
+                "class": "high"
+            }
+        else:
+            output = {
+                "text": f" {temp:.1f}°C ",
+                "tooltip": f"<span color='{PRIMARY_COLOR}'>󰔏 GPU Temperature:</span>\n",
+                "class": "normal"
+            }
+        
+        # Add edge temperature to tooltip
+        output["tooltip"] += f" ├─ Edge: {temp:.1f}°C\n"
         
         # Add additional sensors to tooltip
         if additional_temps:
@@ -154,14 +195,12 @@ def get_gpu_temp():
         else:
             output["tooltip"] += f" └─ Critical: {critical_temp}°C\n"
         
-        # Add warning if temperature is high
-        junction_temp = additional_temps.get("junction", temp)
+        # Add high if temperature is high
         if junction_temp > critical_temp - 10:
-            output["tooltip"] += f"\n<span color='#f38ba8'>⚠ Warning: GPU temperature is high!</span>"
-            output["class"] = "critical"
+            output["tooltip"] += f"\n<span color='{CRITICAL_COLOR}'>⚠ high: GPU temperature is high!</span>"
     else:
         output = {
-            "text": " N/A ",
+            "text": f" N/A ",
             "tooltip": "GPU temperature sensor not found",
             "class": "error"
         }

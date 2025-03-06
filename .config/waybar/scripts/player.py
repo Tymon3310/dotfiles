@@ -4,212 +4,524 @@ import subprocess
 import json
 import time
 import sys
+import random
+import math
+import os
+import tempfile
+import threading
+import shutil
+
+# Standard colors for all scripts - updated with lighter primary color
+PRIMARY_COLOR = "#48A3FF"     # Lighter blue color that's more visible
+WHITE_COLOR = "#FFFFFF"       # White text color
+WARNING_COLOR = "#ff9a3c"     # Orange warning color from CSS .yellow 
+CRITICAL_COLOR = "#dc2f2f"    # Red critical color from CSS .red
+NEUTRAL_COLOR = "#FFFFFF"     # White for normal text
+HEADER_COLOR = "#48A3FF"      # Lighter blue for section headers
 
 # Use "any" to detect any available player instead of hardcoding "spotify"
-player = "spotify"
+player = "YoutubeMusic"
 
+# Restore ALL original icons
 no_player_icon = "󰝛"  # Icon when no player is available
+playing_icon = ""     # Original playing icon
+paused_icon = ""      # Original paused icon
+loop_icon = "󰑘"       # Original loop icon
+playlist_loop = "󰑖"   # Original playlist loop icon
+not_loop_icon = "󰑗"   # Original not loop icon
+shuffle_icon = "󰒟"    # Original shuffle icon (restored!)
+not_shuffle_icon = "󰒞" # Original not shuffle icon
 
-playing_icon = ""
-paused_icon = ""
+# Check if cava is installed
+HAS_CAVA = shutil.which("cava") is not None
 
-loop_icon = "󰑘"
-playlist_loop = "󰑖"
-not_loop_icon = "󰑗"
-shuffle_icon = ""
-not_shuffle_icon = "󰒞"
+# Cleaner visualizer settings
+VISUALIZER_BARS = 16       # Number of bars
+VISUALIZER_HEIGHT = 8       # Height in characters
+current_visualizer = None   # Store current visualizer
+cava_process = None         # Store cava process
+
+# Temporary config for cava
+CAVA_CONFIG = """
+[general]
+bars = 16
+framerate = 60
+[output]
+method = raw
+raw_target = /dev/stdout
+data_format = ascii
+ascii_max_range = 8
+"""
+
+def start_cava():
+    """Start cava in the background and return process"""
+    if not HAS_CAVA:
+        return None
+        
+    try:
+        # Create temp config
+        fd, config_path = tempfile.mkstemp(prefix="waybar_cava_")
+        with os.fdopen(fd, 'w') as f:
+            f.write(CAVA_CONFIG)
+        
+        # Start cava process
+        process = subprocess.Popen(
+            ["cava", "-p", config_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL
+        )
+        return process
+    except Exception:
+        return None
+
+def get_cava_visualizer(cava_proc):
+    """Get visualizer output from cava"""
+    if not cava_proc:
+        return None
+        
+    try:
+        # Read exactly one frame of cava output
+        line = cava_proc.stdout.readline().decode('utf-8').strip()
+        if not line:
+            return None
+            
+        # Parse values
+        values = [int(x) for x in line.split(';') if x]
+        
+        # Build the visualizer
+        visualizer = []
+        for h in range(VISUALIZER_HEIGHT, 0, -1):
+            row = ""
+            for val in values:
+                if val >= h:
+                    row += "█"
+                else:
+                    row += " "
+            visualizer.append(row)
+            
+        return "\n".join(visualizer)
+    except Exception:
+        return None
+
+def get_simple_visualizer():
+    """Generate a simple text-based audio visualizer"""
+    global current_visualizer
+    
+    # Create simple wave-like pattern
+    visualizer = []
+    
+    # Generate values that look like a sound wave
+    values = []
+    for i in range(VISUALIZER_BARS):
+        # Create a wave pattern
+        center_dist = abs(i - VISUALIZER_BARS/2) / (VISUALIZER_BARS/2)
+        base_height = VISUALIZER_HEIGHT * 0.5  # Base height in middle
+        var_height = VISUALIZER_HEIGHT * 0.3   # Variable component
+        
+        # Create a smooth wave pattern with some randomness
+        wave = base_height * (1 - center_dist*0.7) + random.random() * var_height
+        values.append(int(wave))
+    
+    # Build the visualizer
+    for h in range(VISUALIZER_HEIGHT, 0, -1):
+        row = ""
+        for val in values:
+            if val >= h:
+                row += "█"
+            else:
+                row += " "
+        visualizer.append(row)
+        
+    current_visualizer = "\n".join(visualizer)
+    return current_visualizer
+
+def get_visualizer():
+    """Get the best available visualizer"""
+    global cava_process
+    
+    # Try using cava if available
+    if HAS_CAVA:
+        if not cava_process or cava_process.poll() is not None:
+            cava_process = start_cava()
+            
+        if cava_process:
+            vis = get_cava_visualizer(cava_process)
+            if vis:
+                return vis
+    
+    # Fall back to simple visualizer
+    return get_simple_visualizer()
 
 def check_player_available():
-    """Check if any media player is available"""
+    """Check if the specified media player is available"""
     try:
-        status = subprocess.run(
-            ["playerctl", "--list-all"], 
+        # Check if the specified player is available
+        check = subprocess.run(
+            ["playerctl", f"--player={player}", "status"], 
             capture_output=True, 
             text=True, 
             timeout=1
         )
-        return len(status.stdout.strip()) > 0
+        # If we don't get an error, player is available
+        return check.returncode == 0
     except Exception:
         return False
 
 def get_title():
+    """Get the title of the current track"""
     try:
-        title = (
-            subprocess.check_output(["playerctl", "-p", player, "metadata", "title"])
-            .decode("utf-8")
-            .strip()
+        title = subprocess.run(
+            ["playerctl", f"--player={player}", "metadata", "xesam:title"],
+            capture_output=True,
+            text=True,
+            timeout=1
         )
-        # Remove any info in parentheses and escape &
-        return title.split("(")[0].replace("&", "&amp;")
+        return title.stdout.strip() or "Unknown Title"
     except Exception:
-        return "No Title"
-
-
-def get_playing():
-    try:
-        status = (
-            subprocess.check_output(["playerctl", "-p", player, "status"])
-            .decode("utf-8")
-            .strip()
-        )
-        return playing_icon if status == "Playing" else paused_icon
-    except Exception:
-        return no_player_icon
-
+        return "Unknown Title"
 
 def get_artist():
+    """Get the artist of the current track"""
     try:
-        return (
-            subprocess.check_output(["playerctl", "-p", player, "metadata", "artist"])
-            .decode("utf-8")
-            .strip()
+        artist = subprocess.run(
+            ["playerctl", f"--player={player}", "metadata", "xesam:artist"],
+            capture_output=True,
+            text=True,
+            timeout=1
         )
+        return artist.stdout.strip() or "Unknown Artist"
     except Exception:
         return "Unknown Artist"
 
-
 def get_album():
+    """Get the album of the current track"""
     try:
-        return (
-            subprocess.check_output(["playerctl", "-p", player, "metadata", "album"])
-            .decode("utf-8")
-            .strip()
+        album = subprocess.run(
+            ["playerctl", f"--player={player}", "metadata", "xesam:album"],
+            capture_output=True,
+            text=True,
+            timeout=1
         )
+        return album.stdout.strip() or "Unknown Album"
     except Exception:
         return "Unknown Album"
 
+def get_album_art():
+    """Get album art URL"""
+    try:
+        art = subprocess.run(
+            ["playerctl", f"--player={player}", "metadata", "mpris:artUrl"],
+            capture_output=True,
+            text=True,
+            timeout=1
+        )
+        return art.stdout.strip()
+    except Exception:
+        return ""
+
+def get_playing():
+    """Get the play/pause status"""
+    try:
+        status = subprocess.run(
+            ["playerctl", f"--player={player}", "status"],
+            capture_output=True,
+            text=True,
+            timeout=1
+        )
+        if status.stdout.strip().lower() == "playing":
+            return playing_icon
+        else:
+            return paused_icon
+    except Exception:
+        return paused_icon
 
 def get_position():
+    """Get the current position in the track"""
     try:
-        seconds = int(
-            float(
-                subprocess.check_output(["playerctl", "-p", player, "position"])
-                .decode("utf-8")
-                .strip()
-            )
+        pos = subprocess.run(
+            ["playerctl", f"--player={player}", "position"],
+            capture_output=True,
+            text=True,
+            timeout=1
         )
-        minutes = seconds // 60
-        remaining_seconds = seconds % 60
-        return f"{minutes:02d}:{remaining_seconds:02d}"
+        seconds = int(float(pos.stdout.strip()))
+        return f"{seconds//60}:{seconds%60:02d}"
     except Exception:
-        return "00:00"
-
+        return "0:00"
 
 def get_length():
+    """Get the length of the current track"""
     try:
-        microseconds = int(
-            subprocess.check_output(
-                ["playerctl", "-p", player, "metadata", "mpris:length"]
-            )
-            .decode("utf-8")
-            .strip()
+        length = subprocess.run(
+            ["playerctl", f"--player={player}", "metadata", "mpris:length"],
+            capture_output=True,
+            text=True,
+            timeout=1
         )
-        seconds = microseconds // 1000000
-        minutes = seconds // 60
-        remaining_seconds = seconds % 60
-        return f"{minutes:02d}:{remaining_seconds:02d}"
+        # Convert from microseconds to seconds
+        seconds = int(int(length.stdout.strip()) / 1000000)
+        return f"{seconds//60}:{seconds%60:02d}"
     except Exception:
-        return "00:00"
-
-
-def get_playlist():
-    try:
-        playlist = (
-            subprocess.check_output(
-                ["playerctl", "-p", player, "metadata", "xesam:playlist"]
-            )
-            .decode("utf-8")
-            .strip()
-        )
-        # Fallback to another key if playlist isn't provided
-        if not playlist:
-            playlist = (
-                subprocess.check_output(
-                    ["playerctl", "-p", player, "metadata", "xesam:station"]
-                )
-                .decode("utf-8")
-                .strip()
-            )
-        return playlist if playlist else "No Playlist"
-    except Exception:
-        return "No Playlist"
-
+        return "0:00"
 
 def get_loop():
+    """Get loop status"""
     try:
-        status = (
-            subprocess.check_output(["playerctl", "-p", player, "loop"])
-            .decode("utf-8")
-            .strip()
+        loop = subprocess.run(
+            ["playerctl", f"--player={player}", "loop"],
+            capture_output=True,
+            text=True,
+            timeout=1
         )
-        if status == "Playlist":
-            return playlist_loop
-        elif status == "Track":
+        loop_status = loop.stdout.strip().lower()
+        if loop_status == "track":
             return loop_icon
+        elif loop_status == "playlist":
+            return playlist_loop
         else:
             return not_loop_icon
     except Exception:
         return not_loop_icon
 
-
 def get_shuffle():
+    """Get shuffle status"""
     try:
-        status = (
-            subprocess.check_output(["playerctl", "-p", player, "shuffle"])
-            .decode("utf-8")
-            .strip()
+        shuffle = subprocess.run(
+            ["playerctl", f"--player={player}", "shuffle"],
+            capture_output=True,
+            text=True,
+            timeout=1
         )
-        return shuffle_icon if status == "On" else not_shuffle_icon
+        if shuffle.stdout.strip().lower() == "true" or shuffle.stdout.strip() == "on" or shuffle.stdout.strip() == "On":
+            return shuffle_icon
+        else:
+            return not_shuffle_icon
     except Exception:
         return not_shuffle_icon
 
+def sanitize_markup(text):
+    """Escape characters that would break pango markup"""
+    if text is None:
+        return ""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("'", "&#39;").replace('"', "&quot;")
+
+def get_and_process_album_art():
+    """Get and process album art for display in tooltip"""
+    try:
+        # Get art URL
+        art_url = get_album_art()
+        if not art_url:
+            return None
+
+        # Create cache directory if it doesn't exist
+        cache_dir = os.path.expanduser("~/.cache/waybar-player")
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        # Generate a filename based on the URL hash
+        art_filename = os.path.join(cache_dir, f"cover_{hash(art_url) % 10000}.jpg")
+        
+        # Only download if file doesn't exist or is old
+        if not os.path.exists(art_filename) or (time.time() - os.path.getmtime(art_filename)) > 3600:
+            if art_url.startswith("file://"):
+                # Local file, just copy or symlink it
+                local_path = art_url[7:]  # Remove file:// prefix
+                shutil.copy(local_path, art_filename)
+            else:
+                # Remote URL, download it
+                subprocess.run(["curl", "-s", "-o", art_filename, art_url], timeout=2)
+        
+        # Return path if file exists and is not empty
+        if os.path.exists(art_filename) and os.path.getsize(art_filename) > 0:
+            return art_filename
+        
+        return None
+    except Exception:
+        return None
+
+def cleanup_old_album_art():
+    """Clean up old album art files"""
+    try:
+        cache_dir = os.path.expanduser("~/.cache/waybar-player")
+        if not os.path.exists(cache_dir):
+            return
+            
+        # Keep only the 20 most recent files
+        files = [os.path.join(cache_dir, f) for f in os.listdir(cache_dir)]
+        files.sort(key=os.path.getmtime, reverse=True)
+        
+        # Delete older files
+        for old_file in files[20:]:
+            os.remove(old_file)
+    except Exception:
+        pass
+
+def get_dominant_color(image_path):
+    try:
+        from PIL import Image
+        import numpy as np
+        
+        # Open image and resize for faster processing
+        img = Image.open(image_path).resize((100, 100))
+        # Convert to numpy array
+        colors = np.array(img)
+        # Reshape the array to be 2D
+        pixels = colors.reshape(-1, 3)
+        # Get the most common color
+        from collections import Counter
+        counter = Counter(map(tuple, pixels))
+        most_common = counter.most_common(1)[0][0]
+        # Convert to hex
+        return '#{:02x}{:02x}{:02x}'.format(most_common[0], most_common[1], most_common[2])
+    except Exception:
+        return PRIMARY_COLOR
 
 def main():
     no_player_count = 0
+    art_cleanup_counter = 0
     
     while True:
-        # Check if a player is available
-        if check_player_available():
-            no_player_count = 0
+        try:
+            # Simple direct check if player is available 
+            player_available = check_player_available()
             
-            try:
-                icon = get_playing()
-                title = get_title()
-                artist = get_artist()
-                album = get_album()
-                playlist = get_playlist()
-                position = get_position()
-                length = get_length()
-                looping = get_loop()
-                shuffling = get_shuffle()
+            if player_available:
+                no_player_count = 0
+                
+                try:
+                    icon = get_playing()
+                    title = get_title()
+                    artist = get_artist()
+                    album = get_album()
+                    
+                    # Add playlist function call in a separate try block
+                    try:
+                        playlist = get_playlist()
+                    except Exception as e:
+                        playlist = "Unknown Playlist"
+                    
+                    try:
+                        position = get_position()
+                        length = get_length()
+                    except Exception as e:
+                        position = "0:00"
+                        length = "0:00"
+                        
+                    try:
+                        looping = get_loop()
+                        shuffling = get_shuffle()
+                    except Exception as e:
+                        looping = not_loop_icon
+                        shuffling = not_shuffle_icon
 
-                output_text = (
-                    f"{icon} {title} - {artist} [{position}/{length}] {looping} {shuffling}"
-                )
-                # Create an invisible dynamic dummy using zero-width spaces.
-                # The length of the dummy string changes every second.
-                dummy = "\u200B" * ((int(time.time() * 1000) % 10) + 1)
-                tooltip_text = f"Album: {album}\nPlaylist: {playlist} {looping} {shuffling}{dummy}"
-            except Exception as e:
-                output_text = f"{no_player_icon} No media playing"
+                    # Format loop status text
+                    if looping == loop_icon:
+                        loop_status = "Track"
+                    elif looping == playlist_loop:
+                        loop_status = "Playlist"
+                    else:
+                        loop_status = "Off"
+                    
+                    # Format shuffle status text
+                    shuffle_status = "On" if shuffling == shuffle_icon else "Off"
+                    
+                     # Add brackets around the output text for consistency
+                    output_text = (
+                        f" {icon} {sanitize_markup(title)} - {sanitize_markup(artist)} [{position}/{length}] {looping} {shuffling} "
+                    )
+                    
+                    # Player-specific icon
+                    player_icon = "󱁫"  # Default music player icon
+                    if player.lower() == "spotify":
+                        player_icon = "󰓇"  # Spotify icon
+                    elif "YoutubeMusic" in player.lower():
+                        player_icon = ""  # YouTube icon
+                    elif "youtube" in player.lower():
+                        player_icon = "󰗃"  # YouTube icon
+                    elif "chrome" in player.lower():
+                        player_icon = ""  # Chrome icon
+                    elif "firefox" in player.lower():
+                        player_icon = ""  # Firefox icon``
+                    elif "mpv" in player.lower():
+                        player_icon = "󰝚"  # MPV icon
+                    elif "vlc" in player.lower():
+                        player_icon = "󰕼"  # VLC icon
+                    
+                    # Get album art
+                    art_path = get_and_process_album_art()
+
+                    # Build tooltip without attempting to embed the image
+                    if art_path:
+                        tooltip_text = (
+                            f"<span color='{PRIMARY_COLOR}'><b>{player_icon} {sanitize_markup(player)} Media Player</b></span>\n\n"
+                            f"<span color='{PRIMARY_COLOR}'>♫ Album Art Available</span>\n\n"
+                            f" ├─ Title: {sanitize_markup(title)}\n"
+                            f" ├─ Artist: {sanitize_markup(artist)}\n"
+                            f" └─ Album: {sanitize_markup(album)}\n"
+                            f"\n"
+                            f" ├─ Time: {position}/{length}\n"
+                            f" ├─ Loop: {loop_status}\n"
+                            f" └─ Shuffle: {shuffle_status}"
+                        )
+                    else:
+                        # Standard tooltip without art
+                        tooltip_text = (
+                            f"<span color='{PRIMARY_COLOR}'><b>{player_icon} {sanitize_markup(player)} Media Player</b></span>\n\n"
+                            f" ├─ Title: {sanitize_markup(title)}\n"
+                            f" ├─ Artist: {sanitize_markup(artist)}\n"
+                            f" └─ Album: {sanitize_markup(album)}\n"
+                            f"\n"
+                            f" ├─ Time: {position}/{length}\n"
+                            f" ├─ Loop: {loop_status}\n"
+                            f" └─ Shuffle: {shuffle_status}"
+                        )
+                    
+                    # Add class based on playing status
+                    status_class = "playing" if icon == playing_icon else "paused"
+                    
+                except Exception as e:
+                    output_text = f" {paused_icon} Media player paused "
+                    tooltip_text = f"Media player detected but error: {str(e)}"
+                    status_class = "paused"
+            else:
+                output_text = f" {no_player_icon} No media playing "
                 tooltip_text = "No active media player detected"
-        else:
-            output_text = f"{no_player_icon} No media playing"
-            tooltip_text = "No active media player detected"
+                status_class = "stopped"
+                
+                # Increase sleep time when no player is available
+                no_player_count += 1
             
-            # Increase sleep time when no player is available
-            no_player_count += 1
+            # Include class in output for CSS styling
+            output = {"text": output_text, "tooltip": tooltip_text, "class": status_class}
+            print(json.dumps(output))
+            sys.stdout.flush()
             
-        output = {"text": output_text, "tooltip": tooltip_text}
-        print(json.dumps(output))
-        sys.stdout.flush()
-        
-        # Sleep longer if no player has been detected multiple times in a row
-        if no_player_count > 5:
-            time.sleep(5)  # Check less frequently when no players are active
-        else:
-            time.sleep(1)
+            # Call cleanup every hour (based on counter)
+            art_cleanup_counter += 1
+            if art_cleanup_counter >= 3600:
+                cleanup_old_album_art()
+                art_cleanup_counter = 0
+            
+            # Sleep for shorter time to update visualizer more frequently
+            if no_player_count > 5:
+                time.sleep(3)  # Check less frequently when no players are active
+            else:
+                time.sleep(1)  # Use a more standard refresh rate
+                
+        except Exception as e:
+            # Handle any unexpected errors to keep the widget running
+            print(json.dumps({
+                "text": f" {no_player_icon} Error ",
+                "tooltip": "Player error occurred",
+                "class": "error"
+            }))
+            sys.stdout.flush()
+            time.sleep(5)  # Wait before trying again
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        # Clean up cava process if it exists
+        if cava_process and cava_process.poll() is None:
+            cava_process.terminate()

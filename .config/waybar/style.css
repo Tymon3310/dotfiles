@@ -417,11 +417,10 @@ window#waybar.empty #window {
  * Hardware Group
  * ----------------------------------------------------- */
 
-#memory, #cpu, #custom-gpu, #temperature, #group-memgpu, #group-cpu {
+#group-cpu, #group-memgpu {
     margin: 2px 0px 0px 0px;
     padding: 0px;
     font-size: 16px;
-    color: @color2;
 }
 
 #language {
