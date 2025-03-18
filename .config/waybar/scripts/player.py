@@ -20,7 +20,7 @@ NEUTRAL_COLOR = "#FFFFFF"     # White for normal text
 HEADER_COLOR = "#48A3FF"      # Lighter blue for section headers
 
 # Use "any" to detect any available player instead of hardcoding "spotify"
-player = "YoutubeMusic"
+player = "spotify"
 
 # Restore ALL original icons
 no_player_icon = "󰝛"  # Icon when no player is available

@@ -42,8 +42,8 @@ end
 # -----------------------------------------------------
 # SCRIPT ABBREVIATIONS
 # -----------------------------------------------------
-
-abbr -a ascii '~/.config/hypr/scripts/ascii-text.sh'
+abbr -a ascii 'figlet -f "ANSI Shadow"'
+abbr -a ascii-file '~/.config/hypr/scripts/ascii-text.sh'
 abbr -a matrix 'unimatrix -a -f -s 95'
 
 # -----------------------------------------------------

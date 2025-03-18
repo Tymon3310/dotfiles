@@ -1,2 +1,4 @@
 .config/hypr/conf/custom.conf
 *.log
+*venv*
+

@@ -1,5 +1,5 @@
 #!/bin/bash
-# filepath: /home/tymon/dotfiles/.config/hypr/scripts/ascii-text.sh
+# \
 # ----------------------------------------------------------
 # Script to create ASCII art text using the ANSI Shadow font
 # and copy the result to the clipboard

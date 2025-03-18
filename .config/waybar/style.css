@@ -28,6 +28,7 @@
     font-family: "Fira Sans Semibold", "Font Awesome 6 Free", FontAwesome, Roboto, Helvetica, Arial, sans-serif, material-design-icons, "Monaspace Neon";
     border: none;
     border-radius: 0px;
+    /* color: @textcolor2; */
 }
 
 #cava {
@@ -330,6 +331,15 @@ window#waybar.empty #window {
     color: red;
 }
 
+#custom-player {
+    background-color: @color1;
+    margin: 5px 15px 5px 0px;
+    padding: 2px 10px 0px 10px;
+    border-radius: 8px;
+    color: @textcolor2;
+}
+
+
 /* -----------------------------------------------------
  * Custom Exit
  * ----------------------------------------------------- */
@@ -421,11 +431,9 @@ window#waybar.empty #window {
     margin: 2px 0px 0px 0px;
     padding: 0px;
     font-size: 16px;
+    color: @color1;
 }
 
-#language {
-    margin-right: 10px;
-}
 
 /* -----------------------------------------------------
  * Clock

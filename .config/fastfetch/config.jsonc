@@ -16,6 +16,7 @@
   },
   "display": {
     "separator": " "
+    
   },
   "modules": [
     "break",
@@ -79,7 +80,7 @@
     },
     {
       "type": "datetime",
-      "format": "{3}-{11}-{1}",
+      "format": "{8} {11}.{3} {1}",
       "key": " ",
       "keyColor": "34",
     },
@@ -90,6 +91,7 @@
     },
     {
       "type": "player",
+      "format": "{2}",
       "key": " ",
       "keyColor": "34",
     },

@@ -23,3 +23,4 @@ echo "YOU ARE IN BASH, TYPE FISH (or) ZSH FOR MORE FULL FEATURED SHELL"
 # -----------------------------------------------------
 
 source ~/.config/zshrc/aliases
+source "$HOME/.cargo/env"

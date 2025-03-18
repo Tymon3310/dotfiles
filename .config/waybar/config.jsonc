@@ -35,7 +35,7 @@
   "modules-center": [
     // "hyprland/workspaces",
     // "custom/empty",
-    "custom/spotify",
+    "custom/player",
     // "mpris",
     "hyprland/workspaces#scratchpad",
   ],
