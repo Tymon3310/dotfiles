@@ -149,22 +149,19 @@ function update
     end
 
     # Start a background process to keep sudo credentials alive
-    set -g sudo_keeper_pid 0
-
-    # Define a function to kill the sudo keeper
-    function kill_sudo_keeper
-        if test -n "$sudo_keeper_pid" && test "$sudo_keeper_pid" -ne 0
-            kill $sudo_keeper_pid 2>/dev/null
-        end
-    end
-
-    # Start the background process to keep sudo alive
     fish -c "while true; sudo -v; sleep 50; end" &
     set sudo_keeper_pid $last_pid
 
     # Make sure we clean up the background process when this function exits
     function on_exit --on-process-exit %self
         kill_sudo_keeper
+    end
+
+    # Define a function to kill the sudo keeper
+    function kill_sudo_keeper
+        if test -n "$sudo_keeper_pid" && test "$sudo_keeper_pid" -ne 0
+            kill $sudo_keeper_pid 2>/dev/null
+        end
     end
 
     # Function to add to summary
@@ -299,14 +296,8 @@ function update
                 # Add packages to the global list
                 for pkg in $lines
                     if test -n "$pkg"
-                        # Extract package name and version info like yay format
-                        set -l pkg_parts (string split " " $pkg)
-                        if test "$type" = AUR
-                            set -g all_packages $all_packages "$pkg_parts[1]"
-                        else
-                            # For non-AUR packages, just use the package name without repo prefix
-                            set -g all_packages $all_packages "$pkg_parts[1]"
-                        end
+                        # Store the full package line for better identification
+                        set -g all_packages $all_packages "$pkg"
                     end
                 end
 
@@ -409,12 +400,30 @@ function update
                 for num in $expanded_exclusions
                     if string match -qr '^[0-9]+$' $num
                         # Convert display number to internal index
+                        # The displayed numbers count down from total_updates
                         set -l internal_index (math $total_updates - $num + 1)
                         if test $internal_index -ge 1 -a $internal_index -le (count $all_packages)
-                            if test "$has_gum" = true
-                                echo "  " (gum style --foreground 220 "•") " $num: $all_packages[$internal_index]"
+                            # Extract package name from the stored package line
+                            set -l pkg_line $all_packages[$internal_index]
+                            set -l pkg_name
+
+                            # Parse different package formats based on source
+                            if string match -q "*/*" $pkg_line
+                                # Handle repo/package format (like Pacman and AUR)
+                                set pkg_name (string match -r "^[^/]+/([^ ]+)" $pkg_line)[2]
                             else
-                                echo "  • $num: $all_packages[$internal_index]"
+                                # Handle other formats
+                                set pkg_name (string match -r "^([^ ]+)" $pkg_line)[2]
+                            end
+
+                            # Add to ignore args if we got a package name
+                            if test -n "$pkg_name"
+                                set ignore_args "$ignore_args --ignore $pkg_name"
+                                if test "$has_gum" = true
+                                    echo "  " (gum style --foreground 220 "•") " $num: $pkg_name"
+                                else
+                                    echo "  • $num: $pkg_name"
+                                end
                             end
                         end
                     end
@@ -488,11 +497,28 @@ function update
                         # So internal_index = total_updates - displayed_number + 1
                         set -l internal_index (math $total_updates - $num + 1)
                         if test $internal_index -ge 1 -a $internal_index -le (count $all_packages)
-                            # Use just the package name without repo prefix for exclusions
-                            set -l pkg_name $all_packages[$internal_index]
-                            # Remove any repo prefix if present (like "aur/")
-                            set pkg_name (string replace -r '^[^/]+/' '' $pkg_name)
-                            set ignore_args "$ignore_args --ignore $pkg_name"
+                            # Extract package name from the stored package line
+                            set -l pkg_line $all_packages[$internal_index]
+                            set -l pkg_name
+
+                            # Parse different package formats based on source
+                            if string match -q "*/*" $pkg_line
+                                # Handle repo/package format (like Pacman and AUR)
+                                set pkg_name (string match -r "^[^/]+/([^ ]+)" $pkg_line)[2]
+                            else
+                                # Handle other formats
+                                set pkg_name (string match -r "^([^ ]+)" $pkg_line)[2]
+                            end
+
+                            # Add to ignore args if we got a package name
+                            if test -n "$pkg_name"
+                                set ignore_args "$ignore_args --ignore $pkg_name"
+                                if test "$has_gum" = true
+                                    echo "  " (gum style --foreground 220 "•") " $num: $pkg_name"
+                                else
+                                    echo "  • $num: $pkg_name"
+                                end
+                            end
                         end
                     end
                 end
