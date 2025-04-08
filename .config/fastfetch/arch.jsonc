@@ -15,7 +15,7 @@
         "source": "~/.config/fastfetch/archlinux.png",
         "padding": {
             "top": 2,
-            "right": 6
+            // "right": 6
         },
         "width": 20,
         "height": 10,

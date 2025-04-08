@@ -28,6 +28,7 @@ if [ -f /usr/lib/xdg-desktop-portal-gtk ]; then
   sleep 1
 fi
 
+# start xdg-desktop-portal-kde
 if [ -f /usr/lib/xdg-desktop-portal-kde ]; then
   /usr/lib/xdg-desktop-portal-kde &
   sleep 1

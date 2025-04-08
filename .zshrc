@@ -1,13 +1,4 @@
-# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
-# Initialization code that may require console input (password prompts, [y/n]
-# confirmations, etc.) must go above this block; everything else may go below.
-# if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
-#   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
-# fi
 
-if uwsm check may-start && uwsm select; then
-	exec systemd-cat -t uwsm_start uwsm start default
-fi
 
 # -----------------------------------------------------
 #OH-MY-ZSH
@@ -15,94 +6,62 @@ fi
 
 export ZSH="$HOME/.oh-my-zsh"
 ZSH_THEME=xiong-chiamiov-plus
-# ZSH_THEME="powerlevel10k/powerlevel10k"
 plugins=(
-    # Core functionality
-    aliases
+    git
     sudo
+    web-search
+    archlinux
+    zsh-autosuggestions
+    zsh-syntax-highlighting
+    fast-syntax-highlighting
     copyfile
     copybuffer
     # dirhistory
-    
-    # Development tools
-    git
-    gh
     vscode
-    pip
-    python
-    
-    # System tools
-    archlinux
-    web-search
-    rbw
-    
-    # UI/UX improvements
-
-    zsh-autosuggestions
-    # zsh-autocomplete
-    zsh-syntax-highlighting
-    fast-syntax-highlighting
-    fzf
 )
 source $ZSH/oh-my-zsh.sh
+source <(fzf --zsh)
 
-# Only source fzf if it exists
-if command -v fzf &> /dev/null; then
-    source <(fzf --zsh)
-fi
-
-# zsh history - improved settings
+# zsh history
 HISTFILE=~/.zsh_history
-HISTSIZE=50000
-SAVEHIST=50000
+HISTSIZE=10000
+SAVEHIST=10000
 setopt appendhistory
-setopt inc_append_history  # Add commands as they are typed, don't wait until shell exit
-setopt hist_expire_dups_first # Delete duplicates first when HISTFILE size exceeds HISTSIZE
-# setopt hist_ignore_dups   # Don't record if same as previous command
-setopt hist_find_no_dups  # Ignore duplicates when searching
-setopt hist_reduce_blanks # Remove unnecessary blanks
 
-# ZSH-specific optimizations
-# Configure zsh-autosuggestions
-ZSH_AUTOSUGGEST_STRATEGY=(history completion)
-ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=20
-ZSH_AUTOSUGGEST_USE_ASYNC=true
-
-eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/kushal.omp.json)"
-
-# -----------------------------------------------------
-#AUTOSTART
-# -----------------------------------------------------
-
-fastfetch 
+eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/EDM115-newline.omp.json)"
 
 # -----------------------------------------------------
 # Exports
 # -----------------------------------------------------
 
-#Private exports
+# Private exports
 source ~/.env
-
-export EDITOR=nvim
-# Optimize PATH exports
-export PATH="/usr/lib/ccache/bin/:$HOME/.local/bin:$PATH"
+# SSH agent
 export SSH_AUTH_SOCK=/home/tymon/.bitwarden-ssh-agent.sock
 
-#nodejs
-export PNPM_HOME="/home/tymon/.local/share/pnpm"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+export EDITOR=nvim
+export PATH="/usr/lib/ccache/bin/:$PATH"
 
-# python things
-#pyenv
+
+# pnpm
+export PNPM_HOME="$HOME/.local/share/pnpm"
+[[ ":$PATH:" != *":$PNPM_HOME:"* ]] && export PATH="$PNPM_HOME:$PATH"
+
+# nvm
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && source "$NVM_DIR/bash_completion"
+
+
+# Python user base
+export PATH="$PATH:$HOME/.local/bin"
+
+# pyenv
 # export PYENV_ROOT="$HOME/.pyenv"
-# [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-# eval "$(pyenv init -)"
+# if [ -d "$PYENV_ROOT/bin" ]; then
+#   export PATH="$PYENV_ROOT/bin:$PATH"
+#   eval "$(pyenv init -)"
+# fi
 
 # Golang environment variables
 export GOROOT=/usr/local/go
@@ -112,16 +71,24 @@ export PATH=$PATH:/usr/local/go/bin
 # Update PATH to include GOPATH and GOROOT binaries
 export PATH=$GOPATH/bin:$GOROOT/bin:$HOME/.local/bin:$PATH
 
+
 eval $(thefuck --alias)
 
 export PATH=$PATH:/home/tymon/.spicetify
 bindkey '^X' create_completion
-
-# Added by LM Studio CLI (lms)
-export PATH="$PATH:/home/tymon/.lmstudio/bin"
 
 # -----------------------------------------------------
 #aliases
 # -----------------------------------------------------
 
 source ~/.config/zshrc/aliases
+
+
+# -----------------------------------------------------
+#AUTOSTART
+# -----------------------------------------------------
+
+# Don't run fastfetch in VSCode integrated terminal
+if [[ -z $VSCODE_INJECTION ]]; then
+  fastfetch
+fi

@@ -89,656 +89,516 @@ end
 # SYSTEM FUNCTIONS
 # -----------------------------------------------------
 
-# -----------------------------------------------------
-# SYSTEM FUNCTIONS
-# -----------------------------------------------------
-
 # Update system packages
 function update
+    # Set up signal handler for SIGINT (Ctrl+C)
+    function __update_cleanup --on-signal INT
+        echo ""
+        echo "Update canceled by user."
+        # Clean up any temporary files or processes if needed
+
+        # Reset the handler
+        functions -e __update_cleanup
+        return 1
+    end
+
     # Parse arguments
     set -l update_browsers false
-    set -l verbose false
     set -l skip_confirm false
-    set -l update_summary ""
-    set -l update_errors ""
+    set -l clean_cache false
+    set -l filter ""
     set -l start_time (date +%s)
-    set -l clean_cache false # Default to not cleaning cache
 
-    # Process command line arguments
     for arg in $argv
         switch $arg
             case -b --browser --browsers
                 set update_browsers true
-            case -v --verbose
-                set verbose true
             case -y --yes
                 set skip_confirm true
             case -c --clean
-                set clean_cache true # Only clean when explicitly requested
+                set clean_cache true
+            case -f --filter
+                # Next argument is the filter
+                set next_is_filter true
             case -h --help
                 echo "Usage: update [options]"
                 echo "Options:"
-                echo "  -b, --browser, --browsers  Update Zen Twilight only"
-                echo "  -v, --verbose              Show detailed output"
-                echo "  -y, --yes                  Skip confirmation prompts"
-                echo "  -c, --clean                Clean package caches after update"
-                echo "  -h, --help                 Show this help message"
+                echo "  -b, --browser      Update Zen Twilight browser only"
+                echo "  -y, --yes          Skip confirmation prompts"
+                echo "  -c, --clean        Clean package caches after update"
+                echo "  -f, --filter STR   Only show packages containing STR"
+                echo "  -h, --help         Show this help message"
                 return 0
+            case '*'
+                if set -q next_is_filter
+                    set filter $arg
+                    set -e next_is_filter
+                end
         end
     end
 
-    # Check if gum is installed for better UI
+    # Handle browser-only update
+    if test "$update_browsers" = true
+        echo "Updating Zen Twilight browser..."
+
+        # Check if zen-twilight-bin is installed
+        if pacman -Q zen-twilight-bin &>/dev/null
+            # Remove the old package
+            sudo pacman -R zen-twilight-bin --noconfirm
+
+            # Clean cache
+            if test -d ~/.cache/yay/zen-twilight-bin
+                rm -rf ~/.cache/yay/zen-twilight-bin
+            end
+
+            # Install the new package
+            yay -S zen-twilight-bin --noconfirm --redownload --rebuild --cleanafter
+
+            # Ask to restart the browser
+            echo ""
+            echo "Zen Twilight has been updated!"
+            read -l -P "Restart browser now? [y/N] " restart
+            if string match -rq '^[Yy]' -- $restart
+                if pgrep -f zen-twilight >/dev/null
+                    echo "Restarting Zen Twilight..."
+                    pkill -f zen-twilight
+                    sleep 1
+                    hyprctl dispatch exec [workspace 11 silent] zen-twilight
+                else
+                    echo "Starting Zen Twilight..."
+                    hyprctl dispatch exec [workspace 11 silent] zen-twilight
+                end
+            end
+        else
+            echo "Zen Twilight not installed."
+        end
+
+        return 0
+    end
+
+    # Main update process
+    echo "Checking for updates..."
+
+    # Check for gum for prettier output
     set -l has_gum false
-    if command -v gum &>/dev/null
+    if command -v gum >/dev/null 2>&1
         set has_gum true
-        echo (gum style --foreground 212 "System Update Process")
-        echo ""
     end
 
-    # Ask for sudo password upfront
+    # Get updates
+    set -l pacman_updates ""
+    if command -v checkupdates >/dev/null 2>&1
+        set pacman_updates (checkupdates 2>/dev/null | grep -i "$filter")
+    else if command -v pacman >/dev/null 2>&1
+        set pacman_updates (pacman -Qu 2>/dev/null | grep -i "$filter")
+    end
+
+    set -l aur_updates ""
+    if command -v yay >/dev/null 2>&1
+        set aur_updates (yay -Qua 2>/dev/null | grep -i "$filter")
+    end
+
+    set -l flatpak_updates ""
+    if command -v flatpak >/dev/null 2>&1
+        set flatpak_updates (flatpak remote-ls --updates 2>/dev/null | grep -i "$filter")
+    end
+
+    # Get counts
+    set -l pacman_count (count $pacman_updates)
+    set -l aur_count (count $aur_updates)
+    set -l flatpak_count (count $flatpak_updates)
+    set -l total_count (math $pacman_count + $aur_count + $flatpak_count)
+
+    # Show summary
+    echo ""
     if test "$has_gum" = true
-        echo (gum style --foreground 220 "Please enter your sudo password:")
+        echo (gum style --foreground "#00FFFF" "Found $total_count updates:")
+        if test $pacman_count -gt 0
+            echo (gum style --foreground "#00AFFF" "• Pacman: $pacman_count")
+        end
+        if test $aur_count -gt 0
+            echo (gum style --foreground "#FF8700" "• AUR: $aur_count")
+        end
+        if test $flatpak_count -gt 0
+            echo (gum style --foreground "#00FF00" "• Flatpak: $flatpak_count")
+        end
     else
-        echo "Please enter your sudo password:"
-    end
-
-    # Cache sudo credentials
-    sudo -v || begin
-        echo "Failed to authenticate. Update canceled."
-        return 1
-    end
-
-    # Start a background process to keep sudo credentials alive
-    fish -c "while true; sudo -v; sleep 50; end" &
-    set sudo_keeper_pid $last_pid
-
-    # Make sure we clean up the background process when this function exits
-    function on_exit --on-process-exit %self
-        kill_sudo_keeper
-    end
-
-    # Define a function to kill the sudo keeper
-    function kill_sudo_keeper
-        if test -n "$sudo_keeper_pid" && test "$sudo_keeper_pid" -ne 0
-            kill $sudo_keeper_pid 2>/dev/null
+        echo "Found $total_count updates:"
+        if test $pacman_count -gt 0
+            echo "• Pacman: $pacman_count"
+        end
+        if test $aur_count -gt 0
+            echo "• AUR: $aur_count"
+        end
+        if test $flatpak_count -gt 0
+            echo "• Flatpak: $flatpak_count"
         end
     end
+    echo ""
 
-    # Function to add to summary
-    function add_to_summary
-        set update_summary $update_summary "$argv"
+    # No updates case
+    if test $total_count -eq 0
+        echo "No updates available."
+        return 0
     end
 
-    # Function to add to errors
-    function add_to_errors
-        set update_errors $update_errors "$argv"
-    end
+    # Create numbered list for ALL packages (simpler approach)
+    set -l all_updates
+    set -g display_list ""
 
-    # Function to run a command with error handling
-    function run_command
-        set -l title $argv[1]
-        set -l cmd $argv[2..-1]
-
-        if test "$has_gum" = true -a "$verbose" = false
-            gum spin --spinner dot --title "$title" -- fish -c "$cmd"
-        else
-            echo "• $title"
-            eval $cmd
-        end
-
-        set -l status_code $status
-        if test $status_code -ne 0
-            add_to_errors "❌ $title failed with status $status_code"
-            return $status_code
-        else
-            add_to_summary "✓ $title completed successfully"
-            return 0
-        end
-    end
-
-    # When browser update mode is active, we don't need to check for regular updates
-    if test "$update_browsers" = false
-        # Only check for updates when not in browser update mode
-        echo ""
+    # Add a header for pacman
+    if test $pacman_count -gt 0
         if test "$has_gum" = true
-            echo (gum style --foreground 111 "Checking for available updates...")
+            set -a display_list (gum style --foreground "#00AFFF" --bold "== Pacman Updates ==")
         else
-            echo "Checking for available updates..."
+            set -a display_list "== Pacman Updates =="
+        end
+        set -a display_list ""
+    end
+
+    # Add pacman packages
+    for pkg in $pacman_updates
+        set -a all_updates "pacman:$pkg"
+        set -l idx (count $all_updates)
+
+        # Extract package name for repository lookup
+        set -l pkg_name (string split " " $pkg)[1]
+        if string match -q "*/*" $pkg_name
+            set pkg_name (string split "/" $pkg_name)[2]
         end
 
-        # Function to display update information with proper formatting
-        function display_updates
-            set -l type $argv[1]
-            set -l color $argv[2]
-            set -l updates $argv[3..-1] # Get all remaining arguments as updates
+        # Get repository info and color
+        set -l repo_info (get_package_repo_info $pkg_name)
+        set -l repo (string split " " $repo_info)[1]
+        set -l repo_color (string split " " $repo_info)[2]
 
-            # Header
-            if test "$has_gum" = true
-                echo (gum style --foreground $color --bold "$type Updates:")
-            else
-                echo "=== $type Updates ==="
-            end
-
-            # Process updates
-            if test (count $updates) -gt 0
-                # Count non-empty updates
-                set -l update_count 0
-                for pkg in $updates
-                    if test -n "$pkg"
-                        set update_count (math $update_count + 1)
-                    end
-                end
-
-                # Format the update count
-                if test "$has_gum" = true
-                    echo (gum style --bold "$update_count") "package(s) can be updated"
-                else
-                    echo "$update_count package(s) can be updated"
-                end
-                echo ""
-
-                # Calculate starting index for reverse numbering
-                set -l start_index (math $total_updates)
-
-                # Process each package on its own line with reversed numbers
-                for pkg in $updates
-                    if test -n "$pkg"
-                        if test "$has_gum" = true
-                            echo " " (gum style --foreground $color --bold "$start_index") "  " (gum style --foreground $color "•") " $pkg"
-                        else
-                            echo " $start_index  • $pkg"
-                        end
-                        set start_index (math $start_index - 1)
-                        set -g pkg_index (math $pkg_index + 1)
-                    end
-                end
-
-                echo ""
-                return $update_count
-            else
-                # No updates
-                if test "$has_gum" = true
-                    echo (gum style --italic "None available")
-                else
-                    echo "None available"
-                end
-                echo ""
-                return 0
-            end
-        end
-
-        # Check and display updates for each type and count total
-        set -l total_updates 0
-        set -l count 0
-        set -g all_packages
-        set -g pkg_index 1
-
-        # Function to check updates and add them to the global list
-        function check_and_display_updates
-            set -l type $argv[1]
-            set -l color $argv[2]
-            set -l cmd $argv[3..-1]
-
-            # Run the command and get the output
-            set -l output (eval $cmd 2>/dev/null)
-
-            # If there's output, display it and add to all_packages
-            if test -n "$output"
-                # Split the output into lines
-                set -l lines (string split "\n" $output)
-
-                # Add to total updates first
-                set -g total_updates (math $total_updates + (count $lines))
-
-                # Display the updates
-                display_updates $type $color $lines
-
-                # Add packages to the global list
-                for pkg in $lines
-                    if test -n "$pkg"
-                        # Store the full package line for better identification
-                        set -g all_packages $all_packages "$pkg"
-                    end
-                end
-
-                return (count $lines)
-            else
-                # No updates
-                display_updates $type $color
-                return 0
-            end
-        end
-
-        # Check and display Pacman updates
-        if command -v checkupdates &>/dev/null
-            check_and_display_updates Pacman 39 checkupdates
-        else if command -v pacman &>/dev/null
-            check_and_display_updates Pacman 39 "pacman -Qu"
-        end
-        set count $status
-        set total_updates (math $total_updates + $count)
-
-        # Check and display AUR updates
-        if command -v yay &>/dev/null
-            check_and_display_updates AUR 202 "yay -Qua"
-        end
-        set count $status
-        set total_updates (math $total_updates + $count)
-
-        # Check and display Flatpak updates
-        if command -v flatpak &>/dev/null
-            check_and_display_updates Flatpak 33 "flatpak remote-ls --updates"
-        end
-        set count $status
-        set total_updates (math $total_updates + $count)
-
-        # Check and display Snap updates
-        if command -v snap &>/dev/null
-            check_and_display_updates Snap 226 "snap refresh --list | tail -n +2"
-        end
-        set count $status
-        set total_updates (math $total_updates + $count)
-
-        # Check and display Homebrew updates
-        if command -v brew &>/dev/null
-            check_and_display_updates Homebrew 208 "brew outdated"
-        end
-        set count $status
-        set total_updates (math $total_updates + $count)
-
-        # Change the proceed logic to check all types of updates
-        set -l proceed true
-        set -l excluded_packages ""
-
-        if test $total_updates -eq 0
-            echo "No updates available."
-            set proceed false
-        else if test "$skip_confirm" = true
-            echo "Proceeding with updates (--yes flag provided)..."
+        if test "$has_gum" = true
+            # Fix: Combine everything into a single string to prevent line breaks
+            set -l styled_idx (gum style --foreground "#00AFFF" --bold "[$idx]")
+            set -l styled_repo (gum style --foreground "$repo_color" "$repo")
+            set -a display_list (printf "%s %-15s %s" $styled_idx $styled_repo "$pkg")
         else
-            # Ask if user wants to exclude any packages
-            if test "$has_gum" = true
-                echo (gum style --foreground 220 "Packages to exclude: (eg: \"1 2 3\", \"1-3\", \"^4\" or repo name)")
-                echo (gum style --italic "--" "Excluding packages may cause partial upgrades and break systems")
-                set excluded_packages (gum input --placeholder "Enter package numbers to exclude (leave empty for none)")
-            else
-                echo "Packages to exclude: (eg: \"1 2 3\", \"1-3\", \"^4\" or repo name)"
-                echo "-- Excluding packages may cause partial upgrades and break systems"
-                read -l -P "Enter package numbers to exclude (leave empty for none): " excluded_packages
-            end
+            # Fix: Format as a single line with proper padding
+            set -a display_list (printf "%-5s %-12s %s" "[$idx]" "$repo" "$pkg")
+        end
+    end
 
-            # Process excluded packages to show their names
-            if test -n "$excluded_packages"
-                echo ""
-                echo "Excluding packages:"
+    # Add a separator after pacman
+    if test $pacman_count -gt 0
+        set -a display_list ""
+    end
 
-                # Parse the excluded packages string
-                # Handle ranges like "1-3"
-                set -l expanded_exclusions
+    # Add a header for AUR
+    if test $aur_count -gt 0
+        if test "$has_gum" = true
+            set -a display_list (gum style --foreground "#FF8700" --bold "== AUR Updates ==")
+        else
+            set -a display_list "== AUR Updates =="
+        end
+        set -a display_list ""
+    end
 
-                # Process each part of the exclusion string
-                for part in (string split " " $excluded_packages)
-                    if string match -qr '^[0-9]+-[0-9]+$' $part
-                        # Handle range (e.g., "1-3")
-                        set -l range_parts (string split "-" $part)
-                        set -l start $range_parts[1]
-                        set -l end $range_parts[2]
+    # Add AUR packages
+    for pkg in $aur_updates
+        set -a all_updates "aur:$pkg"
+        set -l idx (count $all_updates)
 
-                        for i in (seq $start $end)
-                            set -a expanded_exclusions $i
-                        end
-                    else if string match -qr '^[0-9]+$' $part
-                        # Handle single number
-                        set -a expanded_exclusions $part
-                    else
-                        # Handle repo/package name exclusion
-                        echo "  • Excluding by name: $part"
+        if test "$has_gum" = true
+            # Format AUR packages similar to pacman packages
+            set -l styled_idx (gum style --foreground "#FF8700" --bold "[$idx]")
+            set -l styled_repo (gum style --foreground "#FF8700" "aur")
+            set -a display_list (printf "%s %-15s %s" $styled_idx $styled_repo "$pkg")
+        else
+            # Format with proper padding
+            set -a display_list (printf "%-5s %-12s %s" "[$idx]" "aur" "$pkg")
+        end
+    end
+
+    # Add a separator after AUR
+    if test $aur_count -gt 0
+        set -a display_list ""
+    end
+
+    # Add a header for flatpak
+    if test $flatpak_count -gt 0
+        if test "$has_gum" = true
+            set -a display_list (gum style --foreground "#00FF00" --bold "== Flatpak Updates ==")
+        else
+            set -a display_list "== Flatpak Updates =="
+        end
+        set -a display_list ""
+    end
+
+    # Add flatpak packages
+    for pkg in $flatpak_updates
+        set -a all_updates "flatpak:$pkg"
+        set -l idx (count $all_updates)
+
+        if test "$has_gum" = true
+            # Format Flatpak packages similar to pacman packages
+            set -l styled_idx (gum style --foreground "#00FF00" --bold "[$idx]")
+            set -l styled_repo (gum style --foreground "#00FF00" "flatpak")
+            set -a display_list (printf "%s %-15s %s" $styled_idx $styled_repo "$pkg")
+        else
+            # Format with proper padding
+            set -a display_list (printf "%-5s %-12s %s" "[$idx]" "flatpak" "$pkg")
+        end
+    end
+
+    # Show all packages
+    echo "Available updates:"
+    echo ""
+    for line in $display_list
+        echo $line
+    end
+    echo ""
+
+    # Skip if no confirmation needed
+    if test "$skip_confirm" = false
+        # Get exclusions
+        echo "Enter numbers to exclude (e.g., \"1 2 3\" or \"1-3\", leave empty for none):"
+        read -l exclude_input
+
+        set -l excluded_indices
+
+        # Parse exclusion input
+        if test -n "$exclude_input"
+            for part in (string split " " $exclude_input)
+                if string match -qr '^[0-9]+-[0-9]+$' $part
+                    # Handle range (e.g., "1-3")
+                    set -l range (string split "-" $part)
+                    for i in (seq $range[1] $range[2])
+                        set -a excluded_indices $i
                     end
-                end
-
-                # Display each excluded package by number
-                for num in $expanded_exclusions
-                    if string match -qr '^[0-9]+$' $num
-                        # Convert display number to internal index
-                        # The displayed numbers count down from total_updates
-                        set -l internal_index (math $total_updates - $num + 1)
-                        if test $internal_index -ge 1 -a $internal_index -le (count $all_packages)
-                            # Extract package name from the stored package line
-                            set -l pkg_line $all_packages[$internal_index]
-                            set -l pkg_name
-
-                            # Parse different package formats based on source
-                            if string match -q "*/*" $pkg_line
-                                # Handle repo/package format (like Pacman and AUR)
-                                set pkg_name (string match -r "^[^/]+/([^ ]+)" $pkg_line)[2]
-                            else
-                                # Handle other formats
-                                set pkg_name (string match -r "^([^ ]+)" $pkg_line)[2]
-                            end
-
-                            # Add to ignore args if we got a package name
-                            if test -n "$pkg_name"
-                                set ignore_args "$ignore_args --ignore $pkg_name"
-                                if test "$has_gum" = true
-                                    echo "  " (gum style --foreground 220 "•") " $num: $pkg_name"
-                                else
-                                    echo "  • $num: $pkg_name"
-                                end
-                            end
-                        end
-                    end
-                end
-                echo ""
-            end
-
-            # Ask if user wants to proceed with updates
-            if test "$has_gum" = true
-                gum confirm "Do you want to proceed with the updates?" || set proceed false
-            else
-                read -l -P "Do you want to proceed with the updates? [y/N] " confirm
-                if test "$confirm" != Y -a "$confirm" != y
-                    set proceed false
+                else if string match -qr '^[0-9]+$' $part
+                    # Handle single number
+                    set -a excluded_indices $part
                 end
             end
         end
 
-        # Exit if user doesn't want to proceed with system updates
-        if test "$proceed" = false
+        # Prepare exclude lists
+        set -l pacman_excludes
+        set -l aur_excludes
+        set -l flatpak_excludes
+
+        # Process exclusions
+        if test (count $excluded_indices) -gt 0
+            echo ""
+            echo "Excluding packages:"
+
+            set -l has_flatpak_exclusions false
+
+            for idx in $excluded_indices
+                if test $idx -ge 1 -a $idx -le (count $all_updates)
+                    set -l pkg_info $all_updates[$idx]
+                    set -l pkg_type (string split ":" $pkg_info)[1]
+                    set -l pkg_line (string replace "$pkg_type:" "" $pkg_info)
+
+                    # Extract package name based on type
+                    switch $pkg_type
+                        case pacman
+                            set -l pkg_name (string split " " $pkg_line)[1]
+                            if string match -q "*/*" $pkg_name
+                                set pkg_name (string split "/" $pkg_name)[2]
+                            end
+                            set -a pacman_excludes $pkg_name
+                            echo "• [$idx] $pkg_name (Pacman)"
+
+                        case aur
+                            set -l pkg_name (string split " " $pkg_line)[1]
+                            set -a aur_excludes $pkg_name
+                            echo "• [$idx] $pkg_name (AUR)"
+
+                        case flatpak
+                            set -l pkg_name (string split " " $pkg_line)[1]
+                            # Note that Flatpak exclusions are attempted but not supported
+                            set has_flatpak_exclusions true
+                            echo "• [$idx] $pkg_name (Flatpak) - Note: Flatpak exclusions are not supported"
+                    end
+                end
+            end
+
+            if test "$has_flatpak_exclusions" = true
+                echo ""
+                echo "⚠️ Note: Exclusions for Flatpak packages are not supported. All Flatpak packages will be updated."
+            end
+        end
+
+        # Get confirmation
+        echo ""
+        read -l -P "Proceed with update? [Y/n] " confirm
+        if string match -qr '^[Nn]' -- $confirm
             echo "Update canceled."
-            # Kill the sudo keeper process
-            kill_sudo_keeper
             return 0
         end
 
-        # Regular system updates
+        # Run updates with exclusions
         echo ""
-        if test "$has_gum" = true
-            echo (gum style --foreground 212 "Starting update process...")
-        else
-            echo "Starting update process..."
-        end
-        echo ""
+        echo "Starting update process..."
 
-        # Update system packages with exclusions
-        if command -v yay &>/dev/null
-            if test -n "$excluded_packages"
-                # Convert numbers to package names
-                set -l ignore_args ""
-                set -g updated_packages "" # Create a list of actually updated packages
+        # Update pacman/AUR packages
+        if test $pacman_count -gt 0 -o $aur_count -gt 0
+            echo "Updating system packages..."
 
-                # Parse the excluded packages string
-                # Handle ranges like "1-3"
-                set -l expanded_exclusions
-
-                # Process each part of the exclusion string
-                for part in (string split " " $excluded_packages)
-                    if string match -qr '^[0-9]+-[0-9]+$' $part
-                        # Handle range (e.g., "1-3")
-                        set -l range_parts (string split "-" $part)
-                        set -l start $range_parts[1]
-                        set -l end $range_parts[2]
-
-                        for i in (seq $start $end)
-                            set -a expanded_exclusions $i
-                        end
-                    else if string match -qr '^[0-9]+$' $part
-                        # Handle single number
-                        set -a expanded_exclusions $part
-                    else
-                        # Handle direct package name
-                        set ignore_args "$ignore_args --ignore $part"
-                    end
-                end
-
-                # Convert numbers to package names
-                for num in $expanded_exclusions
-                    if string match -qr '^[0-9]+$' $num
-                        # Calculate internal index: displayed_number = total_updates - internal_index + 1
-                        # So internal_index = total_updates - displayed_number + 1
-                        set -l internal_index (math $total_updates - $num + 1)
-                        if test $internal_index -ge 1 -a $internal_index -le (count $all_packages)
-                            # Extract package name from the stored package line
-                            set -l pkg_line $all_packages[$internal_index]
-                            set -l pkg_name
-
-                            # Parse different package formats based on source
-                            if string match -q "*/*" $pkg_line
-                                # Handle repo/package format (like Pacman and AUR)
-                                set pkg_name (string match -r "^[^/]+/([^ ]+)" $pkg_line)[2]
-                            else
-                                # Handle other formats
-                                set pkg_name (string match -r "^([^ ]+)" $pkg_line)[2]
-                            end
-
-                            # Add to ignore args if we got a package name
-                            if test -n "$pkg_name"
-                                set ignore_args "$ignore_args --ignore $pkg_name"
-                                if test "$has_gum" = true
-                                    echo "  " (gum style --foreground 220 "•") " $num: $pkg_name"
-                                else
-                                    echo "  • $num: $pkg_name"
-                                end
-                            end
-                        end
-                    end
-                end
-
-                # Run yay with ignore flags
-                echo "Running: yay -Syu --noconfirm $ignore_args"
-
-                # Capture the output of yay to identify updated packages
-                set -l update_output (yay -Syu --noconfirm $ignore_args 2>&1)
-                run_command "Updating Pacman and AUR packages" "echo \"$update_output\""
-
-                # Extract updated packages from the output
-                for line in $update_output
-                    if string match -q "*installed*" $line; or string match -q "*upgraded*" $line
-                        # Extract package name from the output line
-                        set -l pkg_name (string match -r "([^ ]+)" $line)
-                        if test -n "$pkg_name"
-                            set -g updated_packages $updated_packages $pkg_name
-                        end
-                    end
-                end
-            else
-                # Capture the output of yay to identify updated packages
-                set -l update_output (yay -Syu --noconfirm 2>&1)
-                run_command "Updating Pacman and AUR packages" "echo \"$update_output\""
-
-                # Extract updated packages from the output
-                set -g updated_packages ""
-                for line in $update_output
-                    if string match -q "*installed*" $line; or string match -q "*upgraded*" $line
-                        # Extract package name from the output line
-                        set -l pkg_name (string match -r "([^ ]+)" $line)
-                        if test -n "$pkg_name"
-                            set -g updated_packages $updated_packages $pkg_name
-                        end
-                    end
-                end
+            # Build ignore arguments
+            set -l ignore_args
+            for pkg in $pacman_excludes $aur_excludes
+                set -a ignore_args --ignore $pkg
             end
-        else if command -v pacman &>/dev/null
-            # Capture the output of pacman to identify updated packages
-            set -l update_output (sudo pacman -Syu --noconfirm 2>&1)
-            run_command "Updating Pacman packages" "echo \"$update_output\""
 
-            # Extract updated packages from the output
-            set -g updated_packages ""
-            for line in $update_output
-                if string match -q "*installed*" $line; or string match -q "*upgraded*" $line
-                    # Extract package name from the output line
-                    set -l pkg_name (string match -r "([^ ]+)" $line)
-                    if test -n "$pkg_name"
-                        set -g updated_packages $updated_packages $pkg_name
-                    end
-                end
+            # Run yay
+            if test (count $ignore_args) -gt 0
+                sudo -v # Refresh sudo
+                yay -Syu --noconfirm $ignore_args
+            else
+                sudo -v # Refresh sudo
+                yay -Syu --noconfirm
             end
         end
 
         # Update Flatpak packages
-        if command -v flatpak &>/dev/null
-            run_command "Updating Flatpak packages" "flatpak update -y"
-        end
-
-        # Clean package caches (only if explicitly requested)
-        if test "$clean_cache" = true && command -v paccache &>/dev/null
-            run_command "Cleaning pacman cache" "sudo paccache -r"
+        if test $flatpak_count -gt 0
+            echo "Updating Flatpak packages..."
+            # Always update all Flatpak packages (no exclusions)
+            flatpak update --noninteractive
         end
     else
-        # Zen Twilight update only
+        # Run updates without exclusions
         echo ""
-        if test "$has_gum" = true
-            echo (gum style --foreground 212 "Starting Zen Twilight update...")
-        else
-            echo "Starting Zen Twilight update..."
+        echo "Starting update process..."
+
+        # Update pacman/AUR
+        if test $pacman_count -gt 0 -o $aur_count -gt 0
+            echo "Updating system packages..."
+            sudo -v # Refresh sudo
+            yay -Syu --noconfirm
         end
-        echo ""
 
-        # Update Zen Twilight
-        if command -v yay &>/dev/null
-            if pacman -Q zen-twilight-bin &>/dev/null
-                # Remove the old package
-                run_command "Removing old Zen Twilight" "sudo pacman -R zen-twilight-bin --noconfirm"
-
-                # Clean cache directory
-                if test -d ~/.cache/yay/zen-twilight-bin
-                    run_command "Cleaning Zen Twilight cache" "rm -rf ~/.cache/yay/zen-twilight-bin"
-                end
-
-                # Install updated package
-                run_command "Installing new Zen Twilight" "yay -S zen-twilight-bin --noconfirm --redownload --rebuild --cleanafter"
-
-                # Prompt to restart the browser
-                echo ""
-                if test "$has_gum" = true
-                    echo (gum style --foreground 220 "⚠ Zen Twilight has been updated! Please restart your browser to apply the changes.")
-
-                    # Ask if user wants to restart the browser now
-                    if gum confirm "Do you want to restart Zen Twilight now?"
-                        # Check if Zen Twilight is running
-                        if pgrep -f zen-twilight >/dev/null
-                            echo "Restarting Zen Twilight..."
-                            pkill -f zen-twilight
-                            sleep 1
-                            hyprctl dispatch exec [workspace 11 silent] zen-twilight
-                            echo "Zen Twilight has been restarted."
-                        else
-                            echo "Zen Twilight is not currently running."
-                            echo "Starting Zen Twilight..."
-                            hyprctl dispatch exec [workspace 11 silent] zen-twilight
-                            echo "Zen Twilight has been started."
-                        end
-                    end
-                else
-                    echo "⚠ Zen Twilight has been updated! Please restart your browser to apply the changes."
-
-                    # Ask if user wants to restart the browser now
-                    read -l -P "Do you want to restart Zen Twilight now? [y/N] " confirm
-                    if test "$confirm" = Y -o "$confirm" = y
-                        # Check if Zen Twilight is running
-                        if pgrep -f zen-twilight >/dev/null
-                            echo "Restarting Zen Twilight..."
-                            pkill -f zen-twilight
-                            sleep 1
-                            hyprctl dispatch exec [workspace 11 silent] zen-twilight
-                            echo "Zen Twilight has been restarted."
-                        else
-                            echo "Zen Twilight is not currently running."
-                            echo "Starting Zen Twilight..."
-                            hyprctl dispatch exec [workspace 11 silent] zen-twilight
-                            echo "Zen Twilight has been started."
-                        end
-                    end
-                end
-            else
-                echo "Zen Twilight not installed, skipping update."
-            end
+        # Update Flatpak
+        if test $flatpak_count -gt 0
+            echo "Updating Flatpak packages..."
+            flatpak update --noninteractive
         end
     end
 
-    # Kill the sudo keeper process
-    kill_sudo_keeper
+    # Clean package caches if requested
+    if test "$clean_cache" = true
+        echo "Cleaning package caches..."
+        if command -v paccache &>/dev/null
+            sudo paccache -r
+        end
+        if command -v flatpak &>/dev/null
+            flatpak uninstall --unused
+        end
+    end
 
     # Calculate elapsed time
     set -l end_time (date +%s)
-    set -l elapsed_time (math $end_time - $start_time)
-    set -l minutes (math "floor($elapsed_time / 60)")
-    set -l seconds (math "$elapsed_time % 60")
-    set -l time_str ""
+    set -l elapsed (math $end_time - $start_time)
+    set -l minutes (math "floor($elapsed / 60)")
+    set -l seconds (math "$elapsed % 60")
 
-    if test $minutes -gt 0
-        set time_str "$minutes minutes and $seconds seconds"
-    else
-        set time_str "$seconds seconds"
-    end
-
-    # Show completion message with summary
     echo ""
-    if test "$has_gum" = true
-        echo (gum style --foreground 121 "✓ System update complete!")
-        echo (gum style --foreground 111 "Time elapsed: $time_str")
+    echo "Update completed in $minutes minutes and $seconds."
 
-        if test -n "$update_summary"
-            echo ""
-            echo (gum style --foreground 121 "Summary:")
-            for line in $update_summary
-                echo " $line"
-            end
-        end
+    # Check for kernel updates with more precise detection
+    set -l kernel_updated false
+    set -l current_kernel (pacman -Q linux | awk '{print $2}')
+    set -l kernel_packages linux linux-lts linux-zen linux-hardened
 
-        if test -n "$update_errors"
+    for pkg in $pacman_updates
+        set -l pkg_name (string split " " $pkg)[1]
+        # Check if it's one of the main kernel packages (exact match)
+        if contains $pkg_name $kernel_packages
+            set kernel_updated true
             echo ""
-            echo (gum style --foreground 196 "Errors:")
-            for line in $update_errors
-                echo " $line"
-            end
-        end
-    else
-        echo "✓ System update complete!"
-        echo "Time elapsed: $time_str"
-
-        if test -n "$update_summary"
-            echo ""
-            echo "Summary:"
-            for line in $update_summary
-                echo " $line"
-            end
-        end
-
-        if test -n "$update_errors"
-            echo ""
-            echo "Errors:"
-            for line in $update_errors
-                echo " $line"
-            end
+            echo "⚠ Kernel update detected: $pkg_name from version $current_kernel"
+            echo "A system restart is recommended after updating."
+            break
         end
     end
 
-    # Remind about system restart if kernel was updated
-    set -l kernel_updated false
-
-    # Check if updated_packages is defined before using it
-    if set -q updated_packages
-        for pkg in $updated_packages
-            # More specific kernel package patterns
-            if string match -q linux $pkg; or string match -q "linux-*" $pkg; or string match -q kernel $pkg; or string match -q "*-lts" $pkg; or string match -q "*-zen" $pkg; or string match -q "*-hardened" $pkg
-                # Extra check to avoid false positives
-                if not string match -q "*-firmware" $pkg; and not string match -q "*-headers" $pkg; and not string match -q "*-tools*" $pkg; and not string match -q "*-docs" $pkg; and not string match -q "linux-api-*" $pkg
+    # Only use the old detection method as fallback if no exact match was found
+    if test "$kernel_updated" = false
+        for pkg in $pacman_updates $aur_updates
+            set -l pkg_name (string split " " $pkg)[1]
+            if string match -q "*linux*" $pkg_name
+                if not string match -q "*firmware*" $pkg_name; and not string match -q "*headers*" $pkg_name; and not string match -q "*virtualbox*" $pkg_name
                     set kernel_updated true
+                    echo ""
+                    echo "⚠ Possible kernel-related update detected: $pkg_name"
+                    echo "A system restart may be recommended."
                     break
                 end
             end
         end
     end
 
-    if test "$kernel_updated" = true
-        echo ""
-        if test "$has_gum" = true
-            echo (gum style --foreground 220 "⚠ Kernel update detected! A system restart is recommended.")
+    # At the end of the function, remove the signal handler
+    functions -e __update_cleanup
+end
+
+# Function to get repository for a package and its color
+function get_package_repo_info
+    set -l pkg_name $argv[1]
+
+    # Check if package name is empty
+    if test -z "$pkg_name"
+        echo "unknown #BFBFBF"
+        return 1
+    end
+
+    # Query pacman database for repository info
+    set -l repo_info (pacman -Si $pkg_name 2>/dev/null | grep "Repository" | awk '{print $3}')
+
+    # Set default color for unknown repos
+    set -l color "#FFFFFF"
+
+    # If not found in standard repos, check if it's from a custom repo
+    if test -z "$repo_info"
+        # Check if installed and get info
+        set -l db_info (pacman -Qi $pkg_name 2>/dev/null | grep "Repository" | awk '{print $3}')
+        if test -n "$db_info"
+            set repo_info $db_info
         else
-            echo "⚠ Kernel update detected! A system restart is recommended."
+            # Try to get info from pacman -Ss as a fallback
+            set -l ss_info (pacman -Ss "^$pkg_name\$" 2>/dev/null | head -n1 | awk -F/ '{print $1}')
+            if test -n "$ss_info"
+                set repo_info $ss_info
+            else
+                # Assume AUR if not from a repo
+                set repo_info aur
+            end
         end
     end
+
+    # Extract the first word as the repo name to prevent switch errors
+    set -l repo_name (string split ' ' $repo_info)[1]
+
+    # Set color based on repository
+    switch "$repo_name"
+        case core
+            set color "#FF5555" # Red
+        case core-testing
+            set color "#FF79C6" # Pink
+        case extra
+            set color "#50FA7B" # Green
+        case extra-testing
+            set color "#8BE9FD" # Cyan
+        case multilib
+            set color "#FFB86C" # Orange
+        case multilib-testing
+            set color "#F1FA8C" # Yellow
+        case aur
+            set color "#FF8700" # AUR Orange
+        case visual-studio-code-insiders
+            set color "#3EA7FF" # VS Code Blue
+        case '*'
+            set color "#BFBFBF" # Light gray for other repos
+    end
+
+    echo "$repo_name $color"
 end
 
 # -----------------------------------------------------

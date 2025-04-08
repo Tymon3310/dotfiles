@@ -548,7 +548,7 @@ window#waybar.empty #window {
  * ----------------------------------------------------- */
 
 #tray {
-    padding: 4px 15px 0px 2px;
+    padding: 0px 8px 0px 0px;
 }
 
 #tray > .passive {

@@ -126,8 +126,9 @@ def get_cpu_temp():
         else:
             output["tooltip"] += f" └─ Critical: {critical_temp}°C\n"
         
-        # For high temperature warning
-        output["tooltip"] += f"\n<span color='{CRITICAL_COLOR}'>⚠ high: CPU temperature is high!</span>"
+        # Only show high temperature warning when temperature is actually high
+        if temp > critical_temp - 15:  # Only show warning for high temperatures
+            output["tooltip"] += f"\n<span color='{CRITICAL_COLOR}'>⚠ High: CPU temperature is high!</span>"
     else:
         output = {
             "text": f" N/A ",

@@ -7,3 +7,5 @@ Also I have (WIP) [NixOs flake-based dots](https://github.com/tymon3310/flakes.n
 ![image](https://github.com/user-attachments/assets/52fc3251-6aa6-4671-ac90-54275031d412)
 
 [Packages](PACKAGES.md)
+
+Installation script is 

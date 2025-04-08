@@ -239,27 +239,25 @@ def get_memory_usage():
     
     # For high memory usage (>90%)
     output = {
-        "text": f"<span size='large' rise='-2000'></span>\u00A0 <span color='{CRITICAL_COLOR}'>{memory.percent}%</span> ",
+        "text": f"<span size='large' rise='-2000'></span> <span color='{CRITICAL_COLOR}'>{memory.percent}%</span> ",
         "tooltip": f"<span color='{PRIMARY_COLOR}'> Memory Usage: {memory.percent}%</span>\n\n",
         "class": "critical"
     }
     
     # For medium memory usage (>70%)
     output = {
-        "text": f"<span size='large' rise='-2000'></span>\u00A0 <span color='{WARNING_COLOR}'>{memory.percent}%</span> ",
+        "text": f"<span size='large' rise='-2000'></span> <span color='{WARNING_COLOR}'>{memory.percent}%</span> ",
         "tooltip": f"<span color='{PRIMARY_COLOR}'> Memory Usage: {memory.percent}%</span>\n\n",
         "class": "high"
     }
     
     # For normal memory usage
     output = {
-        "text": f"<span size='large' rise='-2000'></span>\u00A0 {memory.percent}% ",
+        "text": f"<span size='large' rise='-2000'></span> {memory.percent}% ",
         "tooltip": f"<span color='{PRIMARY_COLOR}'> Memory Usage: {memory.percent}%</span>\n\n",
         "class": "normal"
     }
     
-    # Also update the tooltip RAM icon
-    output["tooltip"] += f"<span color='{PRIMARY_COLOR}'>󰘚 RAM:</span>\n"
     
     # Add RAM details
     output["tooltip"] += f"<span color='{PRIMARY_COLOR}'>󰘚 RAM:</span>\n"
