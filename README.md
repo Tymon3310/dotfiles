@@ -4,7 +4,8 @@ Based on [ML4W](https://github.com/mylinuxforwork/dotfiles/)from [@mylinuxforwor
 
 Also I have (WIP) [NixOs flake-based dots](https://github.com/tymon3310/flakes.nix)
 
-![image](https://github.com/user-attachments/assets/52fc3251-6aa6-4671-ac90-54275031d412)
+![image](https://github.com/user-attachments/assets/f46ae441-14c6-4db5-a722-3b634d89e7c0)
+
 
 [Packages](PACKAGES.md)
 
