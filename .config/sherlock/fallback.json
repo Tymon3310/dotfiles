@@ -1,4 +1,4 @@
-[
+[   
     {
         "name": "Clipboard",
         "type": "clipboard-execution",
@@ -82,7 +82,14 @@
     },
 
 
-
+    {
+        "name": "Kill Process",
+        "alias": "kill",
+        "type": "process",
+        "args": { },
+        "priority": 6,
+        "home": false
+    },
 
     {
         "name": "Web Search",
@@ -110,6 +117,18 @@
         "async": true, 
         "args": {"icon": "wikipedia", "exec": "/home/basti/.config/sherlock/scripts/wiki-api", "exec-args": "'{keyword}'"},
         "priority": 0 
+    },
+
+    {
+        "name": "Categories",
+        "alias": "cat",
+        "type": "categories",
+        "args": {
+            "Kill Processes": {"icon": "sherlock-process", "exec": "kill", "search_string": "terminate;kill;process"},
+            "Power Menu": {"icon": "battery-full-symbolic", "exec": "pm", "search_string": "powermenu;"}
+        },
+        "priority": 3,
+        "home": true
     }
 ]
 
