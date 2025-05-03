@@ -6,7 +6,7 @@ yay -S pacman-contrib wget zip unzip gum rsync git figlet sed vim xdg-user-dirs 
     networkmanager pip hyprland hyprpaper hyprlock hypridle hyprpm hyprshade \
     noto-fonts ttf-fira-sans ttf-fira-code ttf-firacode-nerd otf-font-awesome \
     xdg-desktop-portal-hyprland xdg-desktop-portal-kde xdg-desktop-portal-gtk xdg-desktop-portal-wlr \
-    libnotify swaync kitty qt5-wayland qt6-wayland waybar waybar-updates wttrbar \
+    libnotify swaync swayosd kitty qt5-wayland qt6-wayland waybar waybar-updates wttrbar \
     fastfetch eza python-pip python-gobject python-pillow python-numpy python-screeninfo \
     tumbler brightnessctl nm-connection-editor network-manager-applet \
     gtk4 libadwaita fuse2 imagemagick jq xclip curl \
@@ -18,7 +18,8 @@ yay -S pacman-contrib wget zip unzip gum rsync git figlet sed vim xdg-user-dirs 
     playerctl cava \
     qalculate-gtk btop dolphin \
     sddm qt5-graphicaleffects qt5-quickcontrols2 qt5-svg \
-    zsh zsh-completions fish fzf pwvucontrol ohmyposh
+    zsh zsh-completions fish fzf pwvucontrol ohmyposh \
+    axon-applanucher
 ```
 
 ## Required Packages
@@ -44,7 +45,7 @@ yay -S pacman-contrib wget zip unzip gum rsync git figlet sed vim xdg-user-dirs 
 - waybar (status bar)
   - waybar-updates (updates module)
   - wttrbar (weather module)
-- rofi-wayland (app launcher)
+- rofi-wayland (or axon) (app launcher)
 - waypaper (wallpaper manager)
 - swaync (notification center)
 - nwg-bar (power menu)

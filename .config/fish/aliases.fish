@@ -55,6 +55,7 @@ abbr -a update-grub 'sudo grub-mkconfig -o /boot/grub/grub.cfg'
 abbr -a pacunl 'sh ~/.config/hypr/scripts/unlock-pacman.sh'
 abbr -a dg 'sudo downgrade'
 abbr -a vsc code-insiders
+abbr -a code code-insiders
 
 # Pacman
 abbr -a pacupg 'sudo pacman -Syu'

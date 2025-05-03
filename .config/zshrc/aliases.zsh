@@ -36,21 +36,6 @@ alias gfo="git fetch origin"
 alias guncommit='git reset --soft HEAD~1'
 
 
-_gaa() {
-  local title
-
-  if [[ -z "$1" ]]; then
-    title=$(gum input --placeholder "Commit message...")
-  else
-    title=$1
-  fi
-
-  git add . && \
-  git commit -m "$title" && \
-  git push
-}
-alias gaa='_gaa'
-
 
 # -----------------------------------------------------
 # Scripts
@@ -66,3 +51,8 @@ alias update-grub='sudo grub-mkconfig -o /boot/grub/grub.cfg'
 
 alias pacunl='sh ~/.config/hypr/scripts/unlock-pacman.sh'
 alias dg='sudo downgrade'
+
+# Dev aliases
+alias 'venvon'='_makevenv'
+alias 'venvoff'='deactivate'
+alias 'vsc'='code-insiders .'

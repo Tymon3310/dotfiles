@@ -69,23 +69,6 @@ function extract
 end
 
 # -----------------------------------------------------
-# SPINNER FUNCTIONS
-# -----------------------------------------------------
-
-function show_spinner
-    # Check if gum is available
-    if not command -v gum &>/dev/null
-        echo $argv
-        return 1
-    end
-
-    # Run the command with gum spinner
-    set -l cmd $argv[2..-1]
-    gum spin --spinner dot --title "$argv[1]" -- bash -c "$cmd"
-    return $status
-end
-
-# -----------------------------------------------------
 # SYSTEM FUNCTIONS
 # -----------------------------------------------------
 
@@ -99,7 +82,7 @@ function update
 
         # Reset the handler
         functions -e __update_cleanup
-        return 1
+        exit 1
     end
 
     # Parse arguments
@@ -152,13 +135,16 @@ function update
             end
 
             # Install the new package
+            gum style --foreground "#00AFFF" --bold "Updating Zen Twilight browser..."
             yay -S zen-twilight-bin --noconfirm --redownload --rebuild --cleanafter
 
             # Ask to restart the browser
             echo ""
             echo "Zen Twilight has been updated!"
-            read -l -P "Restart browser now? [y/N] " restart
-            if string match -rq '^[Yy]' -- $restart
+            # Prompt to restart browser with a styled border
+            echo (gum style --border rounded --border-foreground "#00AFFF" --foreground "#00AFFF" --bold "Restart browser now?")
+            set -l restart_response (gum choose --cursor.foreground "#00AFFF" Yes No)
+            if test "$restart_response" = Yes
                 if pgrep -f zen-twilight >/dev/null
                     echo "Restarting Zen Twilight..."
                     pkill -f zen-twilight
@@ -177,7 +163,13 @@ function update
     end
 
     # Main update process
-    echo "Checking for updates..."
+    # Animated Checking for updates header
+    printf (gum style --foreground "#00AFFF" --bold "Checking for updates")
+    for i in (seq 1 4)
+        sleep 0.3
+        printf '.'
+    end
+    echo ''
 
     # Check for gum for prettier output
     set -l has_gum false
@@ -210,9 +202,8 @@ function update
     set -l total_count (math $pacman_count + $aur_count + $flatpak_count)
 
     # Show summary
-    echo ""
     if test "$has_gum" = true
-        echo (gum style --foreground "#00FFFF" "Found $total_count updates:")
+        gum style --border rounded --border-foreground "#00FFFF" --foreground "#00FFFF" --bold "Found $total_count updates:" --padding "0 1" --margin 0
         if test $pacman_count -gt 0
             echo (gum style --foreground "#00AFFF" "• Pacman: $pacman_count")
         end
@@ -355,9 +346,7 @@ function update
 
     # Skip if no confirmation needed
     if test "$skip_confirm" = false
-        # Get exclusions
-        echo "Enter numbers to exclude (e.g., \"1 2 3\" or \"1-3\", leave empty for none):"
-        read -l exclude_input
+        set -l exclude_input (gum input --placeholder "Exclude numbers (e.g., 1 2 3 or 1-3)")
 
         set -l excluded_indices
 
@@ -425,61 +414,57 @@ function update
             end
         end
 
-        # Get confirmation
-        echo ""
-        read -l -P "Proceed with update? [Y/n] " confirm
-        if string match -qr '^[Nn]' -- $confirm
+        # Ask for confirmation with a styled border
+        gum style --border rounded --border-foreground "#00AFFF" --foreground "#00AFFF" --bold "Proceed with update?"
+        if not gum confirm \
+                --prompt.foreground "#00AFFF" \
+                --selected.foreground "#000000" \
+                --selected.background "#00AFFF" \
+                --unselected.foreground D0D0D0 \
+                --unselected.background "#2d2d2d" \
+                ""
             echo "Update canceled."
             return 0
         end
+    end
 
-        # Run updates with exclusions
-        echo ""
-        echo "Starting update process..."
+    # Run updates with exclusions
+    echo ""
+    echo "Starting update process..."
 
-        # Update pacman/AUR packages
-        if test $pacman_count -gt 0 -o $aur_count -gt 0
-            echo "Updating system packages..."
+    # Update pacman/AUR packages
+    if test $pacman_count -gt 0 -o $aur_count -gt 0
+        gum style --foreground "#00AFFF" --bold "Updating system packages..."
 
-            # Build ignore arguments
-            set -l ignore_args
-            for pkg in $pacman_excludes $aur_excludes
-                set -a ignore_args --ignore $pkg
-            end
+        set -l ignore_args
+        for pkg in $pacman_excludes $aur_excludes
+            set -a ignore_args --ignore $pkg
+        end
 
-            # Run yay
-            if test (count $ignore_args) -gt 0
-                sudo -v # Refresh sudo
-                yay -Syu --noconfirm $ignore_args
+        if test (count $ignore_args) -gt 0
+            if test "$skip_confirm" = false
+                set -l sudo_pass (gum input --password --placeholder "Sudo password")
+                printf "%s\n" $sudo_pass | sudo -S -v
             else
-                sudo -v # Refresh sudo
-                yay -Syu --noconfirm
+                sudo -v
             end
-        end
-
-        # Update Flatpak packages
-        if test $flatpak_count -gt 0
-            echo "Updating Flatpak packages..."
-            # Always update all Flatpak packages (no exclusions)
-            flatpak update --noninteractive
-        end
-    else
-        # Run updates without exclusions
-        echo ""
-        echo "Starting update process..."
-
-        # Update pacman/AUR
-        if test $pacman_count -gt 0 -o $aur_count -gt 0
-            echo "Updating system packages..."
-            sudo -v # Refresh sudo
+            gum style --foreground "#00AFFF" --bold "Updating system packages..."
+            yay -Syu --noconfirm $ignore_args
+        else
+            if test "$skip_confirm" = false
+                set -l sudo_pass (gum input --password --placeholder "Sudo password")
+                printf "%s\n" $sudo_pass | sudo -S -v
+            else
+                sudo -v
+            end
+            gum style --foreground "#00AFFF" --bold "Updating system packages..."
             yay -Syu --noconfirm
         end
+    end
 
-        # Update Flatpak
-        if test $flatpak_count -gt 0
-            echo "Updating Flatpak packages..."
-            flatpak update --noninteractive
-        end
+    if test $flatpak_count -gt 0
+        gum style --foreground "#00AFFF" --bold "Updating Flatpak packages..."
+        flatpak update --noninteractive
     end
 
     # Clean package caches if requested

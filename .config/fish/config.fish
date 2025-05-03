@@ -13,8 +13,7 @@ if status is-interactive
     # AUTOSTART
     # -----------------------------------------------------
 
-    fastfetch
-
+    fastfetch -c ~/.config/fastfetch/config-full
     # -----------------------------------------------------
     # SETTINGS
     # -----------------------------------------------------

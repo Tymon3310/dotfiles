@@ -118,18 +118,21 @@
         "args": {"icon": "wikipedia", "exec": "/home/basti/.config/sherlock/scripts/wiki-api", "exec-args": "'{keyword}'"},
         "priority": 0 
     },
-
     {
-        "name": "Categories",
-        "alias": "cat",
-        "type": "categories",
+        "name": "Weather",
+        "type": "weather",
         "args": {
-            "Kill Processes": {"icon": "sherlock-process", "exec": "kill", "search_string": "terminate;kill;process"},
-            "Power Menu": {"icon": "battery-full-symbolic", "exec": "pm", "search_string": "powermenu;"}
+            "location": "Trzebnica",
+            "update_interval": 60
         },
-        "priority": 3,
-        "home": true
+        "priority": 1,
+        "home": true,
+        "only_home": true,
+        "async": true,
+        "shortcut": false,
+        "spawn_focus": false
     }
+    
 ]
 
 

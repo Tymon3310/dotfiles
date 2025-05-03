@@ -1,5 +1,3 @@
-
-
 # -----------------------------------------------------
 #OH-MY-ZSH
 # -----------------------------------------------------
@@ -16,11 +14,24 @@ plugins=(
     fast-syntax-highlighting
     copyfile
     copybuffer
+    zsh-autocomplete
     # dirhistory
     vscode
 )
+autoload -Uz add-zsh-hook
+autoload -U colors && colors
 source $ZSH/oh-my-zsh.sh
 source <(fzf --zsh)
+# _PROMPT_TRANSIENT_STATIC='%{%F{242}%}%~%{%f%} $ '
+# _transient_preexec() {
+#     local command_line="${1}"
+#     print -n '\e[1A\e[2K\e[1A\e[2K\r'
+#     print -P -n "$_PROMPT_TRANSIENT_STATIC"
+#     print -n "${command_line}"
+#     print
+# }
+
+# add-zsh-hook preexec _transient_preexec
 
 # zsh history
 HISTFILE=~/.zsh_history
@@ -30,9 +41,14 @@ setopt appendhistory
 
 eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/EDM115-newline.omp.json)"
 
+# Starship
+zmodload zsh/parameter
+# source ~/starship
+
 # -----------------------------------------------------
 # Exports
 # -----------------------------------------------------
+
 
 # Private exports
 source ~/.env
@@ -77,12 +93,29 @@ eval $(thefuck --alias)
 export PATH=$PATH:/home/tymon/.spicetify
 bindkey '^X' create_completion
 
+# Zoxide
+eval "$(zoxide init zsh)"
+
+zle -N accept-line _emptyenter
+
+_emptyenter() {
+    if [[ -z "$BUFFER" ]]; then
+        zle redisplay
+    else
+        zle .accept-line
+    fi
+}
+
 # -----------------------------------------------------
 #aliases
 # -----------------------------------------------------
 
-source ~/.config/zshrc/aliases
+source ~/.config/zshrc/aliases.zsh
+source ~/custom-commands
 
+for f in ~/.config/zshrc/functions/*.zsh; do
+  source "$f"
+done
 
 # -----------------------------------------------------
 #AUTOSTART
@@ -90,5 +123,5 @@ source ~/.config/zshrc/aliases
 
 # Don't run fastfetch in VSCode integrated terminal
 if [[ -z $VSCODE_INJECTION ]]; then
-  fastfetch
+  fastfetch -c ~/.config/fastfetch/arch
 fi

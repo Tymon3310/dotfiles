@@ -1,15 +1,30 @@
-/* General window styling */
+/* --- Color Palette --- */
+/* Primary Background: #2d2d2d */
+/* Input/Hover Background: #3c3c3c / #3a3a3a */
+/* Border Color: #555 */
+/* Item Border Color: #444444 */
+/* Text Color (Default): #f0f0f0 */
+/* Text Color (Main): #e0e0e0 */
+/* Text Color (Sub): #a0a0a0 */
+/* Text Color (Selected): #ffffff */
+/* Selection Background: #0078d4 */
+/* Selection Border: #66aaff */
+/* Focus Border: #558BFF */
+
+/* --- General Window Styling --- */
 #MainWindow {
     background-color: #2d2d2d; /* Dark grey background */
+    color: #f0f0f0; /* Default light text color */
     border: 1px solid #555;
     border-radius: 6px; /* Slightly rounded corners */
-    color: #f0f0f0; /* Default light text color */
 }
-/* Input field styling */
+
+/* --- Input Field Styling --- */
 #InputBar {
     background-color: #3c3c3c; /* Slightly lighter background for input */
     color: #f0f0f0; /* Light text */
     border: none; /* Remove default border */
+    border-bottom: 1px solid #555; /* Add a subtle line below the input */
     padding: 12px 10px; /* Generous padding */
     font-size: 14pt;
     /* Apply border radius only to top corners */
@@ -17,17 +32,13 @@
     border-top-right-radius: 6px;
     border-bottom-left-radius: 0px;
     border-bottom-right-radius: 0px;
-    /* Add a subtle line below the input */
-    border-bottom: 1px solid #555;
+    /* Note: Placeholder text style is applied in Python via QPalette */
 }
-#InputBar:focus {
-    /* Optional: slightly change background or border on focus */
-    background-color: #4a4a4a;
-}
-/* Result list styling */
+
+/* --- Result List Styling --- */
 #ResultList {
     background-color: #2d2d2d; /* Match window background */
-    border: none; /* Remove default border */
+    border: 1px solid transparent; /* Base border for focus transition */
     outline: none; /* Remove focus outline if any */
     /* Apply border radius only to bottom corners */
     border-top-left-radius: 0px;
@@ -35,61 +46,55 @@
     border-bottom-left-radius: 6px;
     border-bottom-right-radius: 6px;
 }
-/* Individual list item styling - with consistent height and subtle borders */
-#ResultList::item {
+
+#ResultList:focus {
+    border-color: #558BFF; /* Accent border on focus */
+}
+
+/* --- Individual List Item Styling --- */
+QListView#ResultList::item {
     background-color: transparent;
-    margin: 2px;
     border: 1px solid #444444; /* Subtle border around each item */
+    margin: 2px;
     border-radius: 3px; /* Slightly rounded corners */
+    height: 60px; /* Fixed height for consistent item appearance */
 }
-/* Selected list item styling - enhanced border */
-#ResultList::item:selected {
-    background-color: #0078d4; /* A blue accent for selection */
+
+/* Hover effect for individual items */
+QListView#ResultList::item:hover {
+    background-color: #3a3a3a;
+}
+
+/* Selected list item styling */
+QListView#ResultList::item:selected {
+    background-color: #0078d4; /* Blue accent for selection */
     color: #ffffff; /* White text when selected */
-    border-radius: 3px; /* Slightly round the selection highlight */
     border: 1px solid #66aaff; /* Brighter border for selected items */
+    border-radius: 3px; /* Match item border-radius */
 }
-/* Styling for the main text label inside list items */
-/* Note: These will override the font settings in your code */
-#ResultList::item QLabel#ResultMainText {
+
+/* --- List Item Label Styling --- */
+
+/* Main text label inside list items */
+/* Note: These settings override font/color set in Python code */
+QListView#ResultList::item QLabel#ResultMainText {
+    background-color: transparent; /* Ensure transparency */
     color: #e0e0e0; /* Slightly off-white */
     font-size: 11pt;
     font-weight: bold;
-    background-color: transparent; /* Ensure transparency */
 }
-/* Styling for the sub text label inside list items */
-/* Note: These will override the color/font settings in your code */
-#ResultList::item QLabel#ResultSubText {
+
+/* Sub text label inside list items */
+/* Note: These settings override font/color set in Python code */
+QListView#ResultList::item QLabel#ResultSubText {
+    background-color: transparent; /* Ensure transparency */
     color: #a0a0a0; /* Grey for subtext */
     font-size: 9pt;
     font-weight: normal;
-    background-color: transparent; /* Ensure transparency */
 }
+
 /* Override text colors for selected item's labels */
-#ResultList::item:selected QLabel#ResultMainText,
-#ResultList::item:selected QLabel#ResultSubText {
-    color: #ffffff; /* White text on blue background */
-}
-/* Basic Scrollbar Styling (Optional) */
-QScrollBar:vertical {
-    border: none;
-    background: #2d2d2d; /* Match list background */
-    width: 8px; /* Adjust width */
-    margin: 0px 0px 0px 0px;
-}
-QScrollBar::handle:vertical {
-    background: #555; /* Scroller handle color */
-    min-height: 20px;
-    border-radius: 4px; /* Rounded handle */
-}
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-    border: none;
-    background: none;
-    height: 0px; /* Hide arrows */
-    subcontrol-position: top;
-    subcontrol-origin: margin;
-}
-/* Hide the page up/down areas */
-QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-    background: none;
+QListView#ResultList::item:selected QLabel#ResultMainText,
+QListView#ResultList::item:selected QLabel#ResultSubText {
+    color: #ffffff; /* White text on blue selection background */
 }
