@@ -40,7 +40,7 @@
 }
 
 window#waybar {
-    background-color: rgba(0,0,0,0.8);
+    background-color: rgba(0, 0, 0, 0.8);
     border-bottom: 0px solid #ffffff;
     /* color: #FFFFFF; */
     background: transparent;
@@ -65,7 +65,7 @@ window#waybar {
     color: @textcolor1;
 }
 
-#workspaces.scratchpad { 
+#workspaces.scratchpad {
     min-width: 0px;
     background: transparent;
 }
@@ -80,7 +80,7 @@ window#waybar {
     background: @color2;
     color: @textcolor1;
     /* transition: all 0.3s ease-in-out; */
-    opacity: 0.65;  
+    opacity: 0.65;
 }
 
 #workspaces button.visible {
@@ -118,11 +118,11 @@ window#waybar {
 }
 
 @keyframes blink-urgent {
-	to {
-		background-color: rgb(206, 73, 73);
+    to {
+        background-color: rgb(206, 73, 73);
         color: @textcolor2;
-        
-	}
+
+    }
 }
 
 #workspaces button.urgent {
@@ -199,11 +199,11 @@ window#waybar.empty #window {
  * Modules
  * ----------------------------------------------------- */
 
-.modules-left > widget:first-child > #workspaces {
+.modules-left>widget:first-child>#workspaces {
     margin-left: 0;
 }
 
-.modules-right > widget:last-child > #workspaces {
+.modules-right>widget:last-child>#workspaces {
     margin-right: 0;
 }
 
@@ -230,18 +230,18 @@ window#waybar.empty #window {
  * Custom Quicklinks
  * ----------------------------------------------------- */
 
-#custom-brave, 
-#custom-browser, 
-#custom-keybindings, 
-#custom-outlook, 
-#custom-filemanager, 
-#custom-teams, 
-#custom-chatgpt, 
-#custom-calculator, 
-#custom-windowsvm, 
-#custom-cliphist, 
-#custom-settings, 
-#custom-wallpaper, 
+#custom-brave,
+#custom-browser,
+#custom-keybindings,
+#custom-outlook,
+#custom-filemanager,
+#custom-teams,
+#custom-chatgpt,
+#custom-calculator,
+#custom-windowsvm,
+#custom-cliphist,
+#custom-settings,
+#custom-wallpaper,
 #custom-system,
 #custom-hyprshade,
 #custom-hypridle,
@@ -266,7 +266,7 @@ window#waybar.empty #window {
 #custom-quicklink8,
 #custom-quicklink9,
 #custom-quicklink10 {
-    margin-right: 24px;   
+    margin-right: 24px;
 }
 
 #custom-tools {
@@ -286,7 +286,7 @@ window#waybar.empty #window {
     background-image: url("../assets/openai.svg");
     background-repeat: no-repeat;
     background-position: center;
-    background-size: contain; 
+    background-size: contain;
     padding-right: 18px;
     opacity: 0.8;
 }
@@ -332,7 +332,7 @@ window#waybar.empty #window {
 }
 
 #custom-player {
-    background-color: @color1;
+    /* background-color: @color1; */
     margin: 5px 15px 5px 0px;
     padding: 2px 10px 0px 10px;
     border-radius: 8px;
@@ -390,15 +390,15 @@ window#waybar.empty #window {
 }
 
 @keyframes blink-update {
-	to {
-		background-color: rgb(67, 190, 227);
-	}
+    to {
+        background-color: rgb(67, 190, 227);
+    }
 }
 
 #custom-pacman {
-	animation-timing-function: linear;
-	animation-iteration-count: infinite;
-	animation-direction: alternate;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
     background-color: @color1;
     margin: 5px 15px 5px 0px;
     padding: 2px 10px 0px 10px;
@@ -408,9 +408,10 @@ window#waybar.empty #window {
     font-weight: normal;
     opacity: 0.8;
 }
+
 #custom-pacman.pending-updates {
-	animation-name: blink-update;
-	animation-duration: 3s;
+    animation-name: blink-update;
+    animation-duration: 3s;
     background-color: @color1;
     margin: 5px 15px 5px 0px;
     padding: 2px 10px 0px 10px;
@@ -420,14 +421,17 @@ window#waybar.empty #window {
     font-weight: normal;
     opacity: 0.8;
 }
+
 #custom-pacman:hover {
     opacity: 1;
 }
+
 /* -----------------------------------------------------
  * Hardware Group
  * ----------------------------------------------------- */
 
-#group-cpu, #group-memgpu {
+#group-cpu,
+#group-memgpu {
     margin: 2px 0px 0px 0px;
     padding: 0px;
     font-size: 16px;
@@ -447,7 +451,7 @@ window#waybar.empty #window {
     padding: 1px 10px 0px 10px;
     margin: 3px 15px 3px 0px;
     opacity: 0.8;
-    border: 3px solid @textcolor2;   
+    border: 3px solid @textcolor2;
 }
 
 #clock:hover {
@@ -523,7 +527,9 @@ window#waybar.empty #window {
  * Bluetooth
  * ----------------------------------------------------- */
 
-#bluetooth, #bluetooth.on, #bluetooth.connected {
+#bluetooth,
+#bluetooth.on,
+#bluetooth.connected {
     background-color: @color1;
     font-size: 16px;
     color: @textcolor2;
@@ -551,11 +557,11 @@ window#waybar.empty #window {
     padding: 0px 8px 0px 0px;
 }
 
-#tray > .passive {
+#tray>.passive {
     -gtk-icon-effect: dim;
 }
 
-#tray > .needs-attention {
+#tray>.needs-attention {
     -gtk-icon-effect: highlight;
 }
 

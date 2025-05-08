@@ -44,58 +44,39 @@ get_repo_priority() {
 
 # Function to get repository for a package and its color
 get_package_repo_info() {
-    local pkg_name="$1"
+    local pkg_name_arg="$1" # Argument might be "repo/pkg" or just "pkg"
+    local pkg_name="$pkg_name_arg"
     local repo_name="unknown" # Default repo name
     local color="#BFBFBF"    # Default color
 
     # Check if package name is empty
-    if [[ -z "$pkg_name" ]]; then
+    if [[ -z "$pkg_name_arg" ]]; then
         echo "$repo_name $color"
         return 1
     fi
 
-    # Handle packages with slash notation (e.g., extra/btop)
-    if [[ "$pkg_name" == */* ]]; then
-        repo_name=$(echo "$pkg_name" | cut -d'/' -f1)
-        pkg_name=$(echo "$pkg_name" | cut -d'/' -f2)
-        # We have the repo name, now determine its color
-        case "$repo_name" in
-            core)               color="#FF5555";; # Red
-            core-testing)       color="#FF79C6";; # Pink
-            extra)              color="#50FA7B";; # Green
-            extra-testing)      color="#8BE9FD";; # Cyan
-            multilib)           color="#FFB86C";; # Orange
-            multilib-testing)   color="#F1FA8C";; # Yellow
-            aur)                color="#FF8700";; # AUR Orange
-            visual-studio-code-insiders) color="#3EA7FF";; # VS Code Blue
-            *)                  color="#BFBFBF";; # Light gray for others
-        esac
-        echo "$repo_name $color"
-        return 0 # Found repo from prefix, no need to query pacman
-    fi
-
-    # Query pacman database for repository info if not found via prefix
-    local repo_info=$(pacman -Si "$pkg_name" 2>/dev/null | grep "Repository" | awk '{print $3}' | tr -d '[:space:]')
-
-    # If not found in standard repos, check if it's installed and get info
-    if [[ -z "$repo_info" ]]; then
-        local db_info=$(pacman -Qi "$pkg_name" 2>/dev/null | grep "Repository" | awk '{print $3}' | tr -d '[:space:]')
-        if [[ -n "$db_info" ]]; then
-            repo_info=$db_info
+    # Handle packages with slash notation first (e.g., extra/btop from checkupdates)
+    if [[ "$pkg_name_arg" == */* ]]; then
+        repo_name=$(echo "$pkg_name_arg" | cut -d'/' -f1)
+        pkg_name=$(echo "$pkg_name_arg" | cut -d'/' -f2)
+        repo_name=$(echo "$repo_name" | fix_repo_display) # Fix display for testing repos
+    elif [[ -n "${pkg_to_repo_map[$pkg_name_arg]}" ]]; then # Check our pre-fetched map
+        repo_name="${pkg_to_repo_map[$pkg_name_arg]}"
+        repo_name=$(echo "$repo_name" | fix_repo_display) # Fix display for testing repos
+    else
+        # If not in map or slash notation, try pacman -Qi for installed packages (often faster than -Si)
+        local qi_repo_info=$(pacman -Qi "$pkg_name_arg" 2>/dev/null | grep "^Repository" | awk '{print $3}' | tr -d '[:space:]')
+        if [[ -n "$qi_repo_info" ]]; then
+            repo_name=$(echo "$qi_repo_info" | head -n1 | fix_repo_display)
         else
-            # Try to get info from pacman -Ss as a fallback (less reliable)
-            local ss_info=$(pacman -Ss "^$pkg_name\$" 2>/dev/null | head -n1 | awk -F/ '{print $1}' | tr -d '[:space:]')
-            if [[ -n "$ss_info" ]]; then
-                 repo_info=$ss_info
+            # Fallback to pacman -Si (slowest)
+            local si_repo_info=$(pacman -Si "$pkg_name_arg" 2>/dev/null | grep "^Repository" | awk '{print $3}' | tr -d '[:space:]')
+            if [[ -n "$si_repo_info" ]]; then
+                repo_name=$(echo "$si_repo_info" | head -n1 | fix_repo_display)
             fi
+            # No need for pacman -Ss fallback here as pkg_to_repo_map should cover available packages
         fi
     fi
-
-    # Make sure we only get one repo name
-    repo_name=$(echo "$repo_info" | head -n1 | tr -d '[:space:]')
-
-    # Fix any combined testing repo formats (e.g., "core-testingcore")
-    repo_name=$(echo "$repo_name" | fix_repo_display)
 
     # Set color based on repository if found, otherwise keep default
     if [[ -n "$repo_name" && "$repo_name" != "unknown" ]]; then
@@ -115,14 +96,39 @@ get_package_repo_info() {
         repo_name="unknown"
     fi
 
-
     echo "$repo_name $color"
 }
 
 # Main update function
 update() {
-    # Set up signal handler for SIGINT (Ctrl+C)
-    trap 'echo ""; echo "Update canceled by user."; return 1' INT
+    # Create temporary files for update checks
+    local pacman_tmp_file=$(mktemp)
+    local aur_tmp_file=$(mktemp)
+    local flatpak_tmp_file=$(mktemp)
+
+    # Set up signal handler for SIGINT (Ctrl+C) and EXIT
+    # This trap will execute, print the message, clean up temp files, then remove the trap for INT, then return.
+    trap 'echo ""; echo "Update canceled by user."; rm -f "$pacman_tmp_file" "$aur_tmp_file" "$flatpak_tmp_file"; trap - INT EXIT; return 1' INT
+    trap 'rm -f "$pacman_tmp_file" "$aur_tmp_file" "$flatpak_tmp_file"; trap - EXIT' EXIT
+
+
+    # Declare an associative array to store package to repository mappings
+    typeset -A pkg_to_repo_map
+
+    # Populate the map: pacman -Sl --color never output is "repo pkg version"
+    # We want the *first* repo encountered for a package if listed multiple times,
+    # assuming pacman.conf lists higher-priority repos first (e.g., testing before stable).
+    typeset -A populated_pkgs_in_map # Helper to ensure we take the first entry from pacman -Sl
+
+    while IFS=' ' read -r repo pkg_name version; do
+        # Skip lines that don't conform to "repo pkg version" or are headers/empty
+        if [[ -n "$repo" && -n "$pkg_name" && -n "$version" ]]; then
+            if [[ -z "${populated_pkgs_in_map[$pkg_name]}" ]]; then # If this package name hasn't been added yet
+                pkg_to_repo_map[$pkg_name]="$repo"
+                populated_pkgs_in_map[$pkg_name]=1 # Mark as populated, subsequent entries for same pkg_name are ignored
+            fi
+        fi
+    done < <(pacman -Sl --color never 2>/dev/null)
 
     # Parse arguments
     local update_browsers=false
@@ -173,10 +179,28 @@ update() {
 
         # Check if zen-twilight-bin is installed
         if pacman -Q zen-twilight-bin &>/dev/null; then
-            # Run gum choose directly and check exit status
+            # Remove the old package
+            sudo pacman -R zen-twilight-bin --noconfirm
+
+            # Clean cache
+            if [[ -d ~/.cache/yay/zen-twilight-bin ]]; then
+                rm -rf ~/.cache/yay/zen-twilight-bin
+            fi
+
+            # Install the new package
+            gum style --foreground "#00AFFF" --bold "Updating Zen Twilight browser..."
+            yay -S zen-twilight-bin --noconfirm --redownload --rebuild --cleanafter
+
+            # Ask to restart the browser
+            echo ""
+            echo "Zen Twilight has been updated!"
+            # Run gum choose and capture the output
             gum style --border rounded --border-foreground "#00AFFF" --foreground "#00AFFF" --bold "Restart browser now?"
-            if gum choose --cursor.foreground "#00AFFF" Yes No; then
-                # User chose Yes (exit status 0)
+            local restart_choice=$(gum choose --cursor.foreground "#00AFFF" Yes No)
+
+            # Check the chosen string
+            if [[ "$restart_choice" == "Yes" ]]; then
+                # User chose Yes
                 if pgrep -f zen-twilight > /dev/null; then
                     echo "Restarting Zen Twilight..."
                     pkill -f zen-twilight
@@ -186,11 +210,15 @@ update() {
                     echo "Starting Zen Twilight..."
                     hyprctl dispatch exec '[workspace 11 silent]' zen-twilight
                 fi
+            else
+                # User chose No or cancelled
+                echo "Browser restart skipped."
             fi
         else
             echo "Zen Twilight not installed."
         fi
 
+        trap - INT # Clear the main INT trap if we are exiting here
         return 0
     fi
 
@@ -199,9 +227,9 @@ update() {
     # printf "$(gum style --foreground "#00AFFF" --bold "Checking for updates")"
     # for i in {1..4}; do
     #     sleep 0.3
-    #     printf ' .'
+    #     printf \' .\'
     # done
-    # echo ''
+    # echo \'\'
 
     # Check for gum for prettier output
     local has_gum=false
@@ -209,62 +237,77 @@ update() {
         has_gum=true
     fi
 
-    # Get updates
+    # Get updates in parallel, within a subshell to suppress job control messages
+    ( # Start subshell
+        if command -v checkupdates >/dev/null 2>&1; then
+            checkupdates 2>/dev/null > "$pacman_tmp_file" &
+        elif command -v pacman >/dev/null 2>&1; then
+            pacman -Qu 2>/dev/null > "$pacman_tmp_file" &
+        else
+            # Create an empty temp file if no pacman command is available
+            echo -n > "$pacman_tmp_file" &
+        fi
+
+        if command -v yay >/dev/null 2>&1; then
+            yay -Qua 2>/dev/null > "$aur_tmp_file" &
+        else
+            echo -n > "$aur_tmp_file" &
+        fi
+
+        if command -v flatpak >/dev/null 2>&1; then
+            flatpak remote-ls --updates 2>/dev/null > "$flatpak_tmp_file" &
+        else
+            echo -n > "$flatpak_tmp_file" &
+        fi
+
+        # Wait for all background jobs within the subshell to finish
+        wait
+    ) # End subshell
+
     local pacman_updates=()
     local raw_updates=""
-
-    if command -v checkupdates >/dev/null 2>&1; then
-        # Get the raw update output first
-        raw_updates=$(checkupdates 2>/dev/null)
-
-        # Process the raw output
-        if [[ -n "$raw_updates" ]]; then
-            if [[ -n "$filter" ]]; then
-                 # Filter if needed
-                 pacman_updates=("${(f)$(echo "$raw_updates" | grep -i "$filter")}")
-            else
-                 # Assign directly
-                 pacman_updates=("${(f)raw_updates}")
-            fi
-            # Remove empty entries just in case
-            pacman_updates=("${pacman_updates[@]:#}")
+    # Read from temp file for pacman updates
+    raw_updates=$(cat "$pacman_tmp_file")
+    if [[ -n "$raw_updates" ]]; then
+        if [[ -n "$filter" ]]; then
+            pacman_updates=("${(f)$(echo "$raw_updates" | grep -i "$filter")}")
+        else
+            pacman_updates=("${(f)raw_updates}")
         fi
-    elif command -v pacman >/dev/null 2>&1; then
-        # Regular pacman fallback
-        pacman_updates=("${(f)$(pacman -Qu 2>/dev/null | grep -i "$filter")}")
-        # Remove empty entries
         pacman_updates=("${pacman_updates[@]:#}")
     fi
 
     local aur_updates=()
-    if command -v yay >/dev/null 2>&1; then
-        aur_updates=("${(f)$(yay -Qua 2>/dev/null | grep -i "$filter")}")
-        # Remove empty entries
+    # Read from temp file for AUR updates
+    local aur_raw_updates=$(cat "$aur_tmp_file")
+    if [[ -n "$aur_raw_updates" ]]; then
+        if [[ -n "$filter" ]]; then
+            aur_updates=("${(f)$(echo "$aur_raw_updates" | grep -i "$filter")}")
+        else
+            aur_updates=("${(f)aur_raw_updates}")
+        fi
         aur_updates=("${aur_updates[@]:#}")
     fi
 
     local flatpak_updates=()
-    if command -v flatpak >/dev/null 2>&1; then
-        # Check if there are actual updates available by parsing the output properly
-        local flatpak_output=$(flatpak remote-ls --updates 2>/dev/null)
-        
-        # Skip if the output is empty or contains "Nothing to do"
-        if [[ -n "$flatpak_output" && "$flatpak_output" != *"Nothing to do"* ]]; then
-            # Filter out lines that just contain "flatpak" or are empty
-            flatpak_output=$(echo "$flatpak_output" | grep -v "^flatpak$" | grep -v "^$")
-            
-            if [[ -n "$flatpak_output" ]]; then
-                # Filter the output if needed
-                if [[ -n "$filter" ]]; then
-                    flatpak_updates=("${(f)$(echo "$flatpak_output" | grep -i "$filter")}")
-                else
-                    flatpak_updates=("${(f)flatpak_output}")
-                fi
-                # Remove empty entries
-                flatpak_updates=("${flatpak_updates[@]:#}")
+    # Read from temp file for Flatpak updates
+    local flatpak_output=$(cat "$flatpak_tmp_file")
+    if [[ -n "$flatpak_output" && "$flatpak_output" != *"Nothing to do"* ]]; then
+        flatpak_output=$(echo "$flatpak_output" | grep -v "^flatpak$" | grep -v "^$")
+        if [[ -n "$flatpak_output" ]]; then
+            if [[ -n "$filter" ]]; then
+                flatpak_updates=("${(f)$(echo "$flatpak_output" | grep -i "$filter")}")
+            else
+                flatpak_updates=("${(f)flatpak_output}")
             fi
+            flatpak_updates=("${flatpak_updates[@]:#}")
         fi
     fi
+
+    # Remove temporary files now that we're done with them
+    rm -f "$pacman_tmp_file" "$aur_tmp_file" "$flatpak_tmp_file"
+    # Clear the EXIT trap as normal cleanup has occurred
+    trap - EXIT
 
     # Get counts
     local pacman_count=${#pacman_updates[@]}
@@ -301,15 +344,17 @@ update() {
     # No updates case
     if [[ $total_count -eq 0 ]]; then
         echo "No updates available."
+        trap - INT # Clear the main INT trap as we are exiting normally
         return 0
     fi
 
     # Create numbered list for ALL packages
     local all_updates=()
     local display_list=()
+    local item_idx_for_display=0 # Counter for displayed items for exclusion
     
     # Sort pacman updates by repository priority if there are any
-    # <<< BEGIN TEMPORARY DISABLE SORTING >>>
+    # Sorting logic is active and working.
     if [[ $pacman_count -gt 0 ]]; then
         # Create an array of "priority:repo:package" strings for sorting
         local sortable_pacman_updates=()
@@ -366,7 +411,6 @@ update() {
         # Remove any potential empty entries (shouldn't be needed now, but keep as safeguard)
         pacman_updates=("${pacman_updates[@]:#}")
     fi
-    # <<< END TEMPORARY DISABLE SORTING >>>
 
     # Add a header for pacman
     if [[ $pacman_count -gt 0 ]]; then
@@ -380,106 +424,65 @@ update() {
 
     # Add pacman packages
     for pkg in "${pacman_updates[@]}"; do
-        all_updates+=("pacman:$pkg")
-        local idx=${#all_updates[@]}
+        item_idx_for_display=$((item_idx_for_display + 1))
+        local first_word=$(echo "$pkg" | awk '{print $1}')
+        local pkg_name_display="$first_word" # Default to the first word
+        local repo_color_info=""
+        local repo_name_for_display="unknown"
+        local color_for_display="#BFBFBF"
 
-        # Handle both regular and testing repo packages
-        local repo=""
-        local repo_color=""
-        local pkg_info="$pkg" # Start with the full original line
-        local pkg_name=""
-
-        # Check if this line uses the repo/package format
-        if [[ "$pkg" == */* ]]; then
-            # Extract repo and actual package name from the prefix
-            repo=$(echo "$pkg" | cut -d'/' -f1)
-            local actual_pkg_name=$(echo "$pkg" | cut -d'/' -f2 | awk '{print $1}') # Get name after slash
-            # Reconstruct the display string without the repo prefix
-            pkg_info=$(echo "$pkg" | sed "s~^[^ ]* ~~") # Remove the first word (repo/package) and space
-            pkg_name=$actual_pkg_name
-
-            # Get color based on the extracted repo name
-            case "$repo" in
-                 core)               repo_color="#FF5555";; # Red
-                 core-testing)       repo_color="#FF79C6";; # Pink
-                 extra)              repo_color="#50FA7B";; # Green
-                 extra-testing)      repo_color="#8BE9FD";; # Cyan
-                 multilib)           repo_color="#FFB86C";; # Orange
-                 multilib-testing)   repo_color="#F1FA8C";; # Yellow
-                 visual-studio-code-insiders) repo_color="#3EA7FF";; # VS Code Blue
-                 *)                  repo_color="#BFBFBF";; # Light gray
-            esac
+        # If checkupdates provided "repo/package", use that
+        if [[ "$first_word" == */* ]]; then
+            repo_color_info=$(get_package_repo_info "$first_word")
+            pkg_name_display="${first_word#*/}" # Get only the package name part
         else
-            # Regular package handling (assume no repo prefix in the line)
-            # The repo should have been determined during sorting, but we might need to re-fetch color
-            pkg_name=$(echo "$pkg" | awk '{print $1}') # Get the package name (first word)
-
-            # Get repository info and color using the function
-            local repo_info_result=$(get_package_repo_info "$pkg_name")
-            repo=$(echo "$repo_info_result" | awk '{print $1}')
-            repo_color=$(echo "$repo_info_result" | awk '{print $2}')
-
-            # If repo is still unknown, assign defaults
-            if [[ "$repo" == "unknown" ]]; then
-                 if [[ "$pkg_name" == "glibc" || "$pkg_name" == "linux" || "$pkg_name" == "bash" ]]; then
-                     repo="core"
-                     repo_color="#FF5555"
-                 else
-                     repo="extra"
-                     repo_color="#50FA7B"
-                 fi
-            fi
-            # pkg_info remains the original $pkg line
+            # Otherwise, it's just "package", get repo info for it
+            repo_color_info=$(get_package_repo_info "$first_word")
         fi
+        
+        repo_name_for_display=$(echo "$repo_color_info" | awk '{print $1}')
+        color_for_display=$(echo "$repo_color_info" | awk '{print $2}')
+
+        # Reconstruct the package info line for display
+        # The original $pkg line is like "package old_ver -> new_ver" or "repo/package old_ver -> new_ver"
+        # We want to display "[REPO] package old_ver -> new_ver"
+        local rest_of_line=$(echo "$pkg" | cut -d' ' -f2-) # Get everything after the first word
+        local pkg_info="$pkg_name_display $rest_of_line"   # e.g., "btop 1.2.3 -> 1.2.4"
 
         if [[ "$has_gum" = true ]]; then
-            # Format with gum styling
-            local styled_idx=$(gum style --foreground "#00AFFF" --bold "[$idx]")
-            # Apply proper color based on repo type
-            local styled_repo=$(gum style --foreground "$repo_color" "$repo")
-            # Use pkg_info instead of pkg for testing repos
-            display_list+=("$(printf "%s %-15s %s" "$styled_idx" "$styled_repo" "$pkg_info")")
+            local styled_idx=$(gum style --bold "[$item_idx_for_display]")
+            display_list+=("$(printf "%s %s %s" "$styled_idx" "$(gum style --foreground "$color_for_display" "[$repo_name_for_display]")" "$pkg_info")")
         else
-            # Format as a single line with proper padding
-            display_list+=("$(printf "%-5s %-12s %s" "[$idx]" "$repo" "$pkg_info")")
+            display_list+=("$(printf "[%2d] [%s] %s" "$item_idx_for_display" "$repo_name_for_display" "$pkg_info")")
         fi
+        all_updates+=("pacman:$pkg") # Store with type prefix and original line
     done
-
-    # Add a separator after pacman
-    if [[ $pacman_count -gt 0 ]]; then
-        display_list+=("")
-    fi
 
     # Add a header for AUR
     if [[ $aur_count -gt 0 ]]; then
         if [[ "$has_gum" = true ]]; then
-            display_list+=("$(gum style --foreground "#FF8700" --bold "== AUR Updates ==")")
+            display_list+=("$(gum style --bold --foreground "#FF8700" "\nAUR Packages:")")
         else
-            display_list+=("== AUR Updates ==")
+            display_list+=("\nAUR Packages:")
         fi
-        display_list+=("")
     fi
 
     # Add AUR packages
     for pkg in "${aur_updates[@]}"; do
-        all_updates+=("aur:$pkg")
-        local idx=${#all_updates[@]}
+        item_idx_for_display=$((item_idx_for_display + 1))
+        local pkg_name_aur=$(echo "$pkg" | awk '{print $1}')
+        # AUR packages don't have a repo in the same way, so we'll just use "aur"
+        local repo_color_info_aur=$(get_package_repo_info "aur/$pkg_name_aur") # Pass it like this to get AUR color
+        local color_for_display_aur=$(echo "$repo_color_info_aur" | awk '{print $2}')
 
         if [[ "$has_gum" = true ]]; then
-            # Format AUR packages similar to pacman packages
-            local styled_idx=$(gum style --foreground "#FF8700" --bold "[$idx]")
-            local styled_repo=$(gum style --foreground "#FF8700" "aur")
-            display_list+=("$(printf "%s %-15s %s" "$styled_idx" "$styled_repo" "$pkg")")
+            local styled_idx=$(gum style --bold "[$item_idx_for_display]")
+            display_list+=("$(printf "%s %s %s" "$styled_idx" "$(gum style --foreground "$color_for_display_aur" "[aur]")" "$pkg")")
         else
-            # Format with proper padding
-            display_list+=("$(printf "%-5s %-12s %s" "[$idx]" "aur" "$pkg")")
+            display_list+=("$(printf "[%2d] [aur] %s" "$item_idx_for_display" "$pkg")")
         fi
+        all_updates+=("aur:$pkg") # Store with type prefix and original line
     done
-
-    # Add a separator after AUR
-    if [[ $aur_count -gt 0 ]]; then
-        display_list+=("")
-    fi
 
     # Add a header for flatpak
     if [[ $flatpak_count -gt 0 ]]; then
@@ -493,17 +496,16 @@ update() {
 
     # Add flatpak packages
     for pkg in "${flatpak_updates[@]}"; do
-        all_updates+=("flatpak:$pkg")
-        local idx=${#all_updates[@]}
+        item_idx_for_display=$((item_idx_for_display + 1))
+        all_updates+=("flatpak:$pkg") # Already correct
 
         if [[ "$has_gum" = true ]]; then
-            # Format Flatpak packages similar to pacman packages
-            local styled_idx=$(gum style --foreground "#00FF00" --bold "[$idx]")
+            local styled_idx=$(gum style --bold --foreground "#00FF00" "[$item_idx_for_display]")
             local styled_repo=$(gum style --foreground "#00FF00" "flatpak")
             display_list+=("$(printf "%s %-15s %s" "$styled_idx" "$styled_repo" "$pkg")")
         else
             # Format with proper padding
-            display_list+=("$(printf "%-5s %-12s %s" "[$idx]" "flatpak" "$pkg")")
+            display_list+=("$(printf "[%2d] %-12s %s" "$item_idx_for_display" "flatpak" "$pkg")")
         fi
     done
 
@@ -511,7 +513,8 @@ update() {
     echo "Available updates:"
     echo ""
     for line in "${display_list[@]}"; do
-        echo "$line" | fix_repo_display
+        # Print each line directly; repository names already captured correctly
+        echo "$line"
     done
     echo ""
 
@@ -570,18 +573,21 @@ update() {
 
                                         # Determine package name for --ignore and display type
                                         case "$pkg_type" in
-                                            pacman)
-                                                pkg_name_to_ignore=$(echo "$pkg_line" | awk '{print $2}')
+                                        pacman)
+                                                # Extract package name (first word) and strip repo prefix
+                                                local raw_name="$(echo "$pkg_line" | awk '{print $1}')"
+                                                pkg_name_to_ignore="${raw_name#*/}"
                                                 pacman_excludes+=("$pkg_name_to_ignore")
                                                 display_type_name="Pacman"
-                                                ;; # Added semicolon
+                                                ;;
                                             aur)
-                                                pkg_name_to_ignore=$(echo "$pkg_line" | awk '{print $2}')
+                                                pkg_name_to_ignore="$(echo "$pkg_line" | awk '{print $1}')" # Get package name from the line
                                                 aur_excludes+=("$pkg_name_to_ignore")
                                                 display_type_name="AUR"
-                                                ;; # Added semicolon
-                                            flatpak)
-                                                pkg_name_to_ignore=$(echo "$pkg_line" | awk '{print $2}')
+                                                ;;
+                                        flatpak)
+                                                # Extract the package name (first word of pkg_line)
+                                                pkg_name_to_ignore=$(echo "$pkg_line" | awk '{print $1}')
                                                 display_type_name="Flatpak"
                                                 has_flatpak_exclusions=true # Mark that a flatpak was selected for exclusion
                                                 ;; # Added semicolon
@@ -621,6 +627,7 @@ update() {
                 --unselected.background "#2d2d2d" \
                 ""; then
             echo "Update canceled."
+            trap - INT # Clear the main INT trap as we are exiting based on user choice
             return 0
         fi
     fi
@@ -688,28 +695,31 @@ update() {
 
     # Check for kernel updates with more precise detection
     local kernel_updated=false
-    local current_kernel=$(pacman -Q linux 2>/dev/null | awk '{print $2}' || echo "unknown")
+    local current_kernel=$(uname -r)
     local kernel_packages=("linux" "linux-lts" "linux-zen" "linux-hardened")
 
     for pkg in "${pacman_updates[@]}"; do
-        local pkg_name=$(echo "$pkg" | awk '{print $1}')
-        # Handle packages with slash notation (e.g., extra/linux)
-        if [[ "$pkg_name" == */* ]]; then
-            pkg_name=$(echo "$pkg_name" | cut -d'/' -f2)
-        fi
-        
-        # Check if it's one of the main kernel packages (exact match)
-        for kpkg in "${kernel_packages[@]}"; do
-            if [[ "$pkg_name" == "$kpkg" ]]; then
-                kernel_updated=true
-                echo ""
-                echo "⚠ Kernel update detected: $pkg_name from version $current_kernel"
-                echo "A system restart is recommended after updating."
-                break 2
-            fi
-        done
+        # Check if the package name (first word, stripping potential repo prefix) is a kernel package
+        local pkg_name_check=$(echo "$pkg" | awk '{print $1}')
+        pkg_name_check="${pkg_name_check#*/}" # Remove repo/ prefix if present
+        if [[ " ${kernel_packages[@]} " =~ " $pkg_name_check " ]]; then
+            # Check current version of this specific kernel package *after* update
+            # This requires that pacman -Q can find it post-update.
+            # The actual new version string is in $pkg, e.g., "linux 5.15.0-2 -> 5.15.1-1"
+            # We need to see if the *running* kernel is older than what was just installed for *any* kernel package.
+            # A simple flag is enough if any kernel package was in the update list.
+            kernel_updated=true
+            # For a more precise message, one could try to get the new version of $pkg_name_check
+            # local new_kernel_version_for_pkg=$(pacman -Q "$pkg_name_check" 2>/dev/null | awk '{print $2}')
+            # echo "Kernel package $pkg_name_check was updated. New version: $new_kernel_version_for_pkg"
+            break # Found a kernel update, no need to check further
+        fi # Closing fi for the if statement inside the loop
     done
+    # The loop for aur_updates and flatpak_updates was missing.
+    # However, kernel updates are typically managed by pacman.
 
-    # Reset the trap
-    trap - INT
+    if [[ "$kernel_updated" = true ]]; then
+        echo ""
+        echo "⚠ Kernel update detected. A system restart is recommended after updating."
+    fi
 }

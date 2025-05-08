@@ -52,6 +52,15 @@ raw_target = /dev/stdout
 data_format = ascii
 ascii_max_range = 8
 """
+# Scrolling text settings
+SCROLL_TEXT_LENGTH = 20  # Number of characters for title scroll window
+SCROLL_INTERVAL = 0.2   # Seconds between scroll steps
+
+def scroll_text(text, length=SCROLL_TEXT_LENGTH):
+    text = text.ljust(length)
+    scrolling = text + ' | ' + text[:length]
+    for i in range(len(scrolling) - length + 1):
+        yield scrolling[i:i+length]
 
 def start_cava():
     """Start cava in the background and return process"""
@@ -378,6 +387,9 @@ def get_dominant_color(image_path):
 def main():
     no_player_count = 0
     art_cleanup_counter = 0
+    # Scrolling generator state
+    scroll_generator = None
+    last_title = None
     
     while True:
         try:
@@ -390,14 +402,23 @@ def main():
                 try:
                     icon = get_playing()
                     title = get_title()
+                    # Scrolling title if too long
+                    if len(title) > SCROLL_TEXT_LENGTH:
+                        if scroll_generator is None or title != last_title:
+                            scroll_generator = scroll_text(title)
+                            last_title = title
+                        try:
+                            title_display = next(scroll_generator)
+                        except StopIteration:
+                            scroll_generator = scroll_text(title)
+                            title_display = next(scroll_generator)
+                    else:
+                        # Short titles: use as-is without padding
+                        title_display = title
+                        scroll_generator = None
                     artist = get_artist()
                     album = get_album()
                     
-                    # Add playlist function call in a separate try block
-                    try:
-                        playlist = get_playlist()
-                    except Exception as e:
-                        playlist = "Unknown Playlist"
                     
                     try:
                         position = get_position()
@@ -425,8 +446,9 @@ def main():
                     shuffle_status = "On" if shuffling == shuffle_icon else "Off"
                     
                      # Add brackets around the output text for consistency
+                    # Build display text with scrolling title
                     output_text = (
-                        f" {icon} {sanitize_markup(title)} - {sanitize_markup(artist)} [{position}/{length}] {looping} {shuffling} "
+                        f" {icon} {sanitize_markup(title_display)} - {sanitize_markup(artist)} [{position}/{length}] {looping} {shuffling} "
                     )
                     
                     # Player-specific icon
@@ -501,11 +523,15 @@ def main():
                 cleanup_old_album_art()
                 art_cleanup_counter = 0
             
-            # Sleep for shorter time to update visualizer more frequently
+            # Sleep: faster if scrolling, slower if needed
             if no_player_count > 5:
-                time.sleep(3)  # Check less frequently when no players are active
+                time.sleep(3)  # Less frequent when no players are active
             else:
-                time.sleep(1)  # Use a more standard refresh rate
+                # Faster updates when title is scrolling
+                if scroll_generator is not None:
+                    time.sleep(SCROLL_INTERVAL)
+                else:
+                    time.sleep(1)
                 
         except Exception as e:
             # Handle any unexpected errors to keep the widget running

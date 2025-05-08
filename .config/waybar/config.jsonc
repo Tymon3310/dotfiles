@@ -49,6 +49,7 @@
     "group/cpu",
     // "memory",
     "group/memgpu",
+    "custom/internet_status",
     "custom/weather",
     // "custom/sidebar",
     "custom/pacman",

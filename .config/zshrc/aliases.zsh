@@ -55,4 +55,5 @@ alias dg='sudo downgrade'
 # Dev aliases
 alias 'venvon'='_makevenv'
 alias 'venvoff'='deactivate'
-alias 'vsc'='code-insiders .'
+alias 'vsc'='code-insiders'
+alias 'code'='code-insiders'

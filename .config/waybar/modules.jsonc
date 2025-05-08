@@ -419,7 +419,6 @@
     },
     "exec-if": "which waybar-updates",
     "exec": "waybar-updates -f '{  :pacman} {  :aur}'",
-    "on-click": "kitty --class kitty,floating -T floating -e ~/.config/hypr/scripts/installupdates.sh"
   },
   // Cliphist
   "custom/cliphist": {
@@ -589,6 +588,15 @@
   "tooltip": true,
   "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
 },
+  // Internet Connectivity Status
+  "custom/internet_status": {
+    "exec": "~/.config/waybar/scripts/internet_status.py",
+    "format": "{}",
+
+    "return-type": "json",
+    // "interval": 5,
+    "tooltip": true
+  },
   "group/cpu": {
     "orientation": "inherit",
     "drawer": {

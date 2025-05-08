@@ -58,3 +58,33 @@ cd() {
     return $?
   fi
 }
+
+tomp3 A() {
+  if [ -z "$1" ]; then
+    echo "Usage: tomp3 <input_file.wav>"
+    return 1
+  fi
+
+  local input_file="$1"
+  local output_file="${input_file%.wav}.mp3"
+
+  if [ ! -f "$input_file" ]; then
+    echo "Error: Input file '$input_file' not found."
+    return 1
+  fi
+
+  if [[ "$input_file" != *.wav ]]; then
+    echo "Warning: Input file '$input_file' does not have a .wav extension. Proceeding anyway."
+    # return 1 # Uncomment this line if you want to strictly require .wav input
+  fi
+
+  echo "Converting '$input_file' to '$output_file'..."
+  ffmpeg -i "$input_file" -vn -ar 44100 -ac 2 -b:a 192k "$output_file"
+
+  if [ $? -eq 0 ]; then
+    echo "Successfully created '$output_file'"
+  else
+    echo "Error during conversion of '$input_file'"
+    return 1
+  fi
+}
