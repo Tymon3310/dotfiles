@@ -6,8 +6,9 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 DOTFILES_DIR="$SCRIPT_DIR" # Set DOTFILES_DIR to the script's directory
 
 CONFIG_DIR="$DOTFILES_DIR/.config"
-PACKAGES_FILE="$DOTFILES_DIR/PACKAGES.md"
+PACKAGES_FILE="$DOTFILES_DIR/install" # Points to the file with only package names
 ZSH_INSTALL_SCRIPT="$CONFIG_DIR/hypr/scripts/installzsh.sh"
+PACMAN_ADDITIONAL_SCRIPT="$CONFIG_DIR/hypr/scripts/pacman-additional.sh"
 BACKUP_DIR="$HOME/.config_$(date +%Y%m%d_%H%M%S)_bak"
 TARGET_CONFIG_DIR="$HOME/.config"
 
@@ -58,27 +59,40 @@ echo
 echo "--- Installing Packages ---"
 if ! _command_exists yay; then
     echo "ERROR: yay is not installed. Please install it first."
+    echo "Do you want to install it now?"
+    if _gum_confirm "Install yay?"; then
+        sudo pacman -S --needed git base-devel
+        git clone https://aur.archlinux.org/yay-bin.git
+        cd yay-bin
+        makepkg -si
+        cd ..
+    fi
+fi
+
+# Extract package names from $PACKAGES_FILE
+echo "Reading package list from $PACKAGES_FILE..."
+if [ ! -f "$PACKAGES_FILE" ]; then
+    echo "ERROR: Package list file not found at $PACKAGES_FILE."
     exit 1
 fi
 
-# Extract packages from PACKAGES.md installation command block
-echo "Reading package list from $PACKAGES_FILE..."
-packages=$(awk '/## Installation Command/,/```bash/{flag=1; next} /```/{flag=0} flag' "$PACKAGES_FILE" | grep -v '^$' | sed 's/\\//g' | tr '\n' ' ')
+# Read the file, handle line continuations, squeeze multiple spaces, and trim.
+packages=$(cat "$PACKAGES_FILE" | tr '\\\n' ' ' | tr -s ' ' | xargs)
 
 if [ -z "$packages" ]; then
-    echo "ERROR: Could not extract package list from $PACKAGES_FILE."
+    echo "ERROR: Could not extract package list from $PACKAGES_FILE (or file is empty)."
     exit 1
 fi
 
 echo "Found packages: $packages"
-echo "Installing packages using yay..."
-if ! yay -S --needed --noconfirm $packages; then
+echo "Installing packages using 'yay -S --needed'..."
+if ! yay -S --needed $packages; then
     echo "ERROR: Package installation failed."
     exit 1
 fi
 echo "Packages installed successfully."
 
-# --- 3. Backup Current ~/.config ---
+# --- 2. Backup Current ~/.config ---
 echo
 echo "--- Backing up ~/.config ---"
 if [ -d "$TARGET_CONFIG_DIR" ] || [ -L "$TARGET_CONFIG_DIR" ]; then
@@ -97,14 +111,14 @@ fi
 echo
 echo "--- Creating placeholder files ---"
 # Ensure target directory exists in dotfiles source for custom.conf
-mkdir -p "$CONFIG_DIR/hypr/conf"
-echo "Creating empty custom config file: $CONFIG_DIR/hypr/conf/custom.conf"
-touch "$CONFIG_DIR/hypr/conf/custom.conf"
+mkdir -p "$TARGET_CONFIG_DIR/hypr/conf"
+echo "Creating empty custom config file: $TARGET_CONFIG_DIR/hypr/conf/custom.conf"
+touch "$TARGET_CONFIG_DIR/hypr/conf/custom.conf"
 # Create .env file directly in HOME after potential backup/symlink setup
 echo "Creating empty environment file: $HOME/.env"
 touch "$HOME/.env"
 
-# --- 4. Symlink Dotfiles ---
+# --- 3. Symlink Dotfiles ---
 echo
 echo "--- Symlinking Dotfiles ---"
 
@@ -113,7 +127,7 @@ mkdir -p "$TARGET_CONFIG_DIR"
 
 # Symlink top-level dotfiles (e.g., .zshrc, .bashrc)
 echo "Symlinking top-level files (.*) to $HOME..."
-find "$DOTFILES_DIR" -maxdepth 1 -type f -name ".*" -print -exec ln -sf {} "$HOME/" \;
+find "$DOTFILES_DIR" -maxdepth 1 -type f -name ".*" -not -name ".git" -not -name "*.md" -not -name "install" -not -name "*.sh" -print -exec ln -sf {} "$HOME/" \;
 # Add specific handling for other top-level files if needed (e.g., .gitconfig)
 # Example: ln -sf "$DOTFILES_DIR/.gitconfig" "$HOME/.gitconfig"
 
@@ -132,7 +146,7 @@ else
 fi
 echo "Symlinking complete."
 
-# --- Install Hyprland Plugins ---
+# --- 4. Install Hyprland Plugins ---
 echo
 echo "--- Installing Hyprland Plugins ---"
 if _command_exists hyprpm; then
@@ -156,7 +170,7 @@ else
     echo "WARNING: hyprpm command not found. Skipping plugin installation."
 fi
 
-# --- 2. Run Zsh Install Script ---
+# --- 5. Run Zsh Install Script ---
 echo
 echo "--- Configuring Zsh ---"
 if [ -f "$ZSH_INSTALL_SCRIPT" ]; then
@@ -166,15 +180,29 @@ if [ -f "$ZSH_INSTALL_SCRIPT" ]; then
         echo "Zsh configuration script finished."
     else
         echo "ERROR: Zsh configuration script failed."
-        # Decide if this is critical enough to exit
-        # exit 1
+        exit 1
     fi
 else
     echo "ERROR: Zsh installation script not found at $ZSH_INSTALL_SCRIPT."
     exit 1
 fi
 
-
+# --- 6. Configure Pacman ---
+echo
+echo "--- Configuring Pacman ---"
+if [ -f "$PACMAN_ADDITIONAL_SCRIPT" ]; then
+    echo "Running Pacman configuration script: $PACMAN_ADDITIONAL_SCRIPT"
+    chmod +x "$PACMAN_ADDITIONAL_SCRIPT"
+    if "$PACMAN_ADDITIONAL_SCRIPT"; then
+        echo "Pacman configuration script finished."
+    else
+        echo "ERROR: Pacman configuration script failed."
+        exit 1
+    fi
+else
+    echo "ERROR: Pacman configuration script not found at $PACMAN_ADDITIONAL_SCRIPT."
+    exit 1
+fi
 # --- Finish ---
 echo
 echo "=========================="

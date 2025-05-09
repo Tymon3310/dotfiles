@@ -398,13 +398,6 @@
     },
     "separate-outputs": true
   },
-  // Sidebar
-  "custom/sidebar": {
-    "on-click": "ags -t sidebar",
-    // "format": " ",
-    "format": "  ",
-    "tooltip-format": "Open Sidebar"
-  },
   // Empty
   "custom/empty": {
     "format": "    "
@@ -423,9 +416,9 @@
   // Cliphist
   "custom/cliphist": {
     "format": "",
-    "on-click": "sleep 0.1 && ~/.config/ml4w/scripts/cliphist.sh",
-    "on-click-right": "sleep 0.1 && ~/.config/ml4w/scripts/cliphist.sh d",
-    "on-click-middle": "sleep 0.1 && ~/.config/ml4w/scripts/cliphist.sh w",
+    "on-click": "kitty -c ~/.config/kitty/headless.conf --class clipse -e clipse",
+    "on-click-right": "kitty -c ~/.config/kitty/headless.conf --class clipse -e clipse",
+    "on-click-middle": "kitty -c ~/.config/kitty/headless.conf --class clipse -e clipse",
     "tooltip-format": "Clipboard Manager"
   },
   // Rofi Application Launcher
@@ -647,8 +640,7 @@
     "tooltip-format-ethernet": " {ifname}\nIP: {ipaddr}\n up: {bandwidthUpBits} down: {bandwidthDownBits}",
     "tooltip-format-disconnected": "Disconnected",
     "max-length": 50,
-    "on-click": "$(cat ~/.config/ml4w/settings/terminal.sh) --class dotfiles-floating -e nmtui",
-    "on-click-right": "~/.config/ml4w/settings/networkmanager.sh"
+    "on-click": "kitty -c ~/.config/kitty/headless.conf --class floating -e nmtui",
   },
   // Pulseaudio
   "pulseaudio": {

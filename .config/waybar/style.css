@@ -31,23 +31,6 @@
     /* color: @textcolor2; */
 }
 
-#cava {
-    font-family: "monospace";
-}
-
-#custom-cava {
-    font-family: "monospace";
-}
-
-window#waybar {
-    background-color: rgba(0, 0, 0, 0.8);
-    border-bottom: 0px solid #ffffff;
-    /* color: #FFFFFF; */
-    background: transparent;
-    transition-property: background-color;
-    transition-duration: .5s;
-}
-
 /* -----------------------------------------------------
  * Workspaces 
  * ----------------------------------------------------- */
@@ -145,7 +128,7 @@ tooltip {
 }
 
 tooltip label {
-    /* color: @textcolor2; */
+    color: @textcolor2;
 }
 
 /* -----------------------------------------------------
@@ -165,6 +148,15 @@ tooltip label {
 
 window#waybar.empty #window {
     background-color: transparent;
+}
+
+window#waybar {
+    background-color: rgba(0, 0, 0, 0.8);
+    border-bottom: 0px solid #ffffff;
+    /* color: #FFFFFF; */
+    background: transparent;
+    transition-property: background-color;
+    transition-duration: .5s;
 }
 
 /* -----------------------------------------------------
@@ -227,71 +219,6 @@ window#waybar.empty #window {
 }
 
 /* -----------------------------------------------------
- * Custom Quicklinks
- * ----------------------------------------------------- */
-
-#custom-brave,
-#custom-browser,
-#custom-keybindings,
-#custom-outlook,
-#custom-filemanager,
-#custom-teams,
-#custom-chatgpt,
-#custom-calculator,
-#custom-windowsvm,
-#custom-cliphist,
-#custom-settings,
-#custom-wallpaper,
-#custom-system,
-#custom-hyprshade,
-#custom-hypridle,
-#custom-tools,
-#custom-quicklink1,
-#custom-quicklink2,
-#custom-quicklink3,
-#custom-quicklink4,
-#custom-quicklink5,
-#custom-quicklink6,
-#custom-quicklink7,
-#custom-quicklink8,
-#custom-quicklink9,
-#custom-quicklink10,
-#custom-quicklink1,
-#custom-quicklink2,
-#custom-quicklink3,
-#custom-quicklink4,
-#custom-quicklink5,
-#custom-quicklink6,
-#custom-quicklink7,
-#custom-quicklink8,
-#custom-quicklink9,
-#custom-quicklink10 {
-    margin-right: 24px;
-}
-
-#custom-tools {
-    margin-right: 12px;
-}
-
-#custom-hypridle.active {
-    color: @color2;
-}
-
-#custom-hypridle.notactive {
-    color: #dc2f2f;
-}
-
-#custom-chatgpt {
-    margin-right: 16px;
-    background-image: url("../assets/openai.svg");
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: contain;
-    padding-right: 18px;
-    opacity: 0.8;
-}
-
-/* -----------------------------------------------------
  * Idle Inhibator
  * ----------------------------------------------------- */
 
@@ -341,7 +268,7 @@ window#waybar.empty #window {
 
 
 /* -----------------------------------------------------
- * Custom Exit
+ * Exit
  * ----------------------------------------------------- */
 
 #custom-exit {
@@ -359,35 +286,6 @@ window#waybar.empty #window {
 /* -----------------------------------------------------
  * Custom Updates
  * ----------------------------------------------------- */
-
-#custom-updates {
-    background: @color1;
-    margin: 5px 15px 5px 0px;
-    padding: 2px 10px 0px 10px;
-    border-radius: 8px;
-    color: @textcolor2;
-    font-size: 16px;
-    font-weight: normal;
-    opacity: 0.8;
-}
-
-#custom-updates.green {
-    background-color: @color1;
-}
-
-#custom-updates.yellow {
-    background-color: #ff9a3c;
-    color: #FFFFFF;
-}
-
-#custom-updates.red {
-    background-color: #dc2f2f;
-    color: #FFFFFF;
-}
-
-#custom-updates:hover {
-    opacity: 1;
-}
 
 @keyframes blink-update {
     to {
@@ -456,20 +354,6 @@ window#waybar.empty #window {
 
 #clock:hover {
     opacity: 1;
-}
-
-/* -----------------------------------------------------
- * Backlight
- * ----------------------------------------------------- */
-
-#backlight {
-    background-color: @color1;
-    font-size: 16px;
-    color: @textcolor2;
-    border-radius: 15px;
-    padding: 2px 10px 0px 10px;
-    margin: 5px 15px 5px 0px;
-    opacity: 0.8;
 }
 
 /* -----------------------------------------------------

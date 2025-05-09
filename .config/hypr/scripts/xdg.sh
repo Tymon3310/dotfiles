@@ -22,15 +22,15 @@ sleep 1
 /usr/lib/xdg-desktop-portal-hyprland &
 sleep 2
 
-# start xdg-desktop-portal-gtk
-if [ -f /usr/lib/xdg-desktop-portal-gtk ]; then
-  /usr/lib/xdg-desktop-portal-gtk &
-  sleep 1
-fi
-
 # start xdg-desktop-portal-kde
 if [ -f /usr/lib/xdg-desktop-portal-kde ]; then
   /usr/lib/xdg-desktop-portal-kde &
+  sleep 1
+fi
+
+# start xdg-desktop-portal-gtk
+if [ -f /usr/lib/xdg-desktop-portal-gtk ]; then
+  /usr/lib/xdg-desktop-portal-gtk &
   sleep 1
 fi
 
