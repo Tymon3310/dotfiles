@@ -4,12 +4,14 @@ import subprocess
 import json
 import time
 import sys
-import random
-import math
 import os
-import tempfile
-import threading
 import shutil
+import hashlib
+import argparse
+import html
+
+# Global debug flag
+DEBUG_MODE = False
 
 # Standard colors for all scripts - updated with lighter primary color
 PRIMARY_COLOR = "#48A3FF"     # Lighter blue color that's more visible
@@ -19,8 +21,8 @@ CRITICAL_COLOR = "#dc2f2f"    # Red critical color from CSS .red
 NEUTRAL_COLOR = "#FFFFFF"     # White for normal text
 HEADER_COLOR = "#48A3FF"      # Lighter blue for section headers
 
-# Use "any" to detect any available player instead of hardcoding "spotify"
-player = "spotify"
+# Use -p flag to specify one like "spotify" or "YoutubeMusic" OR use "any" to detect any available player
+#player = "spotify" # Uncomment to override
 
 # Restore ALL original icons
 no_player_icon = "󰝛"  # Icon when no player is available
@@ -32,26 +34,6 @@ not_loop_icon = "󰑗"   # Original not loop icon
 shuffle_icon = "󰒟"    # Original shuffle icon (restored!)
 not_shuffle_icon = "󰒞" # Original not shuffle icon
 
-# Check if cava is installed
-HAS_CAVA = shutil.which("cava") is not None
-
-# Cleaner visualizer settings
-VISUALIZER_BARS = 16       # Number of bars
-VISUALIZER_HEIGHT = 8       # Height in characters
-current_visualizer = None   # Store current visualizer
-cava_process = None         # Store cava process
-
-# Temporary config for cava
-CAVA_CONFIG = """
-[general]
-bars = 16
-framerate = 60
-[output]
-method = raw
-raw_target = /dev/stdout
-data_format = ascii
-ascii_max_range = 8
-"""
 # Scrolling text settings
 SCROLL_TEXT_LENGTH = 20  # Number of characters for title scroll window
 SCROLL_INTERVAL = 0.2   # Seconds between scroll steps
@@ -62,251 +44,216 @@ def scroll_text(text, length=SCROLL_TEXT_LENGTH):
     for i in range(len(scrolling) - length + 1):
         yield scrolling[i:i+length]
 
-def start_cava():
-    """Start cava in the background and return process"""
-    if not HAS_CAVA:
-        return None
-        
+def get_all_metadata(player_name):
+    """Get all track metadata in a single call using JSON format."""
+    global DEBUG_MODE # Access the global debug flag
+    # print(f"DEBUG: get_all_metadata called for {player_name}", file=sys.stderr)
+    defaults = {
+        "title": "Unknown Title",
+        "artist": "Unknown Artist",
+        "album": "Unknown Album",
+        "length_us": 0,  # microseconds
+        "art_url": "",
+        # "position_us": 0 # Removed, will use separate playerctl position call
+    }
     try:
-        # Create temp config
-        fd, config_path = tempfile.mkstemp(prefix="waybar_cava_")
-        with os.fdopen(fd, 'w') as f:
-            f.write(CAVA_CONFIG)
-        
-        # Start cava process
-        process = subprocess.Popen(
-            ["cava", "-p", config_path],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL
+        format_string = (
+            '{"title": "{{markup_escape(xesam:title)}}", "artist": "{{markup_escape(xesam:artist)}}", "album": "{{markup_escape(xesam:album)}}", '
+            '"length_us": "{{mpris:length}}", "artUrl": "{{mpris:artUrl}}"}'
         )
-        return process
-    except Exception:
-        return None
 
-def get_cava_visualizer(cava_proc):
-    """Get visualizer output from cava"""
-    if not cava_proc:
-        return None
-        
-    try:
-        # Read exactly one frame of cava output
-        line = cava_proc.stdout.readline().decode('utf-8').strip()
-        if not line:
-            return None
-            
-        # Parse values
-        values = [int(x) for x in line.split(';') if x]
-        
-        # Build the visualizer
-        visualizer = []
-        for h in range(VISUALIZER_HEIGHT, 0, -1):
-            row = ""
-            for val in values:
-                if val >= h:
-                    row += "█"
-                else:
-                    row += " "
-            visualizer.append(row)
-            
-        return "\n".join(visualizer)
-    except Exception:
-        return None
-
-def get_simple_visualizer():
-    """Generate a simple text-based audio visualizer"""
-    global current_visualizer
-    
-    # Create simple wave-like pattern
-    visualizer = []
-    
-    # Generate values that look like a sound wave
-    values = []
-    for i in range(VISUALIZER_BARS):
-        # Create a wave pattern
-        center_dist = abs(i - VISUALIZER_BARS/2) / (VISUALIZER_BARS/2)
-        base_height = VISUALIZER_HEIGHT * 0.5  # Base height in middle
-        var_height = VISUALIZER_HEIGHT * 0.3   # Variable component
-        
-        # Create a smooth wave pattern with some randomness
-        wave = base_height * (1 - center_dist*0.7) + random.random() * var_height
-        values.append(int(wave))
-    
-    # Build the visualizer
-    for h in range(VISUALIZER_HEIGHT, 0, -1):
-        row = ""
-        for val in values:
-            if val >= h:
-                row += "█"
-            else:
-                row += " "
-        visualizer.append(row)
-        
-    current_visualizer = "\n".join(visualizer)
-    return current_visualizer
-
-def get_visualizer():
-    """Get the best available visualizer"""
-    global cava_process
-    
-    # Try using cava if available
-    if HAS_CAVA:
-        if not cava_process or cava_process.poll() is not None:
-            cava_process = start_cava()
-            
-        if cava_process:
-            vis = get_cava_visualizer(cava_process)
-            if vis:
-                return vis
-    
-    # Fall back to simple visualizer
-    return get_simple_visualizer()
-
-def check_player_available():
-    """Check if the specified media player is available"""
-    try:
-        # Check if the specified player is available
-        check = subprocess.run(
-            ["playerctl", f"--player={player}", "status"], 
-            capture_output=True, 
+        proc = subprocess.run(
+            ["playerctl", f"--player={player_name}", "metadata", "--format", format_string],
+            capture_output=True,
             text=True, 
             timeout=1
         )
-        # If we don't get an error, player is available
-        return check.returncode == 0
-    except Exception:
+
+        if proc.returncode != 0:
+            if DEBUG_MODE:
+                print(f"DEBUG: playerctl for {player_name} exited with {proc.returncode}. Stderr: {proc.stderr.strip()}", file=sys.stderr)
+            return defaults
+
+        raw_output_str = proc.stdout.strip()
+        if DEBUG_MODE:
+            print(f"DEBUG: raw_output_str for {player_name}: [{raw_output_str}]", file=sys.stderr)
+
+        if not raw_output_str:
+            if DEBUG_MODE:
+                print(f"DEBUG: raw_output_str for {player_name} is empty.", file=sys.stderr)
+            return defaults
+
+        # Try to find the start and end of the main JSON object braces
+        start_brace = raw_output_str.find('{')
+        end_brace = raw_output_str.rfind('}')
+
+        if start_brace == -1 or end_brace == -1 or end_brace < start_brace:
+            if DEBUG_MODE:
+                print(f"DEBUG: Could not find valid JSON object braces in [{raw_output_str}] for {player_name}.", file=sys.stderr)
+            return defaults
+        
+        json_candidate_str = raw_output_str[start_brace : end_brace+1]
+        if DEBUG_MODE:
+            print(f"DEBUG: Extracted JSON candidate: [{json_candidate_str}] for {player_name}", file=sys.stderr)
+        
+        # Sanitize this candidate string (remove control chars except tab, LF, CR)
+        sanitized_json_data = "".join(ch for ch in json_candidate_str if ord(ch) >= 32 or ch in '\t\n\r')
+        if DEBUG_MODE:
+            print(f"DEBUG: Sanitized JSON data: [{sanitized_json_data}] for {player_name}", file=sys.stderr)
+
+        if not sanitized_json_data:
+            if DEBUG_MODE:
+                print(f"DEBUG: sanitized_json_data is empty after filtering for {player_name}.", file=sys.stderr)
+            return defaults
+
+        parsed_metadata_obj = None
+        try:
+            parsed_metadata_obj = json.loads(sanitized_json_data)
+            if not isinstance(parsed_metadata_obj, dict):
+                if DEBUG_MODE:
+                    print(f"DEBUG: Parsed JSON was not a dict for {player_name}: {type(parsed_metadata_obj)}", file=sys.stderr)
+                return defaults
+            if DEBUG_MODE:
+                print(f"DEBUG: Successfully parsed JSON object for {player_name}", file=sys.stderr)
+
+        except json.JSONDecodeError as e_json:
+            if DEBUG_MODE:
+                # Enhanced error logging for JSONDecodeError
+                error_message = f"DEBUG: JSONDecodeError for {player_name}: {e_json.msg}\\n"
+                error_message += f"DEBUG: Error at Pos: {e_json.pos}, Line: {e_json.lineno}, Col: {e_json.colno}\\n"
+                char_at_pos_info = "N/A"
+                if e_json.doc and 0 <= e_json.pos < len(e_json.doc):
+                    char_at_pos = e_json.doc[e_json.pos]
+                    char_at_pos_info = f"'{char_at_pos}' (Unicode ord: {ord(char_at_pos)})"
+                error_message += f"DEBUG: Character at error position {e_json.pos}: {char_at_pos_info}\\n"
+                context_snippet_info = "N/A"
+                if e_json.doc:
+                    start_context = max(0, e_json.pos - 20)
+                    end_context = min(len(e_json.doc), e_json.pos + 20)
+                    context_snippet_info = repr(e_json.doc[start_context:end_context])
+                error_message += f"DEBUG: Snippet of doc around error pos {e_json.pos}: {context_snippet_info}\\n"
+                error_message += f"DEBUG: Sanitized data that was passed to json.loads: [{sanitized_json_data}]"
+                print(error_message, file=sys.stderr)
+            return defaults
+
+        if parsed_metadata_obj is None: # Should not happen if logic above is correct
+            if DEBUG_MODE:
+                print(f"DEBUG: parsed_metadata_obj is None before populating data_out for {player_name}.", file=sys.stderr)
+            return defaults
+
+        data_out = defaults.copy()
+        
+        title_raw = parsed_metadata_obj.get('title', defaults['title'])
+        data_out['title'] = html.unescape(title_raw) if title_raw else defaults['title']
+        # Ensure that if unescape results in an empty string from a non-empty raw, we keep default
+        if title_raw and not data_out['title']: data_out['title'] = defaults['title']
+
+        artist_raw = parsed_metadata_obj.get('artist', defaults['artist'])
+        data_out['artist'] = html.unescape(artist_raw) if artist_raw else defaults['artist']
+        if artist_raw and not data_out['artist']: data_out['artist'] = defaults['artist']
+
+        album_raw = parsed_metadata_obj.get('album', defaults['album'])
+        data_out['album'] = html.unescape(album_raw) if album_raw else defaults['album']
+        if album_raw and not data_out['album']: data_out['album'] = defaults['album']
+
+        # art_url typically doesn't contain such characters, but unescape defensively if needed in future.
+        # For now, direct assignment is fine as it's a URL.
+        data_out['art_url'] = parsed_metadata_obj.get('artUrl', defaults['art_url']) or defaults['art_url']
+        
+        length_val = parsed_metadata_obj.get('length_us')
+        if isinstance(length_val, str) and length_val.isdigit():
+            data_out['length_us'] = int(length_val)
+        elif isinstance(length_val, int):
+            data_out['length_us'] = length_val
+        else:
+            data_out['length_us'] = defaults['length_us']
+
+        # pos_val = parsed_metadata_obj.get('position_us') # Removed position parsing
+        # if isinstance(pos_val, str) and pos_val.isdigit():
+        #     data_out['position_us'] = int(pos_val)
+        # elif isinstance(pos_val, int):
+        #     data_out['position_us'] = pos_val
+        # else:
+        #     data_out['position_us'] = defaults['position_us']
+
+        if DEBUG_MODE:
+            print(f"DEBUG: Returning data_out: {data_out}", file=sys.stderr)
+        return data_out
+        
+    except (OSError, subprocess.TimeoutExpired, ValueError) as e_subproc:
+        if DEBUG_MODE:
+            print(f"DEBUG: Subprocess/OS/Value error in get_all_metadata for {player_name}: {str(e_subproc)}", file=sys.stderr)
+        return defaults
+    except Exception as e_general: # Catch-all for any other unexpected error during the process
+        if DEBUG_MODE:
+            print(f"DEBUG: General Exception in get_all_metadata for {player_name}: {str(e_general)}", file=sys.stderr)
+        return defaults
+
+def check_player_available(player_name):
+    """Check if the specified media player is available and responsive."""
+    try:
+        # Use a short timeout and check=True to quickly determine if playerctl can reach the player
+        subprocess.run(
+            ["playerctl", f"--player={player_name}", "status"],
+            capture_output=True, text=True, timeout=0.2, check=True
+        )
+        return True
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
         return False
 
-def get_title():
-    """Get the title of the current track"""
+def get_playing_status(player_name):
+    """Get the play/pause status using playerctl status."""
     try:
-        title = subprocess.run(
-            ["playerctl", f"--player={player}", "metadata", "xesam:title"],
-            capture_output=True,
-            text=True,
-            timeout=1
+        status_proc = subprocess.run(
+            ["playerctl", f"--player={player_name}", "status"],
+            capture_output=True, text=True, timeout=0.5
         )
-        return title.stdout.strip() or "Unknown Title"
-    except Exception:
-        return "Unknown Title"
+        if status_proc.returncode == 0:
+            return status_proc.stdout.strip() # e.g., "Playing", "Paused", "Stopped"
+        return "Stopped" # Default if status command has non-zero rc but didn't raise exception
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return "Stopped"
 
-def get_artist():
-    """Get the artist of the current track"""
+def get_loop_status(player_name):
+    """Get loop status using playerctl loop."""
     try:
-        artist = subprocess.run(
-            ["playerctl", f"--player={player}", "metadata", "xesam:artist"],
-            capture_output=True,
-            text=True,
-            timeout=1
+        loop_proc = subprocess.run(
+            ["playerctl", f"--player={player_name}", "loop"],
+            capture_output=True, text=True, timeout=0.5
         )
-        return artist.stdout.strip() or "Unknown Artist"
-    except Exception:
-        return "Unknown Artist"
+        if loop_proc.returncode == 0:
+             return loop_proc.stdout.strip() # e.g., "Track", "Playlist", "None"
+        return "None"
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return "None"
 
-def get_album():
-    """Get the album of the current track"""
+def get_shuffle_status(player_name):
+    """Get shuffle status using playerctl shuffle. Returns boolean."""
     try:
-        album = subprocess.run(
-            ["playerctl", f"--player={player}", "metadata", "xesam:album"],
-            capture_output=True,
-            text=True,
-            timeout=1
+        shuffle_proc = subprocess.run(
+            ["playerctl", f"--player={player_name}", "shuffle"],
+            capture_output=True, text=True, timeout=0.5
         )
-        return album.stdout.strip() or "Unknown Album"
-    except Exception:
-        return "Unknown Album"
+        if shuffle_proc.returncode == 0:
+            shuffle_state = shuffle_proc.stdout.strip().lower()
+            return shuffle_state == "on" or shuffle_state == "true"
+        return False # Default to False if command has non-zero rc
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return False
 
-def get_album_art():
-    """Get album art URL"""
+def get_current_position_seconds(player_name):
+    """Get current track position in seconds using 'playerctl position'."""
     try:
-        art = subprocess.run(
-            ["playerctl", f"--player={player}", "metadata", "mpris:artUrl"],
-            capture_output=True,
-            text=True,
-            timeout=1
+        pos_proc = subprocess.run(
+            ["playerctl", f"--player={player_name}", "position"],
+            capture_output=True, text=True, timeout=0.5
         )
-        return art.stdout.strip()
-    except Exception:
-        return ""
-
-def get_playing():
-    """Get the play/pause status"""
-    try:
-        status = subprocess.run(
-            ["playerctl", f"--player={player}", "status"],
-            capture_output=True,
-            text=True,
-            timeout=1
-        )
-        if status.stdout.strip().lower() == "playing":
-            return playing_icon
-        else:
-            return paused_icon
-    except Exception:
-        return paused_icon
-
-def get_position():
-    """Get the current position in the track"""
-    try:
-        pos = subprocess.run(
-            ["playerctl", f"--player={player}", "position"],
-            capture_output=True,
-            text=True,
-            timeout=1
-        )
-        seconds = int(float(pos.stdout.strip()))
-        return f"{seconds//60}:{seconds%60:02d}"
-    except Exception:
-        return "0:00"
-
-def get_length():
-    """Get the length of the current track"""
-    try:
-        length = subprocess.run(
-            ["playerctl", f"--player={player}", "metadata", "mpris:length"],
-            capture_output=True,
-            text=True,
-            timeout=1
-        )
-        # Convert from microseconds to seconds
-        seconds = int(int(length.stdout.strip()) / 1000000)
-        return f"{seconds//60}:{seconds%60:02d}"
-    except Exception:
-        return "0:00"
-
-def get_loop():
-    """Get loop status"""
-    try:
-        loop = subprocess.run(
-            ["playerctl", f"--player={player}", "loop"],
-            capture_output=True,
-            text=True,
-            timeout=1
-        )
-        loop_status = loop.stdout.strip().lower()
-        if loop_status == "track":
-            return loop_icon
-        elif loop_status == "playlist":
-            return playlist_loop
-        else:
-            return not_loop_icon
-    except Exception:
-        return not_loop_icon
-
-def get_shuffle():
-    """Get shuffle status"""
-    try:
-        shuffle = subprocess.run(
-            ["playerctl", f"--player={player}", "shuffle"],
-            capture_output=True,
-            text=True,
-            timeout=1
-        )
-        if shuffle.stdout.strip().lower() == "true" or shuffle.stdout.strip() == "on" or shuffle.stdout.strip() == "On":
-            return shuffle_icon
-        else:
-            return not_shuffle_icon
-    except Exception:
-        return not_shuffle_icon
+        if pos_proc.returncode == 0 and pos_proc.stdout.strip():
+            # playerctl position returns seconds, possibly with decimals
+            return float(pos_proc.stdout.strip())
+        return 0.0 # Default to 0.0 if no output or error
+    except (OSError, subprocess.TimeoutExpired, ValueError, TypeError): # Added TypeError for float conversion
+        return 0.0 # Default to 0.0 on any error
 
 def sanitize_markup(text):
     """Escape characters that would break pango markup"""
@@ -314,11 +261,10 @@ def sanitize_markup(text):
         return ""
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("'", "&#39;").replace('"', "&quot;")
 
-def get_and_process_album_art():
+def get_and_process_album_art(art_url):
     """Get and process album art for display in tooltip"""
     try:
-        # Get art URL
-        art_url = get_album_art()
+        # Art URL is now passed as an argument
         if not art_url:
             return None
 
@@ -326,8 +272,9 @@ def get_and_process_album_art():
         cache_dir = os.path.expanduser("~/.cache/waybar-player")
         os.makedirs(cache_dir, exist_ok=True)
         
-        # Generate a filename based on the URL hash
-        art_filename = os.path.join(cache_dir, f"cover_{hash(art_url) % 10000}.jpg")
+        # Generate a filename based on the URL hash using MD5 for stability
+        art_hash = hashlib.md5(art_url.encode('utf-8')).hexdigest()
+        art_filename = os.path.join(cache_dir, f"cover_{art_hash}.jpg")
         
         # Only download if file doesn't exist or is old
         if not os.path.exists(art_filename) or (time.time() - os.path.getmtime(art_filename)) > 3600:
@@ -344,7 +291,7 @@ def get_and_process_album_art():
             return art_filename
         
         return None
-    except Exception:
+    except (OSError, IOError, subprocess.TimeoutExpired, ValueError):
         return None
 
 def cleanup_old_album_art():
@@ -361,193 +308,147 @@ def cleanup_old_album_art():
         # Delete older files
         for old_file in files[20:]:
             os.remove(old_file)
-    except Exception:
+    except OSError:
         pass
 
-def get_dominant_color(image_path):
-    try:
-        from PIL import Image
-        import numpy as np
-        
-        # Open image and resize for faster processing
-        img = Image.open(image_path).resize((100, 100))
-        # Convert to numpy array
-        colors = np.array(img)
-        # Reshape the array to be 2D
-        pixels = colors.reshape(-1, 3)
-        # Get the most common color
-        from collections import Counter
-        counter = Counter(map(tuple, pixels))
-        most_common = counter.most_common(1)[0][0]
-        # Convert to hex
-        return '#{:02x}{:02x}{:02x}'.format(most_common[0], most_common[1], most_common[2])
-    except Exception:
-        return PRIMARY_COLOR
-
 def main():
+    global DEBUG_MODE # Declare DEBUG_MODE as global to modify it
+
+    parser = argparse.ArgumentParser(description="Waybar Media Player Controller")
+    parser.add_argument("-p", "--player", type=str, default="spotify", 
+                        help="Name of the media player to control (e.g., spotify, vlc). Default: spotify")
+    parser.add_argument("--debug", action="store_true", 
+                        help="Enable debug logging to stderr.")
+    args = parser.parse_args()
+    player_name = args.player
+    DEBUG_MODE = args.debug # Set the global debug flag
+
+    if DEBUG_MODE:
+        print(f"DEBUG: Debug mode enabled. Player: {player_name}", file=sys.stderr)
+
     no_player_count = 0
     art_cleanup_counter = 0
     # Scrolling generator state
     scroll_generator = None
-    last_title = None
+    last_title_for_scroll = None
     
     while True:
-        try:
-            # Simple direct check if player is available 
-            player_available = check_player_available()
+        output_text = f" {no_player_icon} Initializing... "
+        tooltip_text = "Player status initializing..."
+        status_class = "stopped"
+
+        if check_player_available(player_name):
+            no_player_count = 0 
             
-            if player_available:
-                no_player_count = 0
-                
-                try:
-                    icon = get_playing()
-                    title = get_title()
-                    # Scrolling title if too long
-                    if len(title) > SCROLL_TEXT_LENGTH:
-                        if scroll_generator is None or title != last_title:
-                            scroll_generator = scroll_text(title)
-                            last_title = title
-                        try:
-                            title_display = next(scroll_generator)
-                        except StopIteration:
-                            scroll_generator = scroll_text(title)
-                            title_display = next(scroll_generator)
-                    else:
-                        # Short titles: use as-is without padding
-                        title_display = title
-                        scroll_generator = None
-                    artist = get_artist()
-                    album = get_album()
-                    
-                    
-                    try:
-                        position = get_position()
-                        length = get_length()
-                    except Exception as e:
-                        position = "0:00"
-                        length = "0:00"
-                        
-                    try:
-                        looping = get_loop()
-                        shuffling = get_shuffle()
-                    except Exception as e:
-                        looping = not_loop_icon
-                        shuffling = not_shuffle_icon
+            playback_status_val = get_playing_status(player_name).lower()
+            loop_status_val = get_loop_status(player_name).lower()
+            is_shuffling_val = get_shuffle_status(player_name)
 
-                    # Format loop status text
-                    if looping == loop_icon:
-                        loop_status = "Track"
-                    elif looping == playlist_loop:
-                        loop_status = "Playlist"
-                    else:
-                        loop_status = "Off"
-                    
-                    # Format shuffle status text
-                    shuffle_status = "On" if shuffling == shuffle_icon else "Off"
-                    
-                     # Add brackets around the output text for consistency
-                    # Build display text with scrolling title
-                    output_text = (
-                        f" {icon} {sanitize_markup(title_display)} - {sanitize_markup(artist)} [{position}/{length}] {looping} {shuffling} "
-                    )
-                    
-                    # Player-specific icon
-                    player_icon = "󱁫"  # Default music player icon
-                    if player.lower() == "spotify":
-                        player_icon = "󰓇"  # Spotify icon
-                    elif "YoutubeMusic" in player.lower():
-                        player_icon = ""  # YouTube icon
-                    elif "youtube" in player.lower():
-                        player_icon = "󰗃"  # YouTube icon
-                    elif "chrome" in player.lower():
-                        player_icon = ""  # Chrome icon
-                    elif "firefox" in player.lower():
-                        player_icon = ""  # Firefox icon``
-                    elif "mpv" in player.lower():
-                        player_icon = "󰝚"  # MPV icon
-                    elif "vlc" in player.lower():
-                        player_icon = "󰕼"  # VLC icon
-                    
-                    # Get album art
-                    art_path = get_and_process_album_art()
-
-                    # Build tooltip without attempting to embed the image
-                    if art_path:
-                        tooltip_text = (
-                            f"<span color='{PRIMARY_COLOR}'><b>{player_icon} {sanitize_markup(player)} Media Player</b></span>\n\n"
-                            f"<span color='{PRIMARY_COLOR}'>♫ Album Art Available</span>\n\n"
-                            f" ├─ Title: {sanitize_markup(title)}\n"
-                            f" ├─ Artist: {sanitize_markup(artist)}\n"
-                            f" └─ Album: {sanitize_markup(album)}\n"
-                            f"\n"
-                            f" ├─ Time: {position}/{length}\n"
-                            f" ├─ Loop: {loop_status}\n"
-                            f" └─ Shuffle: {shuffle_status}"
-                        )
-                    else:
-                        # Standard tooltip without art
-                        tooltip_text = (
-                            f"<span color='{PRIMARY_COLOR}'><b>{player_icon} {sanitize_markup(player)} Media Player</b></span>\n\n"
-                            f" ├─ Title: {sanitize_markup(title)}\n"
-                            f" ├─ Artist: {sanitize_markup(artist)}\n"
-                            f" └─ Album: {sanitize_markup(album)}\n"
-                            f"\n"
-                            f" ├─ Time: {position}/{length}\n"
-                            f" ├─ Loop: {loop_status}\n"
-                            f" └─ Shuffle: {shuffle_status}"
-                        )
-                    
-                    # Add class based on playing status
-                    status_class = "playing" if icon == playing_icon else "paused"
-                    
-                except Exception as e:
-                    output_text = f" {paused_icon} Media player paused "
-                    tooltip_text = f"Media player detected but error: {str(e)}"
-                    status_class = "paused"
-            else:
-                output_text = f" {no_player_icon} No media playing "
-                tooltip_text = "No active media player detected"
+            if playback_status_val == "stopped" or not playback_status_val:
+                icon = no_player_icon 
+                output_text = f" {icon} {sanitize_markup(player_name)} Stopped "
+                tooltip_text = f"Player {sanitize_markup(player_name)} is stopped."
                 status_class = "stopped"
-                
-                # Increase sleep time when no player is available
-                no_player_count += 1
-            
-            # Include class in output for CSS styling
-            output = {"text": output_text, "tooltip": tooltip_text, "class": status_class}
-            print(json.dumps(output))
-            sys.stdout.flush()
-            
-            # Call cleanup every hour (based on counter)
-            art_cleanup_counter += 1
-            if art_cleanup_counter >= 3600:
-                cleanup_old_album_art()
-                art_cleanup_counter = 0
-            
-            # Sleep: faster if scrolling, slower if needed
-            if no_player_count > 5:
-                time.sleep(3)  # Less frequent when no players are active
-            else:
-                # Faster updates when title is scrolling
-                if scroll_generator is not None:
-                    time.sleep(SCROLL_INTERVAL)
-                else:
-                    time.sleep(1)
-                
-        except Exception as e:
-            # Handle any unexpected errors to keep the widget running
-            print(json.dumps({
-                "text": f" {no_player_icon} Error ",
-                "tooltip": "Player error occurred",
-                "class": "error"
-            }))
-            sys.stdout.flush()
-            time.sleep(5)  # Wait before trying again
+            else: # Playing or Paused
+                try:
+                    metadata = get_all_metadata(player_name)
+                    current_pos_sec = get_current_position_seconds(player_name)
 
+                    title = metadata.get("title", "Unknown Title")
+                    artist = metadata.get("artist", "Unknown Artist")
+                    album = metadata.get("album", "Unknown Album")
+                    art_url = metadata.get("art_url", "")
+                    length_us = metadata.get("length_us", 0)
+                    # current_position_us = metadata.get("position_us", 0) # Removed
+
+                    icon = playing_icon if playback_status_val == "playing" else paused_icon
+                    status_class = "playing" if playback_status_val == "playing" else "paused"
+
+                    length_seconds = length_us // 1000000
+                    length_display = f"{length_seconds//60}:{length_seconds%60:02d}"
+                    
+                    # Use current_pos_sec directly (it's already in seconds)
+                    # Ensure it's an integer for formatting if it was float
+                    pos_seconds_int = int(current_pos_sec) 
+                    position_display = f"{pos_seconds_int//60}:{pos_seconds_int%60:02d}"
+
+                    title_display = title
+                    if len(title) > SCROLL_TEXT_LENGTH:
+                        if scroll_generator is None or title != last_title_for_scroll:
+                            scroll_generator = scroll_text(title)
+                            last_title_for_scroll = title
+                        try: title_display = next(scroll_generator)
+                        except StopIteration: 
+                            scroll_generator = scroll_text(title)
+                            title_display = next(scroll_generator)
+                    else: scroll_generator = None
+                    
+                    if loop_status_val == "track":
+                        looping_icon_val = loop_icon
+                        loop_status_text = "Track"
+                    elif loop_status_val == "playlist":
+                        looping_icon_val = playlist_loop
+                        loop_status_text = "Playlist"
+                    else: 
+                        looping_icon_val = not_loop_icon
+                        loop_status_text = "Off"
+                    
+                    shuffling_icon_val = shuffle_icon if is_shuffling_val else not_shuffle_icon
+                    shuffle_status_text = "On" if is_shuffling_val else "Off"
+                    
+                    player_icon_tooltip = "󱁫"
+                    if player_name.lower() == "spotify": player_icon_tooltip = "󰓇"
+                    elif "YoutubeMusic" in player_name.lower(): player_icon_tooltip = ""
+                    elif "youtube" in player_name.lower(): player_icon_tooltip = "󰗃"
+                    elif "chrome" in player_name.lower(): player_icon_tooltip = ""
+                    elif "firefox" in player_name.lower(): player_icon_tooltip = "󰈹"
+                    elif "mpv" in player_name.lower(): player_icon_tooltip = "󰝚"
+                    elif "vlc" in player_name.lower(): player_icon_tooltip = "󰕼"
+                    
+                    art_path = get_and_process_album_art(art_url)
+                    tooltip_lines = [f"<span color='{PRIMARY_COLOR}'><b>{player_icon_tooltip} {sanitize_markup(player_name)} Media Player</b></span>", ""]
+                    if art_path: tooltip_lines.extend([f"<span color='{PRIMARY_COLOR}'>♫ Album Art Available</span>", ""])
+                    tooltip_lines.extend([
+                        f" ├─ Title: {sanitize_markup(title)}", f" ├─ Artist: {sanitize_markup(artist)}", f" └─ Album: {sanitize_markup(album)}", "",
+                        f" ├─ Time: {position_display}/{length_display}", f" ├─ Loop: {loop_status_text}", f" └─ Shuffle: {shuffle_status_text}"
+                    ])
+                    tooltip_text = "\n".join(tooltip_lines)
+                    
+                    output_text = (f" {icon} {sanitize_markup(title_display)} - {sanitize_markup(artist)} "
+                                 f"[{position_display}/{length_display}] {looping_icon_val} {shuffling_icon_val} ")
+                except Exception as e:
+                    # This error is if metadata fetching or string formatting fails, assumes player status was ok
+                    icon = paused_icon # Default to paused if playing status was ok but other things failed
+                    if playback_status_val == "playing": icon = playing_icon
+                    output_text = f" {icon} Player Info Error " 
+                    tooltip_text = f"Error getting details for {sanitize_markup(player_name)}: {sanitize_markup(str(e))}"
+                    status_class = "error"
+        else: # Player not available
+            no_player_count += 1 
+            output_text = f" {no_player_icon} No media player "
+            tooltip_text = f"Player '{sanitize_markup(player_name)}' not found or not responsive."
+            status_class = "stopped"
+            
+        output = {"text": output_text, "tooltip": tooltip_text, "class": status_class}
+        print(json.dumps(output))
+        sys.stdout.flush()
+        
+        # Call cleanup every hour (based on counter)
+        art_cleanup_counter += 1
+        if art_cleanup_counter >= 3600:
+            cleanup_old_album_art()
+            art_cleanup_counter = 0
+        
+        # Sleep: faster if scrolling, slower if needed
+        if no_player_count > 5:
+            time.sleep(3)  # Less frequent when no players are active
+        else:
+            # Faster updates when title is scrolling
+            if scroll_generator is not None:
+                time.sleep(SCROLL_INTERVAL)
+            else:
+                time.sleep(0.5)
+        
 
 if __name__ == "__main__":
-    try:
-        main()
-    finally:
-        # Clean up cava process if it exists
-        if cava_process and cava_process.poll() is None:
-            cava_process.terminate()
+    main()

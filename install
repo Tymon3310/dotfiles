@@ -1,20 +1,114 @@
-pacman-contrib wget zip unzip gum rsync git figlet sed vim xdg-user-dirs man-pages \
-networkmanager hyprland hyprpaper hyprlock hypridle hyprshade \
-noto-fonts noto-fonts-cjk noto-fonts-emoji ttf-fira-sans ttf-fira-code ttf-fira-mono otf-font-awesome nerd-fonts ttf-liberation ttf-material-design-icons-git ttf-monaspace-variable \
-xdg-desktop-portal-hyprland xdg-desktop-portal-kde xdg-desktop-portal-gtk xdg-desktop-portal-wlr \
-libnotify swaync swayosd kitty qt5-wayland qt6-wayland waybar waybar-updates wttrbar \
-fastfetch eza python-pip python-gobject python-pillow python-numpy python-screeninfo python-psutil \
-tumbler brightnessctl nm-connection-editor network-manager-applet \
-gtk3 gtk4 libadwaita fuse2 imagemagick jq xclip curl \
-zen-browser-bin neovim htop python-pywal pinta \
-blueman hyprshot hyprpicker cliphist  clipse-bin\
-nwg-look qt6ct rofi-wayland polkit-gnome hyprpolkitagent \
-papirus-icon-theme breeze breeze-plus gvfs waypaper bibata-cursor-theme-bin \
-aylurs-gtk-shell nwg-bar \
-playerctl cava \
-qalculate-gtk btop dolphin \
-sddm qt5-graphicaleffects qt5-quickcontrols2 qt5-svg \
-zsh zsh-completions fish fzf pwvucontrol oh-my-posh-bin \
-pipewire pipewire-pulse pipewire-alsa wireplumber pipewire-jack qpwgraph \
-unimatrix-git pipes.c asciiquarium donut.c cbonsai \
-axon-applauncher sherlock-launcher-bin flatpak
+pacman-contrib
+wget
+zip
+unzip
+gum
+rsync
+git
+figlet
+sed
+vim
+xdg-user-dirs
+man-pages
+networkmanager
+hyprland
+hyprpaper
+hyprlock
+hypridle
+hyprshade
+noto-fonts
+noto-fonts-cjk
+noto-fonts-emoji
+ttf-fira-sans
+ttf-fira-code
+ttf-fira-mono
+otf-font-awesome
+nerd-fonts
+ttf-liberation
+ttf-material-design-icons-git
+ttf-monaspace-variable
+xdg-desktop-portal-hyprland
+xdg-desktop-portal-kde
+xdg-desktop-portal-gtk
+xdg-desktop-portal-wlr
+libnotify
+swaync
+swayosd
+kitty
+qt5-wayland
+qt6-wayland
+waybar
+waybar-updates
+wttrbar
+fastfetch
+eza
+python-pip
+python-gobject
+python-pillow
+python-numpy
+python-screeninfo
+python-psutil
+tumbler
+brightnessctl
+nm-connection-editor
+network-manager-applet
+gtk3
+gtk4
+libadwaita
+fuse2
+imagemagick
+jq
+xclip
+curl
+zen-browser-bin
+neovim
+htop
+python-pywal
+pinta
+blueman
+hyprshot
+hyprpicker
+cliphist
+clipse-bin
+nwg-look
+qt6ct
+rofi-wayland
+polkit-gnome
+hyprpolkitagent
+papirus-icon-theme
+breeze
+breeze-plus
+gvfs
+waypaper
+bibata-cursor-theme-bin
+aylurs-gtk-shell
+nwg-bar
+playerctl
+cava
+qalculate-gtk
+btop
+dolphin
+sddm
+qt5-graphicaleffects
+qt5-quickcontrols2
+qt5-svg
+zsh
+zsh-completions
+fish
+fzf
+pwvucontrol
+oh-my-posh-bin
+pipewire
+pipewire-pulse
+pipewire-alsa
+wireplumber
+pipewire-jack
+qpwgraph
+unimatrix-git
+pipes.c
+asciiquarium
+donut.c
+cbonsai
+axon-applauncher
+sherlock-launcher-bin
+flatpak

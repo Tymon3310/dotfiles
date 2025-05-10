@@ -6,34 +6,29 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 DOTFILES_DIR="$SCRIPT_DIR" # Set DOTFILES_DIR to the script's directory
 
 CONFIG_DIR="$DOTFILES_DIR/.config"
+SHARED_FUNCTIONS_SCRIPT="$CONFIG_DIR/hypr/scripts/shared-functions.sh" # Path to shared functions
 PACKAGES_FILE="$DOTFILES_DIR/install" # Points to the file with only package names
 ZSH_INSTALL_SCRIPT="$CONFIG_DIR/hypr/scripts/installzsh.sh"
 PACMAN_ADDITIONAL_SCRIPT="$CONFIG_DIR/hypr/scripts/pacman-additional.sh"
 BACKUP_DIR="$HOME/.config_$(date +%Y%m%d_%H%M%S)_bak"
 TARGET_CONFIG_DIR="$HOME/.config"
 
-# --- Helper Functions ---
-_command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
-
-_gum_confirm() {
-    if _command_exists gum; then
-        gum confirm "$1"
-    else
-        read -p "$1 [y/N] " response
-        [[ "$response" =~ ^[Yy]$ ]]
-    fi
-}
-
-_gum_spin() {
-    if _command_exists gum; then
-        gum spin --spinner dot --title "$1" -- sleep "$2"
-    else
-        echo "$1"
-        sleep "$2"
-    fi
-}
+# --- Source Shared Functions ---
+if [ -f "$SHARED_FUNCTIONS_SCRIPT" ]; then
+    source "$SHARED_FUNCTIONS_SCRIPT"
+else
+    echo "ERROR: Shared functions script not found at $SHARED_FUNCTIONS_SCRIPT."
+    echo "Please ensure the file exists and the path is correct."
+    # Define minimal fallbacks if shared functions are absolutely critical for script startup
+    _command_exists() { command -v "$1" >/dev/null 2>&1; } # Minimal fallback
+    _gum_confirm() { read -p "$1 [y/N] " response; [[ "$response" =~ ^[Yy]$ ]]; } # Minimal fallback
+    _gum_spin() { echo "$1"; sleep "$2"; } # Minimal fallback
+    _isInstalledYay() {
+        local package="$1"
+        yay -Q "$package" >/dev/null 2>&1
+    }
+    echo "Warning: Using minimal fallback helper functions."
+fi
 
 # --- Start Script ---
 clear
@@ -77,16 +72,21 @@ if [ ! -f "$PACKAGES_FILE" ]; then
 fi
 
 # Read the file, handle line continuations, squeeze multiple spaces, and trim.
-packages=$(cat "$PACKAGES_FILE" | tr '\\\n' ' ' | tr -s ' ' | xargs)
+packages_array=()
+while IFS= read -r pkg; do
+    # Skip empty lines and comments
+    [[ -z "$pkg" || "$pkg" =~ ^# ]] && continue
+    packages_array+=("$pkg")
+done < "$PACKAGES_FILE"
 
-if [ -z "$packages" ]; then
+if [ ${#packages_array[@]} -eq 0 ]; then
     echo "ERROR: Could not extract package list from $PACKAGES_FILE (or file is empty)."
     exit 1
 fi
 
-echo "Found packages: $packages"
+echo "Found ${#packages_array[@]} packages to install"
 echo "Installing packages using 'yay -S --needed'..."
-if ! yay -S --needed $packages; then
+if ! yay -S --needed "${packages_array[@]}"; then
     echo "ERROR: Package installation failed."
     exit 1
 fi
@@ -176,12 +176,14 @@ echo "--- Configuring Zsh ---"
 if [ -f "$ZSH_INSTALL_SCRIPT" ]; then
     echo "Running Zsh installation script: $ZSH_INSTALL_SCRIPT"
     chmod +x "$ZSH_INSTALL_SCRIPT"
+    export CALLED_BY_INSTALL_SH=true
     if "$ZSH_INSTALL_SCRIPT"; then
         echo "Zsh configuration script finished."
     else
         echo "ERROR: Zsh configuration script failed."
         exit 1
     fi
+    unset CALLED_BY_INSTALL_SH
 else
     echo "ERROR: Zsh installation script not found at $ZSH_INSTALL_SCRIPT."
     exit 1
@@ -193,12 +195,14 @@ echo "--- Configuring Pacman ---"
 if [ -f "$PACMAN_ADDITIONAL_SCRIPT" ]; then
     echo "Running Pacman configuration script: $PACMAN_ADDITIONAL_SCRIPT"
     chmod +x "$PACMAN_ADDITIONAL_SCRIPT"
+    export CALLED_BY_INSTALL_SH=true
     if "$PACMAN_ADDITIONAL_SCRIPT"; then
         echo "Pacman configuration script finished."
     else
         echo "ERROR: Pacman configuration script failed."
         exit 1
     fi
+    unset CALLED_BY_INSTALL_SH
 else
     echo "ERROR: Pacman configuration script not found at $PACMAN_ADDITIONAL_SCRIPT."
     exit 1

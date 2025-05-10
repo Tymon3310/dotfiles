@@ -59,7 +59,7 @@ cd() {
   fi
 }
 
-tomp3 A() {
+tomp3 () {
   if [ -z "$1" ]; then
     echo "Usage: tomp3 <input_file.wav>"
     return 1

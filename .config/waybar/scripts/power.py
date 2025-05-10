@@ -7,13 +7,11 @@ import os
 import glob
 import re
 import subprocess
-from pathlib import Path
 
 # Configuration
-CPU_POWER_PATH = "/sys/class/hwmon/hwmon4/power1_input"
-GPU_POWER_PATH = "/sys/class/drm/card1/device/hwmon/hwmon3/power1_average"
-TOTAL_POWER_FORMAT = "󰹬 {total:.1f}W"
-DETAILED_FORMAT = "CPU: {cpu:.1f}W | GPU: {gpu:.1f}W"
+# CPU_POWER_PATH = "/sys/class/hwmon/hwmon4/power1_input" # Unused
+# GPU_POWER_PATH = "/sys/class/drm/card1/device/hwmon/hwmon3/power1_average" # Unused
+TOTAL_POWER_FORMAT = " {total:.1f}W"
 
 # Power thresholds for color coding (in watts)
 HIGH_POWER_THRESHOLD = 320  # Above this is considered high power consumption
@@ -35,10 +33,10 @@ GPU_POWER_PATTERNS = [
 ]
 
 # System power supply patterns
-POWER_SUPPLY_PATTERNS = [
-    "/sys/class/power_supply/*/power_now",
-    "/sys/class/power_supply/*/current_now",
-]
+# POWER_SUPPLY_PATTERNS = [ # Removed unused constant
+#     "/sys/class/power_supply/*/power_now",
+#     "/sys/class/power_supply/*/current_now",
+# ]
 
 # NVMe drive power patterns
 NVME_POWER_PATTERNS = [
@@ -49,12 +47,19 @@ NVME_POWER_PATTERNS = [
 # Additional configurations
 CPU_POWER_SCALING = 1.2  # CPU reports about 80% of actual power (VRM losses, etc)
 GPU_POWER_SCALING = 1.25  # GPU reports don't include VRAM, VRMs, fans
-# For AOC (1080p 144Hz 22") and LG (1440p 165Hz 32") monitors
-AOC_MONITOR_POWER = 25  # 1080p 144Hz 22" (~20-30W typical for this size/spec)
-LG_MONITOR_POWER = 45   # 1440p 165Hz 32" (~40-50W typical for this size/spec)
-MONITOR_POWER = AOC_MONITOR_POWER + LG_MONITOR_POWER
+
+# Monitor Power Configuration
+MONITORS = [
+    {"name": "AOC (22\" 1080p 144Hz)", "power": 25},
+    {"name": "LG (32\" 1440p 165Hz)", "power": 45}
+]
+
 PERIPHERALS_POWER = 10  # Keyboard, mouse, streamdeck, etc.
 SYSTEM_BASE_POWER = 40  # Motherboard, RAM, fans, drives, etc.
+
+# NVMe power state estimates (in watts)
+NVME_LOW_POWER_STATE_WATTAGE = 0.5  # Estimate for low power state (e.g., state "1")
+NVME_ACTIVE_POWER_STATE_WATTAGE = 3.0 # Estimate for active power state (e.g., state "0")
 
 # Standard colors for all scripts - updated with lighter primary color
 PRIMARY_COLOR = "#48A3FF"     # Lighter blue color that's more visible
@@ -95,7 +100,6 @@ def read_power_file(path):
 
 def estimate_system_power():
     """Estimate total system power consumption using sensors command"""
-    total_power = 0.0
     
     # Try to get power info from sensors command
     try:
@@ -115,8 +119,8 @@ def estimate_system_power():
                 'cpu_soc': float(cpu_soc_match.group(1)) if cpu_soc_match else 0.0,
                 'gpu': float(gpu_match.group(1)) if gpu_match else 0.0
             }
-    except Exception as e:
-        print(f"Error parsing sensors: {e}", file=sys.stderr)
+    except OSError as e:
+        print(f"Error: {e}", file=sys.stderr)
         
     return {
         'cpu_core': 0.0,
@@ -137,10 +141,10 @@ def get_nvme_power():
                     state = f.read().strip()
                     # Rough estimates based on power states
                     if state == "1":  # Low power state
-                        total_nvme_power += 0.5  # 0.5W estimate
+                        total_nvme_power += NVME_LOW_POWER_STATE_WATTAGE  # Use constant
                     elif state == "0":  # Active state
-                        total_nvme_power += 3.0  # 3W estimate
-            except Exception:
+                        total_nvme_power += NVME_ACTIVE_POWER_STATE_WATTAGE  # Use constant
+            except (IOError, ValueError):
                 pass
         else:
             # Handle numerical power values
@@ -152,11 +156,38 @@ def main():
     # Get power values from sensors
     power_data = estimate_system_power()
     
+    cpu_power_source_info = "sensors (Core + SoC)"
+    gpu_power_source_info = "sensors (PPT)"
+
     # Set CPU power (core + SoC) with scaling
-    cpu_power = (power_data['cpu_core'] + power_data['cpu_soc']) * CPU_POWER_SCALING
+    cpu_power = (power_data['cpu_core'] + power_data['cpu_soc'])
+    if cpu_power == 0.0:
+        cpu_sysfs_path = find_path(CPU_POWER_PATTERNS)
+        if cpu_sysfs_path:
+            cpu_power_from_file = read_power_file(cpu_sysfs_path)
+            if cpu_power_from_file > 0.0:
+                cpu_power = cpu_power_from_file
+                cpu_power_source_info = f"sysfs ({cpu_sysfs_path.split('/')[-2]}/{cpu_sysfs_path.split('/')[-1]})"
+            else:
+                cpu_power_source_info = "unavailable"
+        else:
+            cpu_power_source_info = "unavailable"
+    cpu_power *= CPU_POWER_SCALING
     
     # Set GPU power with scaling
-    gpu_power = power_data['gpu'] * GPU_POWER_SCALING
+    gpu_power = power_data['gpu']
+    if gpu_power == 0.0:
+        gpu_sysfs_path = find_path(GPU_POWER_PATTERNS)
+        if gpu_sysfs_path:
+            gpu_power_from_file = read_power_file(gpu_sysfs_path)
+            if gpu_power_from_file > 0.0:
+                gpu_power = gpu_power_from_file
+                gpu_power_source_info = f"sysfs ({gpu_sysfs_path.split('/')[-2]}/{gpu_sysfs_path.split('/')[-1]})"
+            else:
+                gpu_power_source_info = "unavailable"
+        else:
+            gpu_power_source_info = "unavailable"
+    gpu_power *= GPU_POWER_SCALING
     
     # Get NVMe power if available
     nvme_power = get_nvme_power()
@@ -164,8 +195,11 @@ def main():
     # Calculate "other" power - this is everything else in the PC
     other_power = SYSTEM_BASE_POWER
     
+    # Calculate total monitor power
+    total_monitor_power = sum(monitor['power'] for monitor in MONITORS)
+
     # Calculate "external" power for peripherals
-    external_power = MONITOR_POWER + PERIPHERALS_POWER
+    external_power = total_monitor_power + PERIPHERALS_POWER
     
     # Calculate system power
     system_power = cpu_power + gpu_power + nvme_power + other_power
@@ -182,20 +216,22 @@ def main():
     
     # Total power display
     if total_power > HIGH_POWER_THRESHOLD:
-        power_text = f"<span color='{CRITICAL_COLOR}'> {total_power:.1f}W</span> "
+        power_text = f"<span color='{CRITICAL_COLOR}'> {TOTAL_POWER_FORMAT.format(total=total_power)}</span> "
         power_class = "critical"
     elif total_power > MEDIUM_POWER_THRESHOLD:
-        power_text = f"<span color='{WARNING_COLOR}'> {total_power:.1f}W</span> "
+        power_text = f"<span color='{WARNING_COLOR}'> {TOTAL_POWER_FORMAT.format(total=total_power)}</span> "
         power_class = "high"
     else:
-        power_text = f" {total_power:.1f}W "
+        power_text = f" {TOTAL_POWER_FORMAT.format(total=total_power)} "
         power_class = "normal"
     
     # Section headers
     tooltip = f"<span color='{PRIMARY_COLOR}'> Power Consumption:</span>\n"
 
     # CPU power with color
-    if cpu_percent > HIGH_PERCENT_THRESHOLD:
+    if cpu_power == 0.0 and cpu_power_source_info == "unavailable":
+        cpu_text = f"CPU: <span color='{WARNING_COLOR}'>Data unavailable</span>"
+    elif cpu_percent > HIGH_PERCENT_THRESHOLD:
         cpu_text = f"<span color='{CRITICAL_COLOR}'>CPU: {cpu_power:.1f}W ({cpu_percent:.1f}%)</span>"
     elif cpu_percent > MEDIUM_PERCENT_THRESHOLD:
         cpu_text = f"<span color='{WARNING_COLOR}'>CPU: {cpu_power:.1f}W ({cpu_percent:.1f}%)</span>"
@@ -203,10 +239,12 @@ def main():
         cpu_text = f"CPU: {cpu_power:.1f}W ({cpu_percent:.1f}%)"
     
     # Format GPU power with color based on its percentage
-    if gpu_percent > HIGH_PERCENT_THRESHOLD:
-        gpu_text = f"<span color='#f38ba8'>GPU: {gpu_power:.1f}W ({gpu_percent:.1f}%)</span>"
+    if gpu_power == 0.0 and gpu_power_source_info == "unavailable":
+        gpu_text = f"GPU: <span color='{WARNING_COLOR}'>Data unavailable</span>"
+    elif gpu_percent > HIGH_PERCENT_THRESHOLD:
+        gpu_text = f"<span color='{CRITICAL_COLOR}'>GPU: {gpu_power:.1f}W ({gpu_percent:.1f}%)</span>"
     elif gpu_percent > MEDIUM_PERCENT_THRESHOLD:
-        gpu_text = f"<span color='#fab387'>GPU: {gpu_power:.1f}W ({gpu_percent:.1f}%)</span>"
+        gpu_text = f"<span color='{WARNING_COLOR}'>GPU: {gpu_power:.1f}W ({gpu_percent:.1f}%)</span>"
     else:
         gpu_text = f"GPU: {gpu_power:.1f}W ({gpu_percent:.1f}%)"
     
@@ -231,16 +269,18 @@ def main():
     tooltip += f" ├─ {other_text}\n"
 
     # Add external power with monitor details
-    tooltip += f" ├─ Monitors: {MONITOR_POWER:.1f}W\n"
-    tooltip += f"    ├─ AOC (22\" 1080p 144Hz): {AOC_MONITOR_POWER:.1f}W\n"
-    tooltip += f"    └─ LG (32\" 1440p 165Hz): {LG_MONITOR_POWER:.1f}W\n"
+    tooltip += f" ├─ Monitors: {total_monitor_power:.1f}W\n"
+    for i, monitor in enumerate(MONITORS):
+        connector = "└─" if i == len(MONITORS) - 1 else "├─"
+        tooltip += f"    {connector} {monitor['name']}: {monitor['power']:.1f}W\n"
     tooltip += f" ├─ Peripherals: {PERIPHERALS_POWER:.1f}W\n"
+    tooltip += f" ├─ <span color='#ff9a3c'>*estimated</span> External Power: {total_monitor_power + PERIPHERALS_POWER:.1f}W\n"
     tooltip += f" └─ Total: {total_power:.1f}W\n"
     
     # Source information
     tooltip += f"\n<span color='{PRIMARY_COLOR}'>Source:</span>\n"
-    tooltip += f" ├─ CPU: via sensors (Core + SoC)\n"
-    tooltip += f" └─ GPU: via sensors (PPT)"
+    tooltip += f" ├─ CPU: {cpu_power_source_info}\n"
+    tooltip += f" └─ GPU: {gpu_power_source_info}"
     
     # Prepare output
     output = {

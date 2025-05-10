@@ -25,10 +25,10 @@ get_repo_priority() {
             echo "4"
             ;;
         extra)
-            echo "4"
+            echo "5"
             ;;
         multilib)
-            echo "5"
+            echo "6"
             ;;
         visual-studio-code-insiders)
             echo "9"
@@ -40,6 +40,24 @@ get_repo_priority() {
             echo "100"  # Custom repos get lowest priority
             ;;
     esac
+}
+
+# Function to get color for a specific repository name
+get_repo_color() {
+    local repo_to_color="$1"
+    local color="#BFBFBF" # Default
+    case "$repo_to_color" in
+        core)               color="#FF5555";;
+        core-testing)       color="#FF79C6";;
+        extra)              color="#50FA7B";;
+        extra-testing)      color="#8BE9FD";;
+        multilib)           color="#FFB86C";;
+        multilib-testing)   color="#F1FA8C";;
+        aur)                color="#FF8700";;
+        visual-studio-code-insiders) color="#3EA7FF";;
+        *)                  color="#BFBFBF";; # Other repos
+    esac
+    echo "$color"
 }
 
 # Function to get repository for a package and its color
@@ -80,21 +98,14 @@ get_package_repo_info() {
 
     # Set color based on repository if found, otherwise keep default
     if [[ -n "$repo_name" && "$repo_name" != "unknown" ]]; then
-         case "$repo_name" in
-            core)               color="#FF5555";; # Red
-            core-testing)       color="#FF79C6";; # Pink
-            extra)              color="#50FA7B";; # Green
-            extra-testing)      color="#8BE9FD";; # Cyan
-            multilib)           color="#FFB86C";; # Orange
-            multilib-testing)   color="#F1FA8C";; # Yellow
-            aur)                color="#FF8700";; # AUR Orange
-            visual-studio-code-insiders) color="#3EA7FF";; # VS Code Blue
-            *)                  color="#BFBFBF";; # Light gray for other repos
-        esac
+         : # Placeholder, actual color assignment will be done after this block
     else
         # If still unknown, set repo name explicitly
         repo_name="unknown"
     fi
+
+    # Get color by calling the dedicated function
+    color=$(get_repo_color "$repo_name")
 
     echo "$repo_name $color"
 }
@@ -403,39 +414,68 @@ update() {
     fi
 
     # Add pacman packages
-    for pkg in "${pacman_updates[@]}"; do
+    for pkg_line in "${pacman_updates[@]}"; do
         item_idx_for_display=$((item_idx_for_display + 1))
-        local first_word=$(echo "$pkg" | awk '{print $1}')
-        local pkg_name_display="$first_word" # Default to the first word
-        local repo_color_info=""
-        local repo_name_for_display="unknown"
-        local color_for_display="#BFBFBF"
-
-        # If checkupdates provided "repo/package", use that
-        if [[ "$first_word" == */* ]]; then
-            repo_color_info=$(get_package_repo_info "$first_word")
-            pkg_name_display="${first_word#*/}" # Get only the package name part
-        else
-            # Otherwise, it's just "package", get repo info for it
-            repo_color_info=$(get_package_repo_info "$first_word")
-        fi
         
-        repo_name_for_display=$(echo "$repo_color_info" | awk '{print $1}')
-        color_for_display=$(echo "$repo_color_info" | awk '{print $2}')
+        local parts_array=(${(s: :)pkg_line}) # Split the line by space "name old -> new" or "repo/name old -> new"
+        local name_part="${parts_array[1]}"
+        local old_version="${parts_array[2]}"
+        local arrow="${parts_array[3]}"
+        local new_version="${parts_array[4]}"
 
-        # Reconstruct the package info line for display
-        # The original $pkg line is like "package old_ver -> new_ver" or "repo/package old_ver -> new_ver"
-        # We want to display "[REPO] package old_ver -> new_ver"
-        local rest_of_line=$(echo "$pkg" | cut -d' ' -f2-) # Get everything after the first word
-        local pkg_info="$pkg_name_display $rest_of_line"   # e.g., "btop 1.2.3 -> 1.2.4"
+        local actual_pkg_name=""
+        local determined_repo_name=""
+
+        if [[ "$name_part" == */* ]]; then
+            # checkupdates provided repo/package
+            determined_repo_name="${name_part%%/*}"
+            actual_pkg_name="${name_part#*/}"
+            # Apply fix_repo_display to the repo name extracted from checkupdates output
+            determined_repo_name=$(echo "$determined_repo_name" | fix_repo_display)
+        else
+            # checkupdates provided only package name
+            actual_pkg_name="$name_part"
+            
+            local found_sl_repo=""
+            # Search pacman -Sl for this package and new_version
+            # Input to loop is "repo package version" from pacman -Sl
+            while IFS=' ' read -r r p v junk; do # junk to consume any extra fields on a line
+                if [[ "$p" == "$actual_pkg_name" && "$v" == "$new_version" ]]; then
+                    found_sl_repo="$r"
+                    break
+                fi
+            done < <(pacman -Sl "$actual_pkg_name" 2>/dev/null)
+            
+            if [[ -n "$found_sl_repo" ]]; then
+                determined_repo_name="$found_sl_repo"
+                # Apply fix_repo_display to the repo name found from pacman -Sl
+                determined_repo_name=$(echo "$determined_repo_name" | fix_repo_display)
+            else
+                # Fallback: If specific version not found (e.g. checkupdates output format changed or weird pkg name)
+                # Use the original get_package_repo_info logic based on package name only
+                # This will use pkg_to_repo_map or pacman -Qi/-Si
+                local repo_color_fallback=$(get_package_repo_info "$actual_pkg_name")
+                determined_repo_name=$(echo "$repo_color_fallback" | awk '{print $1}')
+                # actual_pkg_name is already set
+                # color will be determined based on this fallback repo_name
+            fi
+        fi
+
+        # If determined_repo_name is still empty after all attempts, default it
+        [[ -z "$determined_repo_name" ]] && determined_repo_name="unknown"
+
+        local color_for_display=$(get_repo_color "$determined_repo_name")
+
+        # Construct the display string: "actual_pkg_name old_version -> new_version"
+        local pkg_info_for_display="$actual_pkg_name $old_version $arrow $new_version"
 
         if [[ "$has_gum" = true ]]; then
             local styled_idx=$(gum style --bold "[$item_idx_for_display]")
-            display_list+=("$(printf "%s %s %s" "$styled_idx" "$(gum style --foreground "$color_for_display" "[$repo_name_for_display]")" "$pkg_info")")
+            display_list+=("$(printf "%s %s %s" "$styled_idx" "$(gum style --foreground "$color_for_display" "[$determined_repo_name]")" "$pkg_info_for_display")")
         else
-            display_list+=("$(printf "[%2d] [%s] %s" "$item_idx_for_display" "$repo_name_for_display" "$pkg_info")")
+            display_list+=("$(printf "[%2d] [%s] %s" "$item_idx_for_display" "$determined_repo_name" "$pkg_info_for_display")")
         fi
-        all_updates+=("pacman:$pkg") # Store with type prefix and original line
+        all_updates+=("pacman:$pkg_line") # Store with type prefix and original line
     done
 
     # Add a header for AUR
@@ -500,7 +540,7 @@ update() {
 
     # Skip if no confirmation needed
     if [[ "$skip_confirm" = false ]]; then
-        local exclude_input=$(gum input --placeholder "Exclude numbers (e.g., 1 2 3 or 1-3)")
+        local exclude_input=$(gum input --placeholder "Exclude numbers (e.g., 1 2 3 or 1-3)" --cursor.foreground "#00AFFF")
 
         local excluded_indices=()
 
@@ -629,7 +669,7 @@ update() {
         # Check if sudo password is needed (only if not skipping confirm)
         if [[ ${#ignore_args[@]} -gt 0 ]]; then
             if [[ "$skip_confirm" = false ]]; then
-                local sudo_pass=$(gum input --password --placeholder "Sudo password")
+                local sudo_pass=$(gum input --password --placeholder "Sudo password" --cursor.foreground "#00AFFF")
                 printf "%s\n" "$sudo_pass" | sudo -S -v
             else
                 sudo -v
@@ -676,22 +716,25 @@ update() {
     # Check for kernel updates with more precise detection
     local kernel_updated=false
     local current_kernel=$(uname -r)
-    
-    # Use regex pattern matching directly instead of looping through an array
-    for pkg in "${pacman_updates[@]}"; do
-        local pkg_name="${pkg%% *}"
-        pkg_name="${pkg_name#*/}" # Remove repo/ prefix if present
-        
-        # Match any linux kernel package efficiently
-        if [[ "$pkg_name" =~ ^linux(-lts|-zen|-hardened)?$ ]]; then
-            kernel_updated=true
-            break
-        fi
-    done
+    local updated_kernel=$(pacman -Q linux 2>/dev/null | awk '{print $2}')
+    local kernel_packages=("linux" "linux-lts" "linux-zen" "linux-hardened")
 
-    # More compact conditional
-    [[ "$kernel_updated" = true ]] && {
-        echo ""
-        echo "⚠ Kernel update detected. A system restart is recommended after updating."
-    }
+    for pkg in "${pacman_updates[@]}"; do
+        local pkg_name=$(echo "$pkg" | awk '{print $1}')
+        # Handle packages with slash notation (e.g., extra/linux)
+        if [[ "$pkg_name" == */* ]]; then
+            pkg_name=$(echo "$pkg_name" | cut -d'/' -f2)
+        fi
+        
+        # Check if it's one of the main kernel packages (exact match)
+        for kpkg in "${kernel_packages[@]}"; do
+            if [[ "$pkg_name" == "$kpkg" ]]; then
+                kernel_updated=true
+                echo ""
+                echo "$(gum style --foreground "#FF8700" "⚠ Kernel update detected: $pkg_name from version $current_kernel to $updated_kernel")"
+                echo "$(gum style --foreground "#FF8700" "A system restart is recommended after updating.")"
+                break 2
+            fi
+        done
+    done
 }

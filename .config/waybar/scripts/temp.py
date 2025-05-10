@@ -6,11 +6,16 @@ import sys
 import os
 import glob
 import argparse
-from pathlib import Path
 
 # Configuration
 CPU_TEMP_PATH = "/sys/class/hwmon/hwmon4/temp2_input"
 GPU_TEMP_PATH = "/sys/class/drm/card1/device/hwmon/hwmon3/temp1_input"
+
+# Temperature Offsets for Warnings (degrees Celsius)
+CPU_CRITICAL_OFFSET = 5  # Degrees below critical to trigger 'critical' state
+CPU_WARNING_OFFSET = 15  # Degrees below critical to trigger 'warning/high' state
+GPU_CRITICAL_OFFSET = 10 # Degrees below critical to trigger 'critical' state for GPU
+GPU_WARNING_OFFSET = 20  # Degrees below critical to trigger 'warning/high' state for GPU
 
 # Fallback paths using glob patterns
 CPU_TEMP_PATTERNS = [
@@ -70,37 +75,53 @@ def read_temp_file(path):
         return None
 
 def get_cpu_temp():
+    # Default critical temperature if _crit file is not found or unreadable
+    DEFAULT_CPU_CRITICAL_TEMP = 95.0
+    critical_temp = DEFAULT_CPU_CRITICAL_TEMP
+
     # Find path if default doesn't exist
+    cpu_path_to_read = CPU_TEMP_PATH
     if not os.path.exists(CPU_TEMP_PATH):
-        cpu_path = find_path(CPU_TEMP_PATTERNS)
-    else:
-        cpu_path = CPU_TEMP_PATH
+        cpu_path_to_read = find_path(CPU_TEMP_PATTERNS)
     
     # Read temperature value
-    temp = read_temp_file(cpu_path)
+    temp = read_temp_file(cpu_path_to_read)
+    
+    # Try to read critical temperature from corresponding _crit file
+    if cpu_path_to_read:
+        cpu_crit_path = cpu_path_to_read.replace("_input", "_crit")
+        dynamic_critical_temp_val = read_temp_file(cpu_crit_path)
+        if dynamic_critical_temp_val is not None:
+            critical_temp = dynamic_critical_temp_val
     
     # Read additional sensors
     additional_temps = {}
+    additional_temps_crits = {} # To store found critical temperatures for additional CPU sensors
+
     for name, pattern in CPU_ADDITIONAL_PATTERNS.items():
         path = find_path(pattern)
         if path:
             value = read_temp_file(path)
             if value:
                 additional_temps[name] = value
+                # Try to find critical temp for this additional CPU sensor
+                sensor_crit_path = path.replace("_input", "_crit")
+                dynamic_sensor_crit = read_temp_file(sensor_crit_path)
+                if dynamic_sensor_crit is not None:
+                    additional_temps_crits[name] = dynamic_sensor_crit
     
-    # Critical temperature for AMD CPUs is typically around 95°C
-    critical_temp = 95.0
+    # critical_temp is now dynamic or default (for the main sensor)
     
     # Format output for Waybar with conditional formatting for high temps
     if temp is not None:
         # CPU temperature formatting
-        if temp > critical_temp - 5:  # Within 5° of critical
+        if temp > critical_temp - CPU_CRITICAL_OFFSET:  # Within critical offset
             output = {
                 "text": f" <span color='{CRITICAL_COLOR}'>{temp:.1f}°C</span> ",
                 "tooltip": f"<span color='{PRIMARY_COLOR}'>󰔏 CPU Temperature:</span>\n",
                 "class": "critical"
             }
-        elif temp > critical_temp - 15:  # Within 15° of critical
+        elif temp > critical_temp - CPU_WARNING_OFFSET:  # Within warning offset
             output = {
                 "text": f" <span color='{WARNING_COLOR}'>{temp:.1f}°C</span> ",
                 "tooltip": f"<span color='{PRIMARY_COLOR}'>󰔏 CPU Temperature:</span>\n",
@@ -119,16 +140,21 @@ def get_cpu_temp():
         # Add additional sensors to tooltip
         if additional_temps:
             for i, (name, value) in enumerate(additional_temps.items()):
+                crit_val_str = ""
+                crit_temp_for_sensor = additional_temps_crits.get(name)
+                if crit_temp_for_sensor is not None:
+                    crit_val_str = f" (Crit: {crit_temp_for_sensor:.1f}°C)"
+                
                 if i == len(additional_temps) - 1:
-                    output["tooltip"] += f" └─ {name.capitalize()}: {value:.1f}°C\n"
+                    output["tooltip"] += f" └─ {name.capitalize()}: {value:.1f}°C{crit_val_str}\n"
                 else:
-                    output["tooltip"] += f" ├─ {name.capitalize()}: {value:.1f}°C\n"
+                    output["tooltip"] += f" ├─ {name.capitalize()}: {value:.1f}°C{crit_val_str}\n"
         else:
-            output["tooltip"] += f" └─ Critical: {critical_temp}°C\n"
+            output["tooltip"] += f" └─ Critical Threshold: {critical_temp:.1f}°C\n"
         
         # Only show high temperature warning when temperature is actually high
-        if temp > critical_temp - 15:  # Only show warning for high temperatures
-            output["tooltip"] += f"\n<span color='{CRITICAL_COLOR}'>⚠ High: CPU temperature is high!</span>"
+        if temp > critical_temp - CPU_WARNING_OFFSET:  # Only show warning for high temperatures
+            output["tooltip"] += f"\n<span color='{CRITICAL_COLOR}'>⚠ High: CPU temp near/above threshold ({critical_temp:.1f}°C)!</span>"
     else:
         output = {
             "text": f" N/A ",
@@ -139,66 +165,105 @@ def get_cpu_temp():
     return output
 
 def get_gpu_temp():
-    # Find path if default doesn't exist
+    # Default critical temperatures
+    DEFAULT_GPU_EDGE_CRITICAL_TEMP = 95.0
+    DEFAULT_GPU_JUNCTION_CRITICAL_TEMP = 110.0
+
+    # Find path for main GPU temperature (edge)
+    gpu_edge_path_to_read = GPU_TEMP_PATH
     if not os.path.exists(GPU_TEMP_PATH):
-        gpu_path = find_path(GPU_TEMP_PATTERNS)
-    else:
-        gpu_path = GPU_TEMP_PATH
+        gpu_edge_path_to_read = find_path(GPU_TEMP_PATTERNS)
     
-    # Read temperature value
-    temp = read_temp_file(gpu_path)
+    # Read main GPU temperature value (edge)
+    temp = read_temp_file(gpu_edge_path_to_read) # This is edge_temp
     
-    # Read additional sensors
+    # Determine critical temperature for the edge sensor
+    actual_edge_critical_temp = DEFAULT_GPU_EDGE_CRITICAL_TEMP
+    if gpu_edge_path_to_read:
+        gpu_edge_crit_path = gpu_edge_path_to_read.replace("_input", "_crit")
+        dynamic_edge_crit = read_temp_file(gpu_edge_crit_path)
+        if dynamic_edge_crit is not None:
+            actual_edge_critical_temp = dynamic_edge_crit
+        else:
+            # Fallback to _emergency for edge sensor
+            gpu_edge_emergency_path = gpu_edge_path_to_read.replace("_input", "_emergency")
+            dynamic_edge_emergency = read_temp_file(gpu_edge_emergency_path)
+            if dynamic_edge_emergency is not None:
+                actual_edge_critical_temp = dynamic_edge_emergency
+    
+    # Read additional sensors and their critical temperatures
     additional_temps = {}
+    additional_temps_crits = {} # To store found critical temperatures
+
     for name, pattern in GPU_ADDITIONAL_PATTERNS.items():
         path = find_path(pattern)
         if path:
             value = read_temp_file(path)
             if value:
                 additional_temps[name] = value
+                # Try to find critical temp for this additional sensor (crit then emergency)
+                sensor_crit_path = path.replace("_input", "_crit")
+                dynamic_sensor_crit = read_temp_file(sensor_crit_path)
+                if dynamic_sensor_crit is not None:
+                    additional_temps_crits[name] = dynamic_sensor_crit
+                else:
+                    sensor_emergency_path = path.replace("_input", "_emergency")
+                    dynamic_sensor_emergency = read_temp_file(sensor_emergency_path)
+                    if dynamic_sensor_emergency is not None:
+                        additional_temps_crits[name] = dynamic_sensor_emergency
     
-    # Critical temperature for AMD GPUs is typically around 110°C for junction
-    critical_temp = 110.0 if "junction" in additional_temps else 95.0
-    junction_temp = additional_temps.get("junction", temp)
+    # Determine the temperature and critical threshold to use for overall warnings
+    temp_for_warning_comparison = temp # Default to edge temp
+    critical_temp_for_warning = actual_edge_critical_temp # Default to edge crit temp
+    warning_source_name = "Edge"
+
+    junction_temp_value = additional_temps.get("junction")
+    if junction_temp_value is not None:
+        temp_for_warning_comparison = junction_temp_value
+        warning_source_name = "Junction"
+        # Use dynamic junction critical temp if found, else default
+        critical_temp_for_warning = additional_temps_crits.get("junction", DEFAULT_GPU_JUNCTION_CRITICAL_TEMP)
     
-    # Format output for Waybar with conditional formatting for high temps
-    if temp is not None:
-        # Similar updates for GPU temperature
-        if junction_temp > critical_temp - 10:  # Within 10° of critical
+    # Format output for Waybar
+    if temp is not None: # temp is edge_temp, always display this
+        # Conditional formatting based on temp_for_warning_comparison and critical_temp_for_warning
+        if temp_for_warning_comparison is not None and temp_for_warning_comparison > critical_temp_for_warning - GPU_CRITICAL_OFFSET:
             output = {
-                "text": f" <span color='{CRITICAL_COLOR}'>{temp:.1f}°C</span> ",
+                "text": f" <span color='{CRITICAL_COLOR}'>{temp:.1f}°C</span> ", # Display edge temp
                 "tooltip": f"<span color='{PRIMARY_COLOR}'>󰔏 GPU Temperature:</span>\n",
                 "class": "critical"
             }
-        elif junction_temp > critical_temp - 20:  # Within 20° of critical
+        elif temp_for_warning_comparison is not None and temp_for_warning_comparison > critical_temp_for_warning - GPU_WARNING_OFFSET:
             output = {
-                "text": f" <span color='{WARNING_COLOR}'>{temp:.1f}°C</span> ",
+                "text": f" <span color='{WARNING_COLOR}'>{temp:.1f}°C</span> ", # Display edge temp
                 "tooltip": f"<span color='{PRIMARY_COLOR}'>󰔏 GPU Temperature:</span>\n",
                 "class": "high"
             }
         else:
             output = {
-                "text": f" {temp:.1f}°C ",
+                "text": f" {temp:.1f}°C ", # Display edge temp
                 "tooltip": f"<span color='{PRIMARY_COLOR}'>󰔏 GPU Temperature:</span>\n",
                 "class": "normal"
             }
         
-        # Add edge temperature to tooltip
-        output["tooltip"] += f" ├─ Edge: {temp:.1f}°C\n"
+        # Add edge temperature to tooltip with its critical value
+        output["tooltip"] += f" ├─ Edge: {temp:.1f}°C (Crit: {actual_edge_critical_temp:.1f}°C)\n"
         
-        # Add additional sensors to tooltip
+        # Add additional sensors to tooltip with their critical values if found
         if additional_temps:
-            for i, (name, value) in enumerate(additional_temps.items()):
-                if i == len(additional_temps) - 1:
-                    output["tooltip"] += f" └─ {name.capitalize()}: {value:.1f}°C\n"
-                else:
-                    output["tooltip"] += f" ├─ {name.capitalize()}: {value:.1f}°C\n"
-        else:
-            output["tooltip"] += f" └─ Critical: {critical_temp}°C\n"
+            num_additional = len(additional_temps)
+            count = 0
+            for name, value in additional_temps.items():
+                count += 1
+                prefix = "├─" if count < num_additional else "└─"
+                crit_val = additional_temps_crits.get(name)
+                crit_info_str = f" (Crit: {crit_val:.1f}°C)" if crit_val is not None else ""
+                output["tooltip"] += f" {prefix} {name.capitalize()}: {value:.1f}°C{crit_info_str}\n"
+        # If no additional_temps, the tooltip for Edge already shows its critical temp.
         
-        # Add high if temperature is high
-        if junction_temp > critical_temp - 10:
-            output["tooltip"] += f"\n<span color='{CRITICAL_COLOR}'>⚠ high: GPU temperature is high!</span>"
+        # Add high temperature warning, specifying source and threshold
+        if temp_for_warning_comparison is not None and temp_for_warning_comparison > critical_temp_for_warning - GPU_CRITICAL_OFFSET: # Check for "critical" level
+            output["tooltip"] += f"\n<span color='{CRITICAL_COLOR}'>⚠ High: GPU {warning_source_name} temp near/above threshold ({critical_temp_for_warning:.1f}°C)!</span>"
     else:
         output = {
             "text": f" N/A ",

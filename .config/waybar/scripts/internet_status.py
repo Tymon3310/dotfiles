@@ -41,7 +41,7 @@ def ping(host):
                     if val.endswith('ms'):
                         val = val[:-2]
                     return float(val)
-    except Exception:
+    except OSError:
         pass
     return None
 
