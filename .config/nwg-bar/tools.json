@@ -12,7 +12,7 @@
   {
     "label": "Killmode",
     "exec": "hyprctl kill",
-    "icon": "/home/tymon/Pictures/skul.png"
+    "icon": "~/Pictures/skul.png"
   },
   {
     "label": "Network",

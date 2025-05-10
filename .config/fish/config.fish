@@ -46,7 +46,7 @@ if status is-interactive
     fish_add_path $HOME/.local/bin
 
     # SSH agent
-    set -gx SSH_AUTH_SOCK /home/tymon/.bitwarden-ssh-agent.sock
+    set -gx SSH_AUTH_SOCK ~/.bitwarden-ssh-agent.sock
 
     # Node.js setup
     set -gx PNPM_HOME "$HOME/.local/share/pnpm"

@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# filepath: /home/tymon/dotfiles/.config/waybar/scripts/temp.py
+# filepath: ~/dotfiles/.config/waybar/scripts/temp.py
 
 import json
 import sys

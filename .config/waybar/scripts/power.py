@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# filepath: /home/tymon/dotfiles/.config/waybar/scripts/power.py
+# filepath: ~/dotfiles/.config/waybar/scripts/power.py
 
 import json
 import sys

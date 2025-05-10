@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# filepath: /home/tymon/dotfiles/.config/waybar/scripts/usage.py
+# filepath: ~/dotfiles/.config/waybar/scripts/usage.py
 
 import json
 import os

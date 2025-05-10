@@ -68,7 +68,7 @@ SETUVAR fish_pager_color_description:yellow\x1e\x2di
 SETUVAR fish_pager_color_prefix:normal\x1e\x2d\x2dbold\x1e\x2d\x2dunderline
 SETUVAR fish_pager_color_progress:brwhite\x1e\x2d\x2dbackground\x3dcyan
 SETUVAR fish_pager_color_selected_background:\x2dr
-SETUVAR fish_user_paths:/home/tymon/\x2elmstudio/bin\x1e/home/tymon/\x2espicetify\x1e/home/tymon/go/bin\x1e/usr/local/go/bin\x1e/home/tymon/\x2elocal/share/pnpm\x1e/home/tymon/\x2elocal/bin\x1e/usr/lib/ccache/bin
+SETUVAR fish_user_paths:~/\x2elmstudio/bin\x1e~/\x2espicetify\x1e~/go/bin\x1e/usr/local/go/bin\x1e~/\x2elocal/share/pnpm\x1e~/\x2elocal/bin\x1e/usr/lib/ccache/bin
 SETUVAR sponge_allow_previously_successful:true
 SETUVAR sponge_delay:2
 SETUVAR sponge_filters:sponge_filter_failed\x1esponge_filter_matched

@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-# filepath: /home/tymon/dotfiles/.config/zshrc/functions/update.zsh
+# filepath: ~/dotfiles/.config/zshrc/functions/update.zsh
 
 # Function to fix combined testing repository names (e.g., "core-testingcore" → "core-testing")
 fix_repo_display() {
