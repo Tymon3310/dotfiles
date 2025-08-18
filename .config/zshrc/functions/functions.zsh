@@ -18,10 +18,33 @@ _installlibs() {
 }
 
 _makevenv() {
-    if [ -d ".venv" ]; then
-        echo 'Venv already exists, activating'
-        source .venv/bin/activate
+    if [[ -n "$VIRTUAL_ENV" ]]; then
+        echo 'Already in a virtual environment:'
+        echo "  $VIRTUAL_ENV"
         return 0
+    fi
+
+    local venv_dir=""
+    if [ -d ".venv" ] && [ -f ".venv/bin/activate" ]; then
+        venv_dir=".venv"
+    elif [ -d "venv" ] && [ -f "venv/bin/activate" ]; then
+        venv_dir="venv"
+    fi
+
+    if [[ -n "$venv_dir" ]]; then
+        echo "Venv already exists at $venv_dir, activating"
+        source "$venv_dir/bin/activate"
+        return 0
+    fi
+
+    # Check if corrupted venv directory exists and remove it
+    if [ -d ".venv" ]; then
+        echo "Corrupted .venv directory found, removing..."
+        rm -rf .venv
+    fi
+    if [ -d "venv" ]; then
+        echo "Corrupted venv directory found, removing..."
+        rm -rf venv
     fi
 
     gum spin --title "Creating venv..." --spinner.foreground "#09F" -- python -m venv .venv
@@ -29,6 +52,13 @@ _makevenv() {
     gum spin --title "Upgrading pip..." --spinner.foreground "#09F" -- pip install --upgrade pip
 
     echo 'Venv created and activated'
+
+    # Check for requirements.txt
+    if [ -f "requirements.txt" ]; then
+        if gum confirm "Found requirements.txt. Install dependencies?" --selected.background '#09F'; then
+            gum spin --title "Installing requirements.txt..." --spinner.foreground "#09F" -- pip install -r requirements.txt
+        fi
+    fi
 
     gum confirm "Do You want to install common libraries?" --selected.background '#09F' && _installlibs || echo 'Not installing libraries'
 

@@ -1,8 +1,14 @@
-[   
+[
     {
         "name": "Clipboard",
         "type": "clipboard-execution",
-        "args": {},
+        "args": {
+            "capabilities": [
+                "url",
+                "colors.all",
+                "calc.all"
+            ]
+        },
         "priority": 1,
         "home": true
     },
@@ -15,7 +21,6 @@
         "home": true,
         "spawn_focus": false
     },
-    
     {
         "name": "Calculator",
         "type": "calculation",
@@ -31,8 +36,8 @@
         "home": true
     },
     {
-        "name": "Bookmarks",
-        "alias": "",
+        "name": "AI Links",
+        "alias": "ai",
         "type": "command",
         "args": {"commands": {
             "ChatGPT": {"icon": "chat-gpt", "exec": "xdg-open https://chatgpt.com &", "search_string": "chatgpt;ai;"},
@@ -48,7 +53,8 @@
             "Waves": {"icon": "network-connect", "exec": "nmcli d wifi c Waves &", "search_string": "wifi;waves"},
             "Waves-AP": {"icon": "network-connect", "exec": "nmcli d wifi c Waves-AP &", "search_string": "wifi;wavesap"}
         }},
-        "priority": 4
+        "priority": 4,
+        "home": true
     },
     {
         "name": "Power Management",
@@ -60,11 +66,12 @@
             "Lock": {"icon": "system-lock-screen", "exec": "systemctl suspend & swaylock", "search_string": "Lock Screen;"},
             "Reboot": {"icon": "system-reboot", "exec": "systemctl reboot", "search_string": "reboot"}
         }},
-        "priority": 4
+        "priority": 4,
+        "home": true
     },
     {
-        "name": "OBS Studio",
-        "alias": "",
+        "name": "OBS Studio Control",
+        "alias": "obs",
         "type": "command",
         "args": {"commands": {
             "Start Recording": {"icon": "sherlock-record", "exec": "obs --startrecording &", "search_string": "recording;start recording;startrecording;obs studio;"}
@@ -73,15 +80,16 @@
     },
     {
         "name": "Utilities",
-        "alias": "",
+        "alias": "util",
         "type": "command",
         "args": {"commands": {
-            "Color Picker": {"icon": "colorgrab", "exec": "hyprpicker -a &", "search_string": "colorpicker"}
+            "Color Picker": {"icon": "colorgrab", "exec": "hyprpicker -a &", "search_string": "colorpicker"},
+            "Kill Mode": {"icon": "sherlock-kill", "exec": "hyprpicker -k &", "search_string": "kill;kill mode;killmode"},
+            "Screenshot": {"icon": "screenshot", "exec": "hyprshot -z -m region", "search_string": "screenshot;ss;"}
         }},
-        "priority": 5
+        "priority": 5,
+        "home": true
     },
-
-
     {
         "name": "Kill Process",
         "alias": "kill",
@@ -90,19 +98,18 @@
         "priority": 6,
         "home": false
     },
-
     {
-        "name": "Web Search",
-        "display_name": "Google Search",
+        "name": "Unduck Search",
+        "display_name": "Unduck Search",
         "tag_start": "{keyword}",
-        "alias": "gg",
+        "alias": "ww",
         "type": "web_launcher",
-        "args": {"search_engine": "google", "icon": "google"},
+        "args": {"search_engine": "https://unduck.link?q={keyword}", "icon": "google"},
         "priority": 100
     },
     {
-        "name": "YouTube Search",
-        "display_name": "Youtube Search",
+        "name": "Youtube",
+        "display_name": "Youtube",
         "tag_start": "{keyword}",
         "alias": "yt",
         "type": "web_launcher",
@@ -113,10 +120,10 @@
         "name": "Wikipedia Search",
         "alias": "wiki",
         "type": "bulk_text",
-        "on_return": "next",
-        "async": true, 
+        "on_return": "copy",
+        "async": true,
         "args": {"icon": "wikipedia", "exec": "/home/basti/.config/sherlock/scripts/wiki-api", "exec-args": "'{keyword}'"},
-        "priority": 0 
+        "priority": 0
     },
     {
         "name": "Weather",
@@ -131,9 +138,13 @@
         "async": true,
         "shortcut": false,
         "spawn_focus": false
+    },
+    {
+        "name": "Emoji Picker",
+        "type": "emoji_picker",
+        "alias": "emoji", 
+        "args": {},
+        "priority": 4,
+        "home": false
     }
-    
 ]
-
-
-

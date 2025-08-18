@@ -38,7 +38,7 @@
         },
         {
             "type": "packages",
-            "format": "{} (pacman)",
+            "format": "{pacman} (pacman), {flatpak-all} (flatpak), {all} (total)",
             "key": " ",
             "keyColor": "33",  
         },

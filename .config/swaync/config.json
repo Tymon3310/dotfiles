@@ -19,8 +19,7 @@
   "scripts": {
     "sound": {
       "exec": "mpv /usr/share/sounds/freedesktop/stereo/bell.oga",
-      "run-on": "receive",
-      "app-name": "^(?!de.haeckerfelix.Fragments|equibop).*"
+      "run-on": "receive"
     },
     "complete": {
       "exec": "mpv /usr/share/sounds/freedesktop/stereo/complete.oga",

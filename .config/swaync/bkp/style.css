@@ -1,9 +1,7 @@
-@import '../../.cache/wal/colors-waybar.css';
-
-@define-color text            @foreground;
-@define-color bg              @color7;
-@define-color selected        @color8;
-@define-color hover           @color4;
+@define-color text @foreground;
+@define-color bg @color7;
+@define-color selected @color8;
+@define-color hover @color4;
 
 * {
     outline: none;
@@ -43,11 +41,13 @@
     background: @background;
 }
 
-.notification-row .notification-background .notification .notification-action, .notification-row .notification-background .notification .notification-default-action {
+.notification-row .notification-background .notification .notification-action,
+.notification-row .notification-background .notification .notification-default-action {
     color: @text;
 }
 
-.notification-row .notification-background .notification .notification-action:hover, .notification-row .notification-background .notification .notification-default-action:hover {
+.notification-row .notification-background .notification .notification-action:hover,
+.notification-row .notification-background .notification .notification-default-action:hover {
     -gtk-icon-effect: none;
     background: @hover;
 }
@@ -119,7 +119,7 @@
     margin-right: 15px;
 }
 
-.widget-dnd > switch {
+.widget-dnd>switch {
     background: @selected;
     font-size: initial;
     border-radius: 12px;
@@ -127,15 +127,15 @@
     padding: 2px;
 }
 
-.widget-dnd > switch:hover {
+.widget-dnd>switch:hover {
     background: @hover;
 }
 
-.widget-dnd > switch:checked {
+.widget-dnd>switch:checked {
     background: @hover;
 }
 
-.widget-dnd > switch slider {
+.widget-dnd>switch slider {
     background: @text;
     border-radius: 12px;
 }
@@ -143,8 +143,8 @@
 /* Media Player widget */
 @define-color mpris-album-art-overlay rgba(0, 0, 0, 0.55);
 @define-color mpris-button-hover rgba(0, 0, 0, 0.50);
-.widget-mpris {
-}
+
+.widget-mpris {}
 
 .widget-mpris .widget-mpris-player {
     padding: 10px;
@@ -167,21 +167,21 @@
     background-color: alpha(@bg, 0.5);
 }
 
-.widget-buttons-grid > flowbox > flowboxchild > button {
+.widget-buttons-grid>flowbox>flowboxchild>button {
     background: alpha(@bg, 0.5);
     border-radius: 12px;
     min-width: 45px;
 }
 
-.widget-buttons-grid > flowbox > flowboxchild > button:hover {
+.widget-buttons-grid>flowbox>flowboxchild>button:hover {
     background: @hover;
 }
 
-.widget-buttons-grid > flowbox > flowboxchild > button:active {
+.widget-buttons-grid>flowbox>flowboxchild>button:active {
     background: @selected;
 }
 
-.widget-buttons-grid > flowbox > flowboxchild > button.toggle:checked {
+.widget-buttons-grid>flowbox>flowboxchild>button.toggle:checked {
     /* style given to the active toggle button */
     color: @foreground;
     background: @hover;

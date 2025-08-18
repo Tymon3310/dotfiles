@@ -52,10 +52,7 @@ Notification Title & Clear Button
 
 /* Notification Background */
 .control-center .notification-row .notification-background,
-.control-center
-  .notification-row
-  .notification-background
-  .notification.critical {
+.control-center .notification-row .notification-background .notification.critical {
   background-color: alpha(@backgrounddark, 0.95);
   border-radius: 14px;
   margin: 4px 0;
@@ -66,91 +63,46 @@ Notification Title & Clear Button
 }
 
 /* Critical Notification Styles */
-.control-center
-  .notification-row
-  .notification-background
-  .notification.critical {
+.control-center .notification-row .notification-background .notification.critical {
   color: @urgent;
 }
 
 /* Notification Content */
-.control-center
-  .notification-row
-  .notification-background
-  .notification
-  .notification-content {
+.control-center .notification-row .notification-background .notification .notification-content {
   margin: 8px;
 }
 
-.control-center
-  .notification-row
-  .notification-background
-  .notification
-  .notification-content
-  .summary {
+.control-center .notification-row .notification-background .notification .notification-content .summary {
   font-size: 12px;
   margin-bottom: 6px;
 }
 
-.control-center
-  .notification-row
-  .notification-background
-  .notification
-  .notification-content
-  .time {
+.control-center .notification-row .notification-background .notification .notification-content .time {
   color: alpha(#ffffff, 0.4);
   font-size: 12px;
 }
 
-.control-center
-  .notification-row
-  .notification-background
-  .notification
-  .notification-content
-  .body {
+.control-center .notification-row .notification-background .notification .notification-content .body {
   color: alpha(#ffffff, 0.7);
   font-size: 12px;
 }
 
 /* Notification Actions */
-.control-center
-  .notification-row
-  .notification-background
-  .notification
-  > *:last-child
-  > * {
+.control-center .notification-row .notification-background .notification>*:last-child>* {
   /* min-height: 3.4em; */
 }
 
-.control-center
-  .notification-row
-  .notification-background
-  .notification
-  > *:last-child
-  > *
-  .notification-action {
+.control-center .notification-row .notification-background .notification>*:last-child>* .notification-action {
   background: alpha(@selected, 0.6);
   border-radius: 12px;
   margin: 6px;
 }
 
-.control-center
-  .notification-row
-  .notification-background
-  .notification
-  > *:last-child
-  > *
-  .notification-action:hover {
+.control-center .notification-row .notification-background .notification>*:last-child>* .notification-action:hover {
   background: @selected;
 }
 
-.control-center
-  .notification-row
-  .notification-background
-  .notification
-  > *:last-child
-  > *
-  .notification-action:active {
+.control-center .notification-row .notification-background .notification>*:last-child>* .notification-action:active {
   background-color: @selected;
 }
 
@@ -167,10 +119,7 @@ Notification Title & Clear Button
   color: @backgrounddark;
 }
 
-.control-center
-  .notification-row
-  .notification-background
-  .close-button:active {
+.control-center .notification-row .notification-background .close-button:active {
   background-color: @selected;
 }
 
@@ -214,21 +163,21 @@ Notification Title & Clear Button
   font-size: 1.2rem;
 }
 
-.widget-dnd > switch {
-  background: @buttons;
+.widget-dnd>switch {
+  background: gray;
   border-radius: 8px;
   padding: 2px;
 }
 
-.widget-dnd > switch:hover {
+.widget-dnd>switch:hover {
   background: @hover;
 }
 
-.widget-dnd > switch:checked {
+.widget-dnd>switch:checked {
   background: @selected;
 }
 
-.widget-dnd > switch slider {
+.widget-dnd>switch slider {
   background: @text;
   border-radius: 6px;
 }
@@ -242,7 +191,7 @@ Notification Title & Clear Button
   background: transparent;
 }
 
-.widget-buttons-grid > flowbox > flowboxchild > button {
+.widget-buttons-grid>flowbox>flowboxchild>button {
   margin: 4px;
   padding: 6px 16px;
   background: @buttons;
@@ -251,15 +200,15 @@ Notification Title & Clear Button
   min-height: 26px;
 }
 
-.widget-buttons-grid > flowbox > flowboxchild > button:hover {
+.widget-buttons-grid>flowbox>flowboxchild>button:hover {
   background: @hover;
 }
 
-.widget-buttons-grid > flowbox > flowboxchild > button.toggle:checked {
+.widget-buttons-grid>flowbox>flowboxchild>button.toggle:checked {
   background: @color1;
 }
 
-.widget-buttons-grid > flowbox > flowboxchild > button.toggle:checked label {
+.widget-buttons-grid>flowbox>flowboxchild>button.toggle:checked label {
   color: @backgroundlight;
 }
 

@@ -9,7 +9,7 @@
  * ----------------------------------------------------- */
 
 * {
-    font-family: "Fira Sans Semibold", "Font Awesome 7 Free", FontAwesome, Roboto, "FiraCode Nerd Font", Helvetica, Arial, sans-serif, material-design-icons, "Monaspace Neon";
+    font-family: "Fira Sans Semibold", "Font Awesome 6 Free", FontAwesome, Roboto, Helvetica, Arial, sans-serif, material-design-icons, "Monaspace Neon";
     border: none;
     border-radius: 0px;
     /* color: @textcolor2; */
@@ -270,11 +270,11 @@ window#waybar {
  * Custom Updates
  * ----------------------------------------------------- */
 
-/* @keyframes blink-update {
+@keyframes blink-update {
     to {
         background-color: rgb(67, 190, 227);
     }
-} */
+}
 
 #custom-pacman {
     animation-timing-function: linear;
@@ -354,7 +354,7 @@ window#waybar {
 }
 
 #pulseaudio.muted {
-    color: @textcolor2;
+    color: @textcolor1;
 }
 
 #pulseaudio:hover {

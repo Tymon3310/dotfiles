@@ -255,6 +255,19 @@ def get_current_position_seconds(player_name):
     except (OSError, subprocess.TimeoutExpired, ValueError, TypeError): # Added TypeError for float conversion
         return 0.0 # Default to 0.0 on any error
 
+def get_player_volume(player_name):
+    """Get the current player volume as a float between 0.0 and 1.0."""
+    try:
+        proc = subprocess.run(
+            ["playerctl", f"--player={player_name}", "volume"],
+            capture_output=True, text=True, timeout=0.5
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            return float(proc.stdout.strip())
+        return None
+    except (OSError, subprocess.TimeoutExpired, ValueError, TypeError):
+        return None
+
 def sanitize_markup(text):
     """Escape characters that would break pango markup"""
     if text is None:
@@ -405,17 +418,21 @@ def main():
                     elif "mpv" in player_name.lower(): player_icon_tooltip = "󰝚"
                     elif "vlc" in player_name.lower(): player_icon_tooltip = "󰕼"
                     
+                    volume_val = get_player_volume(player_name)
+                    volume_display = f"{int(volume_val * 100)}%" if volume_val is not None else "N/A"
+                    
                     art_path = get_and_process_album_art(art_url)
                     tooltip_lines = [f"<span color='{PRIMARY_COLOR}'><b>{player_icon_tooltip} {sanitize_markup(player_name)} Media Player</b></span>", ""]
                     if art_path: tooltip_lines.extend([f"<span color='{PRIMARY_COLOR}'>♫ Album Art Available</span>", ""])
                     tooltip_lines.extend([
-                        f" ├─ Title: {sanitize_markup(title)}", f" ├─ Artist: {sanitize_markup(artist)}", f" └─ Album: {sanitize_markup(album)}", "",
-                        f" ├─ Time: {position_display}/{length_display}", f" ├─ Loop: {loop_status_text}", f" └─ Shuffle: {shuffle_status_text}"
+                        f" ├─ Title: {sanitize_markup(title)}", f" ├─ Volume: {volume_display}", f" ├─ Artist: {sanitize_markup(artist)}", f" └─ Album: {sanitize_markup(album)}", "",
+                        f" ├─ Time: {position_display}/{length_display}", f" ├─ Loop: {loop_status_text}", f" └─ Shuffle: {shuffle_status_text}",
+                        
                     ])
                     tooltip_text = "\n".join(tooltip_lines)
                     
                     output_text = (f" {icon} {sanitize_markup(title_display)} - {sanitize_markup(artist)} "
-                                 f"[{position_display}/{length_display}] {looping_icon_val} {shuffling_icon_val} ")
+                                 f"[{position_display}/{length_display}] {volume_display} {looping_icon_val} {shuffling_icon_val} ")
                 except Exception as e:
                     # This error is if metadata fetching or string formatting fails, assumes player status was ok
                     icon = paused_icon # Default to paused if playing status was ok but other things failed

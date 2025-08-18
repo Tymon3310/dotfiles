@@ -122,6 +122,45 @@ update() {
     trap 'echo ""; echo "Update canceled by user."; rm -f "$pacman_tmp_file" "$aur_tmp_file" "$flatpak_tmp_file"; trap - INT EXIT; return 1' INT
     trap 'rm -f "$pacman_tmp_file" "$aur_tmp_file" "$flatpak_tmp_file"; trap - EXIT' EXIT
 
+    # Synchronize package databases
+    gum style --foreground "#00AFFF" --bold "Synchronizing package databases..."
+    if [[ "$skip_confirm" = true ]]; then
+        if ! sudo pacman -Sy --noconfirm > /dev/null 2>&1; then
+            gum style --foreground "red" "Error: Failed to synchronize package databases. Update list may be inaccurate."
+            # Consider returning 1 or handling error more strictly
+        fi
+    else
+        local sudo_active_check_sync
+        sudo -n true 2>/dev/null
+        sudo_active_check_sync=$?
+
+        if [[ $sudo_active_check_sync -ne 0 && -t 0 ]]; then # Sudo not active AND interactive TTY
+            local sudo_pass_sync
+            # Assign and check gum input status in one go
+            if sudo_pass_sync=$(gum input --password --placeholder "Sudo password for DB sync" --cursor.foreground "#00AFFF"); then
+                # gum input succeeded (user pressed Enter)
+                # Now, the check with the obtained password before the pacman -Sy:
+                if echo "$sudo_pass_sync" | sudo -S -v &>/dev/null; then
+                    # Password is valid (and sudo timestamp refreshed), proceed with pacman -Sy
+                    if ! echo "$sudo_pass_sync" | sudo -S pacman -Sy --noconfirm > /dev/null 2>&1; then 
+                        gum style --foreground "red" "Error: Failed to synchronize package databases (even after password validation). Update list may be inaccurate."
+                    fi
+                else
+                    # Password was invalid or sudo -S -v failed
+                    gum style --foreground "red" "Error: Invalid sudo password or sudo validation failed. DB sync skipped."
+                fi
+            else
+                # gum input failed (e.g., user pressed Esc; Ctrl+C is handled by main trap)
+                # gum exits with non-zero status (e.g., 130 for Esc)
+                gum style --foreground "yellow" "Password entry cancelled or failed. DB sync skipped."
+            fi
+        else # Sudo likely active, or non-interactive, or no TTY
+            if ! sudo pacman -Sy --noconfirm > /dev/null 2>&1; then
+                gum style --foreground "red" "Error: Failed to synchronize package databases. Update list may be inaccurate."
+            fi
+        fi
+    fi
+    echo "" # Add a newline for better spacing after sync output
 
     # Declare an associative array to store package to repository mappings
     typeset -A pkg_to_repo_map
@@ -417,51 +456,44 @@ update() {
     for pkg_line in "${pacman_updates[@]}"; do
         item_idx_for_display=$((item_idx_for_display + 1))
         
-        local parts_array=(${(s: :)pkg_line}) # Split the line by space "name old -> new" or "repo/name old -> new"
-        local name_part="${parts_array[1]}"
+        local parts_array=(${(s: :)pkg_line}) 
+        local pkg_name_or_spec_from_checkupdates="${parts_array[1]}" # e.g., "blender" or "somerepo/blender"
         local old_version="${parts_array[2]}"
         local arrow="${parts_array[3]}"
-        local new_version="${parts_array[4]}"
+        local new_version="${parts_array[4]}" # e.g., "17:4.4.3-2"
 
         local actual_pkg_name=""
-        local determined_repo_name=""
-
-        if [[ "$name_part" == */* ]]; then
-            # checkupdates provided repo/package
-            determined_repo_name="${name_part%%/*}"
-            actual_pkg_name="${name_part#*/}"
-            # Apply fix_repo_display to the repo name extracted from checkupdates output
-            determined_repo_name=$(echo "$determined_repo_name" | fix_repo_display)
+        if [[ "$pkg_name_or_spec_from_checkupdates" == */* ]]; then
+            actual_pkg_name="${pkg_name_or_spec_from_checkupdates#*/}"
         else
-            # checkupdates provided only package name
-            actual_pkg_name="$name_part"
-            
-            local found_sl_repo=""
-            # Search pacman -Sl for this package and new_version
-            # Input to loop is "repo package version" from pacman -Sl
-            while IFS=' ' read -r r p v junk; do # junk to consume any extra fields on a line
-                if [[ "$p" == "$actual_pkg_name" && "$v" == "$new_version" ]]; then
-                    found_sl_repo="$r"
-                    break
-                fi
-            done < <(pacman -Sl "$actual_pkg_name" 2>/dev/null)
-            
-            if [[ -n "$found_sl_repo" ]]; then
-                determined_repo_name="$found_sl_repo"
-                # Apply fix_repo_display to the repo name found from pacman -Sl
-                determined_repo_name=$(echo "$determined_repo_name" | fix_repo_display)
-            else
-                # Fallback: If specific version not found (e.g. checkupdates output format changed or weird pkg name)
-                # Use the original get_package_repo_info logic based on package name only
-                # This will use pkg_to_repo_map or pacman -Qi/-Si
-                local repo_color_fallback=$(get_package_repo_info "$actual_pkg_name")
-                determined_repo_name=$(echo "$repo_color_fallback" | awk '{print $1}')
-                # actual_pkg_name is already set
-                # color will be determined based on this fallback repo_name
-            fi
+            actual_pkg_name="$pkg_name_or_spec_from_checkupdates"
         fi
 
-        # If determined_repo_name is still empty after all attempts, default it
+        local determined_repo_name="unknown" 
+        local found_sl_repo=""
+        
+        # Try to find the repo providing the *new_version* of actual_pkg_name from pacman -Sl
+        # Input to loop is "repo package version_from_sl"
+        while IFS=' ' read -r r p v junk; do
+            if [[ "$p" == "$actual_pkg_name" && "$v" == "$new_version" ]]; then
+                found_sl_repo="$r"
+                break 
+            fi
+        done < <(pacman -Sl "$actual_pkg_name" 2>/dev/null)
+        
+        if [[ -n "$found_sl_repo" ]]; then
+            determined_repo_name="$found_sl_repo"
+            determined_repo_name=$(echo "$determined_repo_name" | fix_repo_display)
+        else
+            # Fallback: If specific version not found in pacman -Sl 
+            # (should be rare if checkupdates found it and pacman -Sl is comprehensive).
+            # Use get_package_repo_info, which itself has fallbacks (map, Qi, Si).
+            local repo_color_fallback_info=$(get_package_repo_info "$actual_pkg_name")
+            determined_repo_name=$(echo "$repo_color_fallback_info" | awk '{print $1}')
+            # fix_repo_display is called within get_package_repo_info, so not needed again here for the fallback.
+        fi
+
+        # Ensure determined_repo_name is not empty; default to "unknown" if all attempts failed.
         [[ -z "$determined_repo_name" ]] && determined_repo_name="unknown"
 
         local color_for_display=$(get_repo_color "$determined_repo_name")
@@ -510,25 +542,50 @@ update() {
     # Add a header for flatpak
     if [[ $flatpak_count -gt 0 ]]; then
         if [[ "$has_gum" = true ]]; then
+                    display_list+=("")
             display_list+=("$(gum style --foreground "#00FF00" --bold "== Flatpak Updates ==")")
         else
+                    display_list+=("")
             display_list+=("== Flatpak Updates ==")
         fi
         display_list+=("")
     fi
 
     # Add flatpak packages
-    for pkg in "${flatpak_updates[@]}"; do
+    for pkg_line_raw in "${flatpak_updates[@]}"; do
         item_idx_for_display=$((item_idx_for_display + 1))
-        all_updates+=("flatpak:$pkg") # Already correct
+
+        # Parse the raw line using Zsh splitting by tab. Handles multi-line content within fields.
+        # flatpak remote-ls --updates output fields:
+        # 1: Name/Description (can be multi-line, this will be displayed)
+        # 2: Application ID (used for exclusion)
+        # ...and so on
+        local fields_array=("${(ps:\\t:)pkg_line_raw}")
+        local flatpak_name_to_display="${fields_array[1]}" # Use the "Name/Description" field for display
+        local app_id_for_exclusion="${fields_array[2]}"   # Keep App ID for internal exclusion logic
+
+        # Construct the simplified display string
+        local display_pkg_info="$flatpak_name_to_display"
+
+        # Store app_id for potential exclusion logic later.
+        # If app_id_for_exclusion is empty (e.g., parsing failed or line format was unexpected for a particular line),
+        # fall back to storing the raw line. This helps maintain correct indexing for the exclusion list,
+        # though exclusion for such an item might not behave as expected if the app_id is missing.
+        if [[ -n "$app_id_for_exclusion" ]]; then
+            all_updates+=("flatpak:$app_id_for_exclusion")
+        else
+            # If App ID is missing, store the raw line but log or handle this case?
+            # For now, storing raw line to keep indexing consistent.
+            all_updates+=("flatpak:$pkg_line_raw")
+        fi
 
         if [[ "$has_gum" = true ]]; then
-            local styled_idx=$(gum style --bold --foreground "#00FF00" "[$item_idx_for_display]")
-            local styled_repo=$(gum style --foreground "#00FF00" "flatpak")
-            display_list+=("$(printf "%s %-15s %s" "$styled_idx" "$styled_repo" "$pkg")")
+            local styled_idx=$(gum style --bold "[$item_idx_for_display]")
+            # Display: [idx] [flatpak] Name
+            display_list+=("$(printf "%s %s %s" "$styled_idx" "$(gum style --foreground "#00FF00" "[flatpak]")" "$display_pkg_info")")
         else
-            # Format with proper padding
-            display_list+=("$(printf "[%2d] %-12s %s" "$item_idx_for_display" "flatpak" "$pkg")")
+            # Display: [idx] [flatpak] Name
+            display_list+=("$(printf "[%2d] [flatpak] %s" "$item_idx_for_display" "$display_pkg_info")")
         fi
     done
 
@@ -666,25 +723,50 @@ update() {
             ignore_args+=("--ignore" "$pkg")
         done
 
-        # Check if sudo password is needed (only if not skipping confirm)
-        if [[ ${#ignore_args[@]} -gt 0 ]]; then
-            if [[ "$skip_confirm" = false ]]; then
-                local sudo_pass=$(gum input --password --placeholder "Sudo password" --cursor.foreground "#00AFFF")
-                printf "%s\n" "$sudo_pass" | sudo -S -v
-            else
-                sudo -v
+        local proceed_with_yay_update=true
+
+        # Check if sudo password is needed for yay
+        if [[ "$skip_confirm" = false ]]; then
+            local sudo_active_check_yay
+            sudo -n true 2>/dev/null
+            sudo_active_check_yay=$?
+
+            if [[ $sudo_active_check_yay -ne 0 && -t 0 ]]; then # Sudo not active AND interactive TTY
+                local sudo_pass_yay
+                if sudo_pass_yay=$(gum input --password --placeholder "Sudo password for system update" --cursor.foreground "#00AFFF"); then
+                    # gum input succeeded, now validate the password
+                    if ! echo "$sudo_pass_yay" | sudo -S -v &>/dev/null; then
+                        gum style --foreground "red" "Error: Invalid sudo password or sudo validation failed. System update skipped."
+                        proceed_with_yay_update=false
+                    fi
+                    # If password was valid, sudo -S -v has refreshed the timestamp.
+                else
+                    # gum input failed (e.g., user pressed Esc)
+                    gum style --foreground "yellow" "Password entry cancelled. System update skipped."
+                    proceed_with_yay_update=false
+                fi
             fi
-            gum style --foreground "#00AFFF" --bold "Updating system packages..."
-            yay -Syu --noconfirm "${ignore_args[@]}"
-        else
-            if [[ "$skip_confirm" = false ]]; then
-                local sudo_pass=$(gum input --password --placeholder "Sudo password")
-                printf "%s\n" "$sudo_pass" | sudo -S -v
-            else
-                sudo -v
+            # If sudo was already active (sudo_active_check_yay was 0), or 
+            # if it was not active but password was entered and validated, 
+            # proceed_with_yay_update remains true.
+        else # skip_confirm is true
+            # Attempt to refresh sudo timestamp non-interactively.
+            # If this fails and sudo is required, yay itself will prompt.
+            if ! sudo -v &>/dev/null; then 
+                 : # Do nothing, let yay handle its own sudo requirements.
             fi
-            gum style --foreground "#00AFFF" --bold "Updating system packages..."
-            yay -Syu --noconfirm
+        fi
+
+        if [[ "$proceed_with_yay_update" = true ]]; then
+            local yay_command_args=(-Syu --noconfirm)
+            if [[ ${#ignore_args[@]} -gt 0 ]]; then
+                yay_command_args+=("${ignore_args[@]}")
+            fi
+            
+            # Execute yay command
+            if ! yay "${yay_command_args[@]}"; then
+                 gum style --foreground "red" "Error: yay update command failed."
+            fi
         fi
     fi
 

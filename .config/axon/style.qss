@@ -98,3 +98,10 @@ QListView#ResultList::item:selected QLabel#ResultMainText,
 QListView#ResultList::item:selected QLabel#ResultSubText {
     color: #ffffff; /* White text on blue selection background */
 }
+
+#player {
+    margin: 2px;
+    border-radius: 3px; /* Slightly rounded corners */
+    height: 60px; /* Fixed height for consistent item appearance */
+    background-color: #ff0000; /* Match window background */
+}

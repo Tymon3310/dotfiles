@@ -32,8 +32,8 @@
           },
           "leading_diamond": "\ue0b6",
           "template": "{{ .UserName }}",
-          "foreground": "#ffffff",
-          "background": "#0f1a2b",
+          "foreground": "#e6f0ff",
+          "background": "#002b54",
           "type": "session",
           "style": "diamond"
         },
@@ -42,9 +42,9 @@
             "cache_duration": "none"
           },
           "template": "\udb85\udc0b",
-          "foreground": "#ff7a7a",
+          "foreground": "#e6f0ff",
           "powerline_symbol": "\ue0b0",
-          "background": "#0f1a2b",
+          "background": "#003e7a",
           "type": "root",
           "style": "powerline"
         },
@@ -53,9 +53,9 @@
             "cache_duration": "none"
           },
           "template": "{{ .Icon }} ",
-          "foreground": "#ffffff",
+          "foreground": "#e6f0ff",
           "powerline_symbol": "\ue0b0",
-          "background": "#2c4975",
+          "background": "#1e5080",
           "type": "os",
           "style": "powerline"
         },
@@ -66,8 +66,8 @@
           },
           "trailing_diamond": "\ue0b4",
           "template": " \udb80\ude56 {{ path .Path .Location }}",
-          "foreground": "#162438",
-          "background": "#5a89d4",
+          "foreground": "#e6f0ff",
+          "background": "#005CB3",
           "type": "path",
           "style": "diamond"
         }
@@ -84,8 +84,8 @@
           },
           "leading_diamond": "\ue0b6",
           "template": "\udb80\udd09 {{ .CurrentDate | date .Format }} \u2022",
-          "foreground": "#162438",
-          "background": "#5a89d4",
+          "foreground": "#e6f0ff",
+          "background": "#005CB3",
           "type": "time",
           "style": "diamond"
         },
@@ -98,8 +98,8 @@
           },
           "trailing_diamond": "\ue0b4",
           "template": " \ueba2 {{ .FormattedMs }}",
-          "foreground": "#162438",
-          "background": "#5a89d4",
+          "foreground": "#e6f0ff",
+          "background": "#005CB3",
           "type": "executiontime",
           "style": "diamond"
         },
@@ -114,9 +114,9 @@
           },
           "leading_diamond": "\ue0b6",
           "trailing_diamond": "\ue0b4",
-          "template": "\ue725 ({{ url .UpstreamIcon .UpstreamURL }} {{ url .HEAD .UpstreamURL }}){{ if gt .Ahead 0 }}<#7ad0b0> +{{ .Ahead }}</>{{ end }}{{ if gt .Behind 0 }}<#ff7a7a> -{{ .Behind }}</>{{ end }}{{ if .Working.Changed }}<#d9e3f0> \uf044 {{ .Working.String }}</>{{ end }}{{ if .Staging.Changed }}<#d9e3f0> \uf046 {{ .Staging.String }}</>{{ end }}",
-          "foreground": "#162438",
-          "background": "#6d94d9",
+          "template": "\ue725 ({{ url .UpstreamIcon .UpstreamURL }} {{ url .HEAD .UpstreamURL }}){{ if gt .Ahead 0 }}<#00aaff> +{{ .Ahead }}</>{{ end }}{{ if gt .Behind 0 }}<#ff4d4d> -{{ .Behind }}</>{{ end }}{{ if .Working.Changed }}<#e6f0ff> \uf044 {{ .Working.String }}</>{{ end }}{{ if .Staging.Changed }}<#e6f0ff> \uf046 {{ .Staging.String }}</>{{ end }}",
+          "foreground": "#e6f0ff",
+          "background": "#24292e",
           "type": "git",
           "style": "diamond"
         },
@@ -124,8 +124,8 @@
           "leading_diamond": "\ue0b6",
           "trailing_diamond": "\ue0b4",
           "template": "\ue718 {{ .Full }}",
-          "foreground": "#162438",
-          "background": "#7ad0b0",
+          "foreground": "#002b54",
+          "background": "#80b2e6",
           "type": "node",
           "style": "diamond"
         },
@@ -139,8 +139,8 @@
           "leading_diamond": "\ue0b6",
           "trailing_diamond": "\ue0b4",
           "template": "\ue71e {{ .Full }}",
-          "foreground": "#162438",
-          "background": "#ff7a7a",
+          "foreground": "#e6f0ff",
+          "background": "#ff4d4d",
           "type": "npm",
           "style": "diamond"
         },
@@ -154,8 +154,8 @@
           "leading_diamond": "\ue0b6",
           "trailing_diamond": "\ue0b4",
           "template": "\udb80\udec1 {{ .Full }}",
-          "foreground": "#162438",
-          "background": "#6d94d9",
+          "foreground": "#e6f0ff",
+          "background": "#007ACC",
           "type": "pnpm",
           "style": "diamond"
         },
@@ -166,8 +166,8 @@
           "leading_diamond": "\ue0b6",
           "trailing_diamond": "\ue0b4",
           "template": "\ue73c {{ .Full }}",
-          "foreground": "#162438",
-          "background": "#7ad0b0",
+          "foreground": "#002b54",
+          "background": "#80b2e6",
           "type": "python",
           "style": "diamond"
         },
@@ -175,8 +175,8 @@
           "leading_diamond": "\ue0b6",
           "trailing_diamond": "\ue0b4",
           "template": "\ue738 {{ .Full }}",
-          "foreground": "#162438",
-          "background": "#a78ecc",
+          "foreground": "#e6f0ff",
+          "background": "#007ACC",
           "type": "java",
           "style": "diamond"
         },
@@ -184,8 +184,8 @@
           "leading_diamond": "\ue0b6",
           "trailing_diamond": "\ue0b4",
           "template": "\uf308 {{ .Context }}",
-          "foreground": "#162438",
-          "background": "#8cd2f7",
+          "foreground": "#e6f0ff",
+          "background": "#80b2e6",
           "type": "docker",
           "style": "diamond"
         },
@@ -193,8 +193,8 @@
           "leading_diamond": "\ue0b6",
           "trailing_diamond": "\ue0b4",
           "template": "\ue73d {{ .Full }}",
-          "foreground": "#f0f4fa",
-          "background": "#2d4366",
+          "foreground": "#e6f0ff",
+          "background": "#005CB3",
           "type": "php",
           "style": "diamond"
         }
@@ -209,7 +209,7 @@
             "always_enabled": true,
             "cache_duration": "none"
           },
-          "template": "\u2570\u2500 ❯",
+          "template": "╰─❯",
           "foreground": "#ffffff",
           "type": "text",
           "style": "diamond"

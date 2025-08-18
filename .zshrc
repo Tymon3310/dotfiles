@@ -125,3 +125,6 @@ done
 if [[ -z $VSCODE_INJECTION ]]; then
   fastfetch -c ~/.config/fastfetch/arch
 fi
+
+export SUDO_PROMPT=$(printf '\x1b[38;2;255;255;255m╭─\x1b[38;2;0;43;84m\x1b[48;2;0;43;84m\x1b[38;2;230;240;255m%s\x1b[0m\x1b[48;2;30;80;128m\x1b[38;2;0;43;84m\x1b[38;2;230;240;255m \x1b[0m\x1b[48;2;0;92;179m\x1b[38;2;30;80;128m\x1b[38;2;230;240;255m enter password for %s:\x1b[0m\x1b[38;2;0;92;179m\x1b[0m\n\x1b[38;2;255;255;255m╰─❯\x1b[0m' "$(whoami)" "$(whoami)")
+

@@ -32,8 +32,8 @@
         "modifier": "control"
     },
     "files": {
-        "fallback": "~/.config/sherlock/fallback.json",
-        "alias": "~/.config/sherlock/sherlock_alias.json",
+        "fallback": "~/.config/sherlock/fallback.jsonc",
+        "alias": "~/.config/sherlock/sherlock_alias.jsonc",
         "ignore": "~/.config/sherlock/sherlockignore"
     }
 }
