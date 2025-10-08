@@ -1,8 +1,8 @@
 # DO NOT EDIT! This file will be overwritten by nwg-look.
 # Any customization should be done in ~/.gtkrc-2.0.mine instead.
 
-include "~/.gtkrc-2.0.mine"
-gtk-theme-name="Aritim-Dark"
+include "/home/tymon/.gtkrc-2.0.mine"
+gtk-theme-name="Breeze"
 gtk-icon-theme-name="breeze-plus-dark"
 gtk-font-name="Cantarell 11"
 gtk-cursor-theme-name="Bibata-Modern-Classic"

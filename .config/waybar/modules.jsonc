@@ -346,7 +346,7 @@
     "format": "{}°  ",
     "tooltip": true,
     "interval": 3600,
-    "exec": "wttrbar --location Trzebnica --date-format '%d/%m' --hide-conditions",
+    "exec": "wttrbar --location ~51.304935,17.074594 --date-format '%d/%m' --hide-conditions --nerd",
     "return-type": "json"
   },
   // Taskbar
@@ -649,7 +649,7 @@
       ]
     },
     // "on-click": "pavucontrol",
-    "on-click": "pwvucontrol",
+    "on-click": "pwvucontrol-qt",
     "on-click-right": "pactl set-sink-mute @DEFAULT_SINK@ toggle",
     "on-click-middle": "pactl set-source-mute @DEFAULT_SOURCE@ toggle"
   },

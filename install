@@ -7,7 +7,6 @@ rsync
 git
 figlet
 sed
-vim
 xdg-user-dirs
 man-pages
 networkmanager

@@ -5,8 +5,6 @@ import json
 import time
 import sys
 import os
-import shutil
-import hashlib
 import argparse
 import html
 
@@ -53,13 +51,12 @@ def get_all_metadata(player_name):
         "artist": "Unknown Artist",
         "album": "Unknown Album",
         "length_us": 0,  # microseconds
-        "art_url": "",
         # "position_us": 0 # Removed, will use separate playerctl position call
     }
     try:
         format_string = (
             '{"title": "{{markup_escape(xesam:title)}}", "artist": "{{markup_escape(xesam:artist)}}", "album": "{{markup_escape(xesam:album)}}", '
-            '"length_us": "{{mpris:length}}", "artUrl": "{{mpris:artUrl}}"}'
+            '"length_us": "{{mpris:length}}"}'
         )
 
         proc = subprocess.run(
@@ -156,10 +153,6 @@ def get_all_metadata(player_name):
         data_out['album'] = html.unescape(album_raw) if album_raw else defaults['album']
         if album_raw and not data_out['album']: data_out['album'] = defaults['album']
 
-        # art_url typically doesn't contain such characters, but unescape defensively if needed in future.
-        # For now, direct assignment is fine as it's a URL.
-        data_out['art_url'] = parsed_metadata_obj.get('artUrl', defaults['art_url']) or defaults['art_url']
-        
         length_val = parsed_metadata_obj.get('length_us')
         if isinstance(length_val, str) and length_val.isdigit():
             data_out['length_us'] = int(length_val)
@@ -274,55 +267,7 @@ def sanitize_markup(text):
         return ""
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("'", "&#39;").replace('"', "&quot;")
 
-def get_and_process_album_art(art_url):
-    """Get and process album art for display in tooltip"""
-    try:
-        # Art URL is now passed as an argument
-        if not art_url:
-            return None
-
-        # Create cache directory if it doesn't exist
-        cache_dir = os.path.expanduser("~/.cache/waybar-player")
-        os.makedirs(cache_dir, exist_ok=True)
-        
-        # Generate a filename based on the URL hash using MD5 for stability
-        art_hash = hashlib.md5(art_url.encode('utf-8')).hexdigest()
-        art_filename = os.path.join(cache_dir, f"cover_{art_hash}.jpg")
-        
-        # Only download if file doesn't exist or is old
-        if not os.path.exists(art_filename) or (time.time() - os.path.getmtime(art_filename)) > 3600:
-            if art_url.startswith("file://"):
-                # Local file, just copy or symlink it
-                local_path = art_url[7:]  # Remove file:// prefix
-                shutil.copy(local_path, art_filename)
-            else:
-                # Remote URL, download it
-                subprocess.run(["curl", "-s", "-o", art_filename, art_url], timeout=2)
-        
-        # Return path if file exists and is not empty
-        if os.path.exists(art_filename) and os.path.getsize(art_filename) > 0:
-            return art_filename
-        
-        return None
-    except (OSError, IOError, subprocess.TimeoutExpired, ValueError):
-        return None
-
-def cleanup_old_album_art():
-    """Clean up old album art files"""
-    try:
-        cache_dir = os.path.expanduser("~/.cache/waybar-player")
-        if not os.path.exists(cache_dir):
-            return
-            
-        # Keep only the 20 most recent files
-        files = [os.path.join(cache_dir, f) for f in os.listdir(cache_dir)]
-        files.sort(key=os.path.getmtime, reverse=True)
-        
-        # Delete older files
-        for old_file in files[20:]:
-            os.remove(old_file)
-    except OSError:
-        pass
+# Album art functionality removed: no fetching, caching, or cleanup
 
 def main():
     global DEBUG_MODE # Declare DEBUG_MODE as global to modify it
@@ -340,7 +285,6 @@ def main():
         print(f"DEBUG: Debug mode enabled. Player: {player_name}", file=sys.stderr)
 
     no_player_count = 0
-    art_cleanup_counter = 0
     # Scrolling generator state
     scroll_generator = None
     last_title_for_scroll = None
@@ -370,7 +314,7 @@ def main():
                     title = metadata.get("title", "Unknown Title")
                     artist = metadata.get("artist", "Unknown Artist")
                     album = metadata.get("album", "Unknown Album")
-                    art_url = metadata.get("art_url", "")
+                    # Album art removed
                     length_us = metadata.get("length_us", 0)
                     # current_position_us = metadata.get("position_us", 0) # Removed
 
@@ -421,9 +365,7 @@ def main():
                     volume_val = get_player_volume(player_name)
                     volume_display = f"{int(volume_val * 100)}%" if volume_val is not None else "N/A"
                     
-                    art_path = get_and_process_album_art(art_url)
                     tooltip_lines = [f"<span color='{PRIMARY_COLOR}'><b>{player_icon_tooltip} {sanitize_markup(player_name)} Media Player</b></span>", ""]
-                    if art_path: tooltip_lines.extend([f"<span color='{PRIMARY_COLOR}'>♫ Album Art Available</span>", ""])
                     tooltip_lines.extend([
                         f" ├─ Title: {sanitize_markup(title)}", f" ├─ Volume: {volume_display}", f" ├─ Artist: {sanitize_markup(artist)}", f" └─ Album: {sanitize_markup(album)}", "",
                         f" ├─ Time: {position_display}/{length_display}", f" ├─ Loop: {loop_status_text}", f" └─ Shuffle: {shuffle_status_text}",
@@ -450,11 +392,7 @@ def main():
         print(json.dumps(output))
         sys.stdout.flush()
         
-        # Call cleanup every hour (based on counter)
-        art_cleanup_counter += 1
-        if art_cleanup_counter >= 3600:
-            cleanup_old_album_art()
-            art_cleanup_counter = 0
+        # Album art cleanup removed
         
         # Sleep: faster if scrolling, slower if needed
         if no_player_count > 5:
