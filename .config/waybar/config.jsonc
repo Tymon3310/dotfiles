@@ -1,7 +1,7 @@
 {
   // General Settings
   "layer": "top",
-  "margin-top": 14,
+  "margin-top": 10,
   "margin-bottom": 0,
   "margin-left": 0,
   "margin-right": 0,
@@ -9,13 +9,15 @@
   // Load Modules
   "include": [
     "~/.config/waybar/modules.jsonc"
+    // "~/.config/waybar/workspaces.jsonc"
   ],
   // Modules Left
   "modules-left": [
-    "custom/arch",
+    "custom/empty",
+    // "custom/arch",
     "hyprland/workspaces",
     "custom/empty",
-    // "wlr/taskbar",
+    "wlr/taskbar",
     "hyprland/window"
     // "custom/cava",
   ],
@@ -24,7 +26,7 @@
     // "hyprland/workspaces",
     // "custom/empty",
     "custom/player",
-    "hyprland/workspaces#scratchpad",
+    "hyprland/workspaces#scratchpad"
   ],
   // Modules Right    
   "modules-right": [
@@ -41,6 +43,7 @@
     "custom/notification",
     "clock",
     "custom/exit",
+    
   ]
   
 }
