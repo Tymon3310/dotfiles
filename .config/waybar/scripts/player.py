@@ -373,7 +373,7 @@ def main():
                     ])
                     tooltip_text = "\n".join(tooltip_lines)
                     
-                    output_text = (f" {icon} {sanitize_markup(title_display)} - {sanitize_markup(artist)} "
+                    output_text = (f" {icon} {sanitize_markup(title_display)} "
                                  f"[{position_display}/{length_display}] {volume_display} {looping_icon_val} {shuffling_icon_val} ")
                 except Exception as e:
                     # This error is if metadata fetching or string formatting fails, assumes player status was ok

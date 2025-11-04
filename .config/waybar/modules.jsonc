@@ -66,7 +66,8 @@
     "on-click": "activate",
     "on-click-middle": "minimize",
     "ignore-list": [
-      "kitty"
+      "kitty", 
+      "btop"
     ],
     "app_ids-mapping": {
       "code-insiders": "code",
