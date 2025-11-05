@@ -189,6 +189,12 @@ def main():
             gpu_power_source_info = "unavailable"
     gpu_power *= GPU_POWER_SCALING
     
+    # If both CPU and GPU power sensors are unavailable, exit
+    if cpu_power_source_info == "unavailable" and gpu_power_source_info == "unavailable":
+        output = {"text": "", "tooltip": "Power sensors not detected", "class": "error"}
+        print(json.dumps(output))
+        sys.exit(0)
+    
     # Get NVMe power if available
     nvme_power = get_nvme_power()
     

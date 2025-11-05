@@ -111,13 +111,34 @@ fi
 # --- Create necessary placeholder files BEFORE symlinking ---
 echo
 echo "--- Creating placeholder files ---"
-# Ensure target directory exists in dotfiles source for custom.conf
+# Create minimal placeholders that will be preserved if the repo doesn't provide them.
+# Note: we create them again after symlinking in case the symlink step replaces the
+# target directory (common when the repo contains a hypr/ folder). This prevents
+# the placeholder from being lost.
+echo
+echo "--- Creating initial placeholder files (may be re-checked after symlink) ---"
+# create parent dir so touch doesn't fail; these may be clobbered by symlink step
 mkdir -p "$TARGET_CONFIG_DIR/hypr/conf"
-echo "Creating empty custom config file: $TARGET_CONFIG_DIR/hypr/conf/custom.conf"
-touch "$TARGET_CONFIG_DIR/hypr/conf/custom.conf"
-# Create .env file directly in HOME after potential backup/symlink setup
-echo "Creating empty environment file: $HOME/.env"
-touch "$HOME/.env"
+if [ ! -f "$TARGET_CONFIG_DIR/hypr/conf/custom.conf" ]; then
+    echo "Creating empty custom config file: $TARGET_CONFIG_DIR/hypr/conf/custom.conf"
+    touch "$TARGET_CONFIG_DIR/hypr/conf/custom.conf"
+fi
+# Create .env file directly in HOME (only if missing)
+# If repo provides a .env, copy it to $HOME (backing up any existing file). Otherwise create an empty file if missing.
+if [ -f "$DOTFILES_DIR/.env" ]; then
+    if [ -f "$HOME/.env" ]; then
+        ENV_BACKUP="$HOME/.env.bak_$(date +%Y%m%d_%H%M%S)"
+        echo "Backing up existing $HOME/.env -> $ENV_BACKUP"
+        mv "$HOME/.env" "$ENV_BACKUP"
+    fi
+    echo "Copying repo .env -> $HOME/.env"
+    cp -a "$DOTFILES_DIR/.env" "$HOME/.env"
+else
+    if [ ! -f "$HOME/.env" ]; then
+        echo "Creating empty environment file: $HOME/.env"
+        touch "$HOME/.env"
+    fi
+fi
 
 # --- 3. Symlink Dotfiles ---
 echo
@@ -146,6 +167,39 @@ else
     echo "WARNING: $CONFIG_DIR not found in dotfiles repository. No config files linked."
 fi
 echo "Symlinking complete."
+
+# --- Ensure placeholders and important files exist AFTER symlinking ---
+echo
+echo "--- Verifying placeholders and user files after symlink ---"
+# Ensure hypr custom.conf exists in the final config location
+if [ ! -f "$TARGET_CONFIG_DIR/hypr/conf/custom.conf" ]; then
+    echo "Note: $TARGET_CONFIG_DIR/hypr/conf/custom.conf missing after symlink. Creating placeholder."
+    mkdir -p "$TARGET_CONFIG_DIR/hypr/conf"
+    touch "$TARGET_CONFIG_DIR/hypr/conf/custom.conf"
+fi
+# Ensure pref.conf exists in the user's home (some setups expect it at $HOME/pref.conf).
+# If the repo provides pref.conf, copy it into place (backing up any existing file).
+if [ -f "$DOTFILES_DIR/pref.conf" ]; then
+    if [ -f "$HOME/pref.conf" ]; then
+        PREF_BACKUP="$HOME/pref.conf.bak_$(date +%Y%m%d_%H%M%S)"
+        echo "Backing up existing $HOME/pref.conf -> $PREF_BACKUP"
+        mv "$HOME/pref.conf" "$PREF_BACKUP"
+    fi
+    echo "Copying repo pref.conf -> $HOME/pref.conf"
+    cp -a "$DOTFILES_DIR/pref.conf" "$HOME/pref.conf"
+else
+    if [ ! -f "$HOME/pref.conf" ]; then
+        echo "Note: $HOME/pref.conf missing after symlink. Creating placeholder."
+        touch "$HOME/pref.conf"
+    fi
+fi
+# Ensure user has a .zshrc; if not, link the repo one if available
+if [ ! -f "$HOME/.zshrc" ] && [ -f "$DOTFILES_DIR/.zshrc" ]; then
+    echo ".zshrc not present in home; creating symlink to repo .zshrc"
+    ln -sf "$DOTFILES_DIR/.zshrc" "$HOME/.zshrc"
+fi
+
+echo "Post-symlink verification complete."
 
 # --- 4. Install Hyprland Plugins ---
 echo

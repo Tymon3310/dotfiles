@@ -384,6 +384,12 @@ def main():
                     status_class = "error"
         else: # Player not available
             no_player_count += 1 
+            # If player is not running after multiple checks, exit
+            if no_player_count > 3:
+                output = {"text": "", "tooltip": "Player not running", "class": "stopped"}
+                print(json.dumps(output))
+                sys.stdout.flush()
+                sys.exit(0)
             output_text = f" {no_player_icon} No media player "
             tooltip_text = f"Player '{sanitize_markup(player_name)}' not found or not responsive."
             status_class = "stopped"

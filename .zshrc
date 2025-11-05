@@ -89,13 +89,17 @@ export LD_LIBRARY_PATH=/usr/local/lib
 export PATH=$GOPATH/bin:$GOROOT/bin:$HOME/.local/bin:$PATH
 
 
-eval $(thefuck --alias)
+if command -v thefuck >/dev/null 2>&1; then
+  eval "$(thefuck --alias)"
+fi
 
 export PATH=$PATH:~/.spicetify
 bindkey '^X' create_completion
 
 # Zoxide
-eval "$(zoxide init zsh)"
+if command -v zoxide >/dev/null 2>&1; then
+  eval "$(zoxide init zsh)"
+fi
 
 zle -N accept-line _emptyenter
 
@@ -112,7 +116,9 @@ _emptyenter() {
 # -----------------------------------------------------
 
 source ~/.config/zshrc/aliases.zsh
-source ~/custom-commands
+if [ -f "$HOME/custom-commands" ]; then
+  source "$HOME/custom-commands"
+fi
 
 for f in ~/.config/zshrc/functions/*.zsh; do
   source "$f"

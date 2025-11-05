@@ -396,6 +396,13 @@ def get_gpu_usage():
     else:
         usage_path = GPU_USAGE_PATH
     
+    # If no GPU path found, exit
+    if not usage_path:
+        import sys
+        output = {"text": "", "tooltip": "GPU not detected", "class": "error"}
+        print(json.dumps(output))
+        sys.exit(0)
+    
     # Read GPU usage
     usage = read_file_value(usage_path)
     

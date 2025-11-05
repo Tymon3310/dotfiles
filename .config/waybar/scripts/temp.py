@@ -174,6 +174,12 @@ def get_gpu_temp():
     if not os.path.exists(GPU_TEMP_PATH):
         gpu_edge_path_to_read = find_path(GPU_TEMP_PATTERNS)
     
+    # If no GPU path found, exit
+    if not gpu_edge_path_to_read:
+        output = {"text": "", "tooltip": "GPU temp sensor not detected", "class": "error"}
+        print(json.dumps(output))
+        sys.exit(0)
+    
     # Read main GPU temperature value (edge)
     temp = read_temp_file(gpu_edge_path_to_read) # This is edge_temp
     

@@ -40,7 +40,7 @@ waybar
 waybar-updates
 wttrbar
 fastfetch
-eza
+lsd
 python-pip
 python-gobject
 python-pillow
@@ -68,11 +68,9 @@ blueman
 hyprshot
 hyprpicker
 cliphist
-clipse-bin
 nwg-look
 qt6ct
 rofi-wayland
-polkit-gnome
 hyprpolkitagent
 papirus-icon-theme
 breeze
@@ -80,7 +78,6 @@ breeze-plus
 gvfs
 waypaper
 bibata-cursor-theme-bin
-aylurs-gtk-shell
 nwg-bar
 playerctl
 cava
@@ -93,7 +90,6 @@ qt5-quickcontrols2
 qt5-svg
 zsh
 zsh-completions
-fish
 fzf
 pwvucontrol
 oh-my-posh-bin
@@ -108,6 +104,9 @@ pipes.c
 asciiquarium
 donut.c
 cbonsai
-axon-applauncher
 sherlock-launcher-bin
 flatpak
+vicinae-bin
+cpio
+cmake
+zoxide

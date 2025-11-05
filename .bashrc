@@ -15,5 +15,5 @@ echo "YOU ARE IN BASH, TYPE FISH (or) ZSH FOR MORE FULL FEATURED SHELL"
 #aliases
 # -----------------------------------------------------
 
-source ~/.config/zshrc/aliases
+source ~/.config/zshrc/aliases.zsh
 source "$HOME/.cargo/env"

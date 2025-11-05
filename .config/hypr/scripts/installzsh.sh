@@ -43,22 +43,56 @@ done
 echo "Shell is now zsh."
 
 # Installing oh-my-posh
-yay -S --needed oh-my-posh
+yay -S --needed oh-my-posh-bin
+
+# Install Oh My Zsh if it's not already present. Run the official installer
+# non-interactively only when ~/.oh-my-zsh is missing to keep this idempotent.
+if [ ! -d "$HOME/.oh-my-zsh" ]; then
+    echo "Installing Oh My Zsh..."
+    # The installer may try to switch shells or start zsh; run it as a shell command.
+    # Use curl with -f to fail on HTTP errors. If the installer exits non-zero,
+    # continue but report the failure.
+    # If we've extracted the installer locally (omz.sh), prefer running it
+    # non-interactively so it doesn't exec a new zsh or try to change shell.
+    OMZ_LOCAL="$SCRIPT_DIR_ZSH/omz.sh"
+    if [ -x "$OMZ_LOCAL" ] || [ -f "$OMZ_LOCAL" ]; then
+        echo "Running local Oh My Zsh installer: $OMZ_LOCAL (non-interactive)"
+        # --unattended prevents RUNZSH/CHSH prompts, --keep-zshrc avoids overwriting existing .zshrc
+        sh "$OMZ_LOCAL" --unattended --keep-zshrc || \
+            echo "Warning: local Oh My Zsh installer exited with a non-zero status. You may need to run it manually."
+    else
+        echo "Running remote Oh My Zsh installer (non-interactive)"
+        # Pass an extra empty arg as $0 when invoking via sh -c (see installer comments)
+        sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended --keep-zshrc || \
+            echo "Warning: remote Oh My Zsh installer exited with a non-zero status. You may need to run it manually."
+    fi
+else
+    echo "Oh My Zsh already installed"
+fi
 
 install_zsh_plugin() {
     local repo_url="$1"
-    local plugin_name="${repo_url##*/}" # Extracts "zsh-autosuggestions" from URL
+    # Extract repo name and strip a trailing .git if present
+    local plugin_name="${repo_url##*/}"
+    plugin_name="${plugin_name%.git}"
     local plugin_dir="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/${plugin_name}"
 
     if [ ! -d "$plugin_dir" ]; then
         echo "Installing ${plugin_name}"
-        git clone "$repo_url" "$plugin_dir"
+        # shallow clone to save time/disk
+        git clone --depth 1 "$repo_url" "$plugin_dir"
     else
         echo "${plugin_name} already installed"
     fi
 }
 
+# Ensure common helper programs are installed so .zshrc init lines don't fail
+# yay -S --needed thefuck zoxide || echo "Warning: failed to install thefuck/zoxide via yay; install them manually if needed."
+
+# Install commonly used zsh plugins (idempotent)
 install_zsh_plugin "https://github.com/zsh-users/zsh-autosuggestions"
 install_zsh_plugin "https://github.com/zsh-users/zsh-syntax-highlighting.git"
 install_zsh_plugin "https://github.com/zdharma-continuum/fast-syntax-highlighting.git"
 install_zsh_plugin "https://github.com/zsh-users/zsh-completions"
+# zsh-autocomplete is provided by marlonrichert
+install_zsh_plugin "https://github.com/marlonrichert/zsh-autocomplete"
