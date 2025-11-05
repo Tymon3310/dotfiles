@@ -3,8 +3,8 @@
   "layer": "top",
   "margin-top": 10,
   "margin-bottom": 0,
-  "margin-left": 0,
-  "margin-right": 0,
+  "margin-left": 4,
+  "margin-right": 4,
   "spacing": 0,
   // Load Modules
   "include": [
@@ -13,7 +13,7 @@
   ],
   // Modules Left
   "modules-left": [
-    "custom/empty",
+    // "custom/empty",
     // "custom/arch",
     "hyprland/workspaces",
     "custom/empty",
@@ -25,8 +25,8 @@
   "modules-center": [
     // "hyprland/workspaces",
     // "custom/empty",
-    "custom/player",
-    "hyprland/workspaces#scratchpad"
+    "custom/player"
+    // "hyprland/workspaces#scratchpad"
   ],
   // Modules Right    
   "modules-right": [
@@ -34,16 +34,16 @@
     //"network",
     "hyprland/submap",
     "tray",
-    "group/cpu",
-    "group/memgpu",
-    "custom/internet_status",
+    // "group/cpu",
+    // "group/memgpu",
+    "group/combined",
+    // "custom/internet_status",
     // "custom/weather",
     // "custom/pacman",
     "pulseaudio",
     "custom/notification",
     "clock",
-    "custom/exit",
-    
+    "custom/exit"
   ]
   
 }

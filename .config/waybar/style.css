@@ -4,98 +4,165 @@
 @define-color textcolor1 #0070D8;
 @define-color textcolor2 #FFFFFF;
 
+@define-color background #101510;
+
+@define-color error #ffb4ab;
+
+@define-color error_container #93000a;
+
+@define-color inverse_on_surface #2c322d;
+
+@define-color inverse_primary #2d6a44;
+
+@define-color inverse_surface #dfe4dd;
+
+@define-color on_background #dfe4dd;
+
+@define-color on_error #690005;
+
+@define-color on_error_container #ffdad6;
+
+@define-color on_primary #00391d;
+
+@define-color on_primary_container #b1f1c2;
+
+@define-color on_primary_fixed #00210e;
+
+@define-color on_primary_fixed_variant #10512e;
+
+@define-color on_secondary #223527;
+
+@define-color on_secondary_container #d2e8d4;
+
+@define-color on_secondary_fixed #0d1f13;
+
+@define-color on_secondary_fixed_variant #384b3d;
+
+@define-color on_surface #dfe4dd;
+
+@define-color on_surface_variant #c0c9bf;
+
+@define-color on_tertiary #023640;
+
+@define-color on_tertiary_container #beeaf7;
+
+@define-color on_tertiary_fixed #001f26;
+
+@define-color on_tertiary_fixed_variant #214c57;
+
+@define-color outline #8b938a;
+
+@define-color outline_variant #414942;
+
+@define-color primary #95d5a7;
+
+@define-color primary_container #10512e;
+
+@define-color primary_fixed #b1f1c2;
+
+@define-color primary_fixed_dim #95d5a7;
+
+@define-color scrim #000000;
+
+@define-color secondary #b6ccb9;
+
+@define-color secondary_container #384b3d;
+
+@define-color secondary_fixed #d2e8d4;
+
+@define-color secondary_fixed_dim #b6ccb9;
+
+@define-color shadow #000000;
+
+@define-color source_color #4eb476;
+
+@define-color surface #101510;
+
+@define-color surface_bright #353a36;
+
+@define-color surface_container #1c211c;
+
+@define-color surface_container_high #262b27;
+
+@define-color surface_container_highest #313631;
+
+@define-color surface_container_low #181d18;
+
+@define-color surface_container_lowest #0a0f0b;
+
+@define-color surface_dim #101510;
+
+@define-color surface_tint #95d5a7;
+
+@define-color surface_variant #414942;
+
+@define-color tertiary #a2cdda;
+
+@define-color tertiary_container #214c57;
+
+@define-color tertiary_fixed #beeaf7;
+
+@define-color tertiary_fixed_dim #a2cdda;
+
 /* -----------------------------------------------------
  * General 
  * ----------------------------------------------------- */
 
 * {
-    font-family: "Fira Sans Semibold", "Font Awesome 7 Free", FontAwesome, Roboto, "FiraCode Nerd Font", Helvetica, Arial, sans-serif, material-design-icons, "Monaspace Neon";
+    font-family: "FiraCode Nerd Font", "Font Awesome 7 Free", FontAwesome, Roboto, "FiraCode Nerd Font", Helvetica, Arial, sans-serif, material-design-icons, "Monaspace Neon";
     border: none;
     border-radius: 0px;
     /* color: @textcolor2; */
+    margin: 0px 2px;
 }
+
+
 
 /* -----------------------------------------------------
  * Workspaces 
  * ----------------------------------------------------- */
 
 #workspaces {
-    background: @color1;
-    margin: 2px 1px 3px 1px;
-    padding: 0px 3px;
-    border-radius: 8px;
-    border: 0px;
-    font-weight: bold;
-    font-style: normal;
-    opacity: 0.8;
-    font-size: 16px;
-    color: @textcolor1;
-}
-
-#workspaces.scratchpad {
-    min-width: 0px;
-    background: transparent;
+    padding: 0px 5px;
 }
 
 #workspaces button {
-    padding: 0px;
-    margin: 4px 4px;
-    min-width: 20px;
-    min-height: 20px;
-    border-radius: 4px;
-    border: 0px;
-    background: @color2;
-    color: @textcolor1;
-    /* transition: all 0.3s ease-in-out; */
-    opacity: 0.65;
-}
-
-#workspaces button.visible {
-    margin: 4px 4px;
-    color: rgb(126, 228, 223);
-    background: @color1;
-    /* border-radius: 4px; */
-    /* min-width: 40px; */
-    border: 1px solid white;
-    transition: all 0.3s ease-in-out;
-    opacity: 1;
-}
-
-#workspaces button.active {
-    margin: 4px 4px;
-    color: rgb(54, 215, 135);
-    background: rgba(186, 195, 203, 0);
-    border: 1px solid white;
-    /* min-width: 50px; */
-    /* transition: all 0.3s ease-in-out;N */
-    opacity: 1.0;
+    all: unset;
+    padding: 0px 5px;
+    color: alpha(@on_primary_container, .4);
+    transition: all .2s ease;
 }
 
 #workspaces button:hover {
-    background-color: rgb(32, 149, 232);
-    color: @textcolor2;
-    border-radius: 4px;
-    opacity: 1;
+    color: alpha(@on_primary_container, .6);
+    border: none;
+    text-shadow: 0px 0px 1.5px rgba(0, 0, 0, .5);
+    transition: all 1s ease;
 }
 
-#workspaces button.special {
-    background: #edc351;
-    border-radius: 4px;
-    color: @textcolor1;
+#workspaces button.active {
+    color: @on_primary_container;
+    border: none;
+    text-shadow: 0px 0px 2px rgba(0, 0, 0, .5);
 }
 
-@keyframes blink-urgent {
-    to {
-        background-color: rgb(206, 73, 73);
-        color: @textcolor2;
-
-    }
+#workspaces button.empty {
+    color: alpha(@on_primary_container, .2);
+    border: none;
+    text-shadow: 0px 0px 1.5px rgba(0, 0, 0, .2);
 }
 
-#workspaces button.urgent {
-    animation-name: blink-urgent;
-    animation-duration: 5s;
-    color: @textcolor1;
+#workspaces button.empty:hover {
+    color: alpha(@on_primary_container, .4);
+    border: none;
+    text-shadow: 0px 0px 1.5px rgba(0, 0, 0, .5);
+    transition: all 1s ease;
+}
+
+#workspaces button.empty.active {
+    color: @on_primary_container;
+    border: none;
+    text-shadow: 0px 0px 2px rgba(0, 0, 0, .5);
 }
 
 
@@ -119,29 +186,13 @@ tooltip label {
  * Window
  * ----------------------------------------------------- */
 
-#window {
-    background: @color1;
-    margin: 3px 15px 3px 0px;
-    padding: 2px 10px 0px 10px;
-    border-radius: 8px;
-    color: @textcolor2;
-    font-size: 16px;
-    font-weight: normal;
-    opacity: 0.8;
-}
-
-window#waybar.empty #window {
-    background-color: transparent;
-}
-
 window#waybar {
-    background-color: rgba(0, 0, 0, 0.8);
-    border-bottom: 0px solid #ffffff;
-    /* color: #FFFFFF; */
-    background: transparent;
-    transition-property: background-color;
-    transition-duration: .5s;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid @color2;
+    border-radius: 18px;
+    opacity: 1;
 }
+
 
 /* -----------------------------------------------------
  * Taskbar
@@ -199,13 +250,12 @@ window#waybar {
  * ----------------------------------------------------- */
 
 #custom-notification {
-    background-color: @color1;
-    margin: 5px 15px 5px 0px;
-    padding: 2px 10px 0px 10px;
-    border-radius: 8px;
+    /* background-color: @color1; */
+    /* margin: 0px 2px; */
+    /* padding: 2px 10px 0px 10px; */
     color: @textcolor2;
-    font-size: 16px;
-    font-weight: normal;
+    /* font-size: 16px; */
+    /* font-weight: normal; */
     opacity: 0.8;
 }
 
@@ -324,9 +374,9 @@ window#waybar {
 
 #group-cpu,
 #group-memgpu {
-    margin: 2px 0px 0px 0px;
+    /* margin: 2px 0px 0px 0px; */
     padding: 0px;
-    font-size: 16px;
+    /* font-size: 16px; */
     color: @color1;
 }
 
@@ -336,14 +386,14 @@ window#waybar {
  * ----------------------------------------------------- */
 
 #clock {
-    background-color: @color1;
-    font-size: 16px;
+    /* background-color: @color1; */
+    /* font-size: 16px; */
     color: @textcolor2;
-    border-radius: 8px;
-    padding: 1px 10px 0px 10px;
-    margin: 3px 15px 3px 0px;
+    /* border-radius: 8px;
+    padding: 1px 10px 0px 10px; */
+    margin: 0px 5px;
     opacity: 0.8;
-    border: 3px solid @textcolor2;
+    /* border: 3px solid @textcolor2; */
 }
 
 #clock:hover {
@@ -355,12 +405,12 @@ window#waybar {
  * ----------------------------------------------------- */
 
 #pulseaudio {
-    background-color: @color1;
-    font-size: 16px;
+    /* background-color: @color1; */
+    /* font-size: 16px; */
     color: @textcolor2;
-    border-radius: 8px;
-    padding: 2px 10px 0px 10px;
-    margin: 5px 15px 5px 0px;
+    /* border-radius: 8px; */
+    /* padding: 2px 10px 0px 10px;
+    margin: 5px 15px 5px 0px; */
     opacity: 0.8;
 }
 
@@ -431,7 +481,7 @@ window#waybar {
  * ----------------------------------------------------- */
 
 #tray {
-    padding: 0px 8px 0px 0px;
+    /* padding: 0px 2px 0px 0px; */
 }
 
 #tray>.passive {
@@ -459,4 +509,8 @@ window#waybar {
 
 #custom-weather:hover {
     opacity: 1;
+}
+
+#custom-combined {
+    margin: 0px;
 }

@@ -270,19 +270,19 @@ def get_cpu_usage():
     # Format output for Waybar with conditional formatting for high usage
     if overall > 90:
         output = {
-            "text": f"<span size='large' rise='-1000'>󰍛</span>\u00A0 <span color='{CRITICAL_COLOR}'>{overall:.1f}%</span> ",
+            "text": f"CPU<span color='{CRITICAL_COLOR}'>{overall:.1f}%</span>",
             "tooltip": f"<span color='{PRIMARY_COLOR}'>󰍛 CPU Usage: {overall:.1f}%</span>\n\n",
             "class": "critical"
         }
     elif overall > 70:
         output = {
-            "text": f"<span size='large' rise='-1000'>󰍛</span>\u00A0 <span color='{WARNING_COLOR}'>{overall:.1f}%</span> ",
+            "text": f"CPU:<span color='{WARNING_COLOR}'>{overall:.1f}%</span>",
             "tooltip": f"<span color='{PRIMARY_COLOR}'>󰍛 CPU Usage: {overall:.1f}%</span>\n\n",
             "class": "high"
         }
     else:
         output = {
-            "text": f"<span size='large' rise='-1000'>󰍛</span>\u00A0 {overall:.1f}% ",
+            "text": f"CPU:{overall:.1f}%",
             "tooltip": f"<span color='{PRIMARY_COLOR}'>󰍛 CPU Usage: {overall:.1f}%</span>\n\n",
             "class": "normal"
         }
@@ -429,19 +429,19 @@ def get_gpu_usage():
     if usage is not None:
         if usage > 90:
             output = {
-                "text": f"<span size='large' rise='-2000'>󰢮</span>\u00A0 <span color='{CRITICAL_COLOR}'>{usage}%</span> ",
+                "text": f"GPU:<span color='{CRITICAL_COLOR}'>{usage}%</span>",
                 "tooltip": f"<span color='{PRIMARY_COLOR}'>󰢮 GPU Usage: {usage}%</span>\n",
                 "class": "critical"
             }
         elif usage > 70:
             output = {
-                "text": f"<span size='large' rise='-2000'>󰢮</span>\u00A0 <span color='{WARNING_COLOR}'>{usage}%</span> ",
+                "text": f"GPU:<span color='{WARNING_COLOR}'>{usage}%</span>",
                 "tooltip": f"<span color='{PRIMARY_COLOR}'>󰢮 GPU Usage: {usage}%</span>\n",
                 "class": "high"
             }
         else:
             output = {
-                "text": f"<span size='large' rise='-2000'>󰢮</span>\u00A0 {usage}% ",
+                "text": f"GPU:{usage}%",
                 "tooltip": f"<span color='{PRIMARY_COLOR}'>󰢮 GPU Usage: {usage}%</span>\n",
                 "class": "normal"
             }
@@ -602,6 +602,61 @@ def get_gpu_usage():
     
     return output
 
+def get_combined_usage():
+    """Get combined CPU and memory usage in compact format"""
+    # Get CPU and memory information
+    cpu_percent = psutil.cpu_percent(interval=0.1)
+    memory = psutil.virtual_memory()
+    
+    # Determine color based on highest usage
+    max_usage = max(cpu_percent, memory.percent)
+    
+    if max_usage > 90:
+        usage_color = CRITICAL_COLOR
+        usage_class = "critical"
+    elif max_usage > 70:
+        usage_color = WARNING_COLOR
+        usage_class = "high"
+    else:
+        usage_color = NEUTRAL_COLOR
+        usage_class = "normal"
+    
+    # Format compact output
+    output = {
+        "text": f"<span size='large' rise='-2000'></span> <span color='{usage_color}'>{cpu_percent:.0f}%/{memory.percent:.0f}%</span>",
+        "tooltip": f"<span color='{PRIMARY_COLOR}'>System Usage</span>\n\n",
+        "class": usage_class
+    }
+    
+    # Add CPU details
+    output["tooltip"] += f"<span color='{PRIMARY_COLOR}'>󰍛 CPU Usage: {cpu_percent:.1f}%</span>\n"
+    
+    # Get CPU frequency
+    try:
+        freq = psutil.cpu_freq()
+        current_freq = freq.current if freq else None
+        if current_freq:
+            output["tooltip"] += f" └─ Frequency: {current_freq/1000:.2f} GHz\n"
+    except psutil.Error:
+        pass
+    
+    # Add memory details
+    mem_total_gib = memory.total / (1024 * 1024 * 1024)
+    mem_used_gib = memory.used / (1024 * 1024 * 1024)
+    
+    output["tooltip"] += f"\n<span color='{PRIMARY_COLOR}'> Memory Usage: {memory.percent:.1f}%</span>\n"
+    output["tooltip"] += f" ├─ Used: {mem_used_gib:.2f} GiB\n"
+    output["tooltip"] += f" └─ Total: {mem_total_gib:.2f} GiB\n"
+    
+    # Add load average
+    try:
+        load1, load5, load15 = os.getloadavg()
+        output["tooltip"] += f"\n<span color='{PRIMARY_COLOR}'>󱘲 Load Average:</span> {load1:.2f}, {load5:.2f}, {load15:.2f}\n"
+    except OSError:
+        pass
+    
+    return output
+
 def get_memory_usage():
     """Get detailed memory usage information"""
     # Get memory information
@@ -623,13 +678,13 @@ def get_memory_usage():
 
     # Set text and class based on memory usage
     if memory.percent > 90:
-        output["text"] = f"<span size='large' rise='-2000'></span> <span color='{CRITICAL_COLOR}'>{memory.percent}%</span> "
+        output["text"] = f"RAM:<span color='{CRITICAL_COLOR}'>{memory.percent}%</span>"
         output["class"] = "critical"
     elif memory.percent > 70:
-        output["text"] = f"<span size='large' rise='-2000'></span> <span color='{WARNING_COLOR}'>{memory.percent}%</span> "
+        output["text"] = f"RAM:<span color='{WARNING_COLOR}'>{memory.percent}%</span>"
         output["class"] = "high"
     else:
-        output["text"] = f"<span size='large' rise='-2000'></span> {memory.percent}% "
+        output["text"] = f"RAM:{memory.percent}%"
         output["class"] = "normal"
 
     # Add RAM details
@@ -680,7 +735,7 @@ def get_memory_usage():
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Get CPU, GPU or memory usage for Waybar')
-    parser.add_argument('device', choices=['cpu', 'gpu', 'memory'], help='Device/resource to get usage for')
+    parser.add_argument('device', choices=['cpu', 'gpu', 'memory', 'combined'], help='Device/resource to get usage for')
     args = parser.parse_args()
     
     # Get usage for specified device
@@ -688,6 +743,8 @@ def main():
         output = get_cpu_usage()
     elif args.device == 'gpu':
         output = get_gpu_usage()
+    elif args.device == 'combined':
+        output = get_combined_usage()
     else:  # memory
         output = get_memory_usage()
     

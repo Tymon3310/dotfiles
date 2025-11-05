@@ -117,19 +117,19 @@ def get_cpu_temp():
         # CPU temperature formatting
         if temp > critical_temp - CPU_CRITICAL_OFFSET:  # Within critical offset
             output = {
-                "text": f" <span color='{CRITICAL_COLOR}'>{temp:.1f}°C</span> ",
+                "text": f"<span color='{CRITICAL_COLOR}'>{temp:.1f}°C</span>",
                 "tooltip": f"<span color='{PRIMARY_COLOR}'>󰔏 CPU Temperature:</span>\n",
                 "class": "critical"
             }
         elif temp > critical_temp - CPU_WARNING_OFFSET:  # Within warning offset
             output = {
-                "text": f" <span color='{WARNING_COLOR}'>{temp:.1f}°C</span> ",
+                "text": f"<span color='{WARNING_COLOR}'>{temp:.1f}°C</span>",
                 "tooltip": f"<span color='{PRIMARY_COLOR}'>󰔏 CPU Temperature:</span>\n",
                 "class": "high"
             }
         else:
             output = {
-                "text": f" {temp:.1f}°C ",
+                "text": f"{temp:.1f}°C",
                 "tooltip": f"<span color='{PRIMARY_COLOR}'>󰔏 CPU Temperature:</span>\n",
                 "class": "normal"
             }
@@ -229,19 +229,19 @@ def get_gpu_temp():
         # Conditional formatting based on temp_for_warning_comparison and critical_temp_for_warning
         if temp_for_warning_comparison is not None and temp_for_warning_comparison > critical_temp_for_warning - GPU_CRITICAL_OFFSET:
             output = {
-                "text": f" <span color='{CRITICAL_COLOR}'>{temp:.1f}°C</span> ", # Display edge temp
+                "text": f"<span color='{CRITICAL_COLOR}'>{temp:.1f}°C</span>", # Display edge temp
                 "tooltip": f"<span color='{PRIMARY_COLOR}'>󰔏 GPU Temperature:</span>\n",
                 "class": "critical"
             }
         elif temp_for_warning_comparison is not None and temp_for_warning_comparison > critical_temp_for_warning - GPU_WARNING_OFFSET:
             output = {
-                "text": f" <span color='{WARNING_COLOR}'>{temp:.1f}°C</span> ", # Display edge temp
+                "text": f"<span color='{WARNING_COLOR}'>{temp:.1f}°C</span>", # Display edge temp
                 "tooltip": f"<span color='{PRIMARY_COLOR}'>󰔏 GPU Temperature:</span>\n",
                 "class": "high"
             }
         else:
             output = {
-                "text": f" {temp:.1f}°C ", # Display edge temp
+                "text": f"{temp:.1f}°C", # Display edge temp
                 "tooltip": f"<span color='{PRIMARY_COLOR}'>󰔏 GPU Temperature:</span>\n",
                 "class": "normal"
             }
@@ -266,7 +266,7 @@ def get_gpu_temp():
             output["tooltip"] += f"\n<span color='{CRITICAL_COLOR}'>⚠ High: GPU {warning_source_name} temp near/above threshold ({critical_temp_for_warning:.1f}°C)!</span>"
     else:
         output = {
-            "text": f" N/A ",
+            "text": f"N/A",
             "tooltip": "GPU temperature sensor not found",
             "class": "error"
         }

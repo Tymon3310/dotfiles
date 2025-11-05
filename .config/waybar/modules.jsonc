@@ -6,7 +6,12 @@
     "active-only": false,
     "all-outputs": false,
     "show-special": false,
-    "format": "{icon}"
+              "format": "{icon}",
+            "format-icons": {
+                "active": "",
+                "default": "",
+                "empty": ""
+            },
   },
   "hyprland/workspaces#scratchpad": {
     "all-outputs": true,
@@ -127,12 +132,12 @@
   },
   // Clock
   "clock": {
-    "format": "{:%H:%M %a %Od.%Om}",
+    "format": " {:%H:%M} ",
     "timezone": "Poland",
-    "locale": "pl_PL.UTF-8",
+    "locale": "en_US.UTF-8",
     // "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
     "tooltip": true,
-    "tooltip-format": "<tt><small>{calendar}</small></tt>",
+    "tooltip-format": "<tt><small>{:%a %Od.%Om} {calendar}</small></tt>",
     "calendar": {
       "mode": "month",
       "mode-mon-col": 3,
@@ -209,7 +214,7 @@
   },
     "custom/cpu_temp": {
     "exec": "~/.config/waybar/scripts/temp.py cpu",
-    "format": "{}",
+    "format": "{}",
     "return-type": "json",
     "interval": 2,
     "tooltip": true,
@@ -218,7 +223,7 @@
   
   "custom/gpu_temp": {
     "exec": "~/.config/waybar/scripts/temp.py gpu",
-    "format": "{}",
+    "format": "{}",
     "return-type": "json",
     "interval": 2,
     "tooltip": true,
@@ -231,24 +236,34 @@
   "interval": 2,
   "tooltip": true,
   "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-},
+  },
 
-"custom/gpu_usage": {
-  "exec": "~/.config/waybar/scripts/usage.py gpu",
-  "format": "{}",
-  "return-type": "json",
-  "interval": 2,
-  "tooltip": true,
-  "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-},
-"custom/memory_usage": {
-  "exec": "~/.config/waybar/scripts/usage.py memory",
-  "format": "{}",
-  "return-type": "json",
-  "interval": 5,
-  "tooltip": true,
-  "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-},
+  "custom/gpu_usage": {
+    "exec": "~/.config/waybar/scripts/usage.py gpu",
+    "format": "{}",
+    "return-type": "json",
+    "interval": 2,
+    "tooltip": true,
+    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
+  },
+  "custom/memory_usage": {
+    "exec": "~/.config/waybar/scripts/usage.py memory",
+    "format": "{}",
+    "return-type": "json",
+    "interval": 5,
+    "tooltip": true,
+    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
+  },
+
+  "custom/combined": {
+    "exec": "~/.config/waybar/scripts/usage.py combined",
+    "format": "{}",
+    "return-type": "json",
+    "interval": 5,
+    "tooltip": true,
+    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
+  },
+
   // Internet Connectivity Status
   "custom/internet_status": {
     "exec": "~/.config/waybar/scripts/internet_status.py",
@@ -297,6 +312,27 @@
       "group/gpu"
     ]
   },
+  "group/combined": {
+    "orientation": "inherit",
+    "drawer": {
+      "transition-duration": 300,
+      "children-class": "not-memory",
+      "transition-left-to-right": true
+    },
+    "modules": [
+      "custom/combined",
+      "custom/cpu_usage",
+      "custom/cpu_temp",
+      "custom/memory_usage",
+      "custom/gpu_usage",
+      "custom/gpu_temp",
+      "custom/power",
+      "custom/internet_status"
+
+    ]
+  },
+  
+    
   // Network
   "network": {
     "format": "{ifname}",
@@ -313,7 +349,7 @@
   // Pulseaudio
   "pulseaudio": {
     // "scroll-step": 1, // %, can be a float
-    "format": "{icon}  {volume}%",
+    "format": " {icon} {volume}%",
     "format-bluetooth": "{volume}% {icon} {format_source}",
     "format-bluetooth-muted": " {icon} {format_source}",
     "format-muted": " {format_source}",
@@ -357,7 +393,7 @@
   },
   // Notification
   "custom/notification": {
-    "format": "{} {icon}",
+    "format": " {} {icon}",
     "format-icons": {
       "notification": "",
       "none": "",
