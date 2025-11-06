@@ -95,7 +95,7 @@
       // "zsh (.*) tymon": "~",
       // "zsh in (.*)": "$1",
     },
-    "separate-outputs": true
+    "separate-outputs": false
   },
   // Empty
   "custom/empty": {
