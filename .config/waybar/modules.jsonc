@@ -167,14 +167,14 @@
   // CPU
   "cpu": {
     "interval": 1,
-    "format": " {usage}% ",
+    "format": " {usage}%",
     // "on-click": "kitty --class kitty,floating -T floating -e btop --update 1000"
     "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
   },
   // Memory
   "memory": {
     "interval": 1,
-    "format": "/  {}%  ",
+    "format": "/  {}%",
     "tooltip-format": "Memory: {used}/{total}GiB Used, Swap {swapUsed}/{swapTotal}GiB Used",
     "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
   },
@@ -352,7 +352,7 @@
     "format": " {icon} {volume}%",
     "format-bluetooth": "{volume}% {icon} {format_source}",
     "format-bluetooth-muted": " {icon} {format_source}",
-    "format-muted": " {format_source}",
+    "format-muted": "  {format_source}",
     "format-source": "{volume}% ",
     "format-source-muted": "",
     "format-icons": {
