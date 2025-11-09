@@ -52,8 +52,12 @@ alias update-grub='sudo grub-mkconfig -o /boot/grub/grub.cfg'
 alias pacunl='sh ~/.config/hypr/scripts/unlock-pacman.sh'
 alias dg='sudo downgrade'
 
+alias update="python3 ~/.config/hypr/scripts/update.py"
+
 # Dev aliases
 alias 'venvon'='_makevenv'
 alias 'venvoff'='deactivate'
 alias 'vsc'='code-insiders'
 alias 'code'='code-insiders'
+
+alias 'hyexec'="hyprctl dispatch exec"

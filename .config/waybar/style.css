@@ -12,10 +12,15 @@
     font-family: "FiraCode Nerd Font", "Font Awesome 7 Free", FontAwesome, Roboto, "FiraCode Nerd Font", Helvetica, Arial, sans-serif, material-design-icons, "Monaspace Neon";
     border: none;
     border-radius: 0px;
-    /* color: @textcolor2; */
     margin: 0px 2px;
 }
 
+window#waybar {
+    background: rgba(0, 0, 0, 0.5);
+    border: 0.2px solid @color1;
+    border-radius: 18px;
+    opacity: 1;
+}
 
 
 /* -----------------------------------------------------
@@ -72,7 +77,6 @@
 
 tooltip {
     border-radius: 5px;
-    /* background-color: @color1; */
     opacity: 0.8;
     padding: 20px;
     margin: 0px;
@@ -83,79 +87,11 @@ tooltip label {
 }
 
 /* -----------------------------------------------------
- * Window
- * ----------------------------------------------------- */
-
-window#waybar {
-    background: rgba(0, 0, 0, 0.5);
-    border: 0.2px solid @color1;
-    border-radius: 18px;
-    opacity: 1;
-}
-
-
-/* -----------------------------------------------------
- * Taskbar
- * ----------------------------------------------------- */
-
-#taskbar {
-    background: transparent;
-    margin: 3px 15px 3px 0px;
-    padding: 0px;
-    border-radius: 15px;
-    font-weight: normal;
-    font-style: normal;
-    opacity: 0.8;
-    border: 3px solid @color1;
-}
-
-#taskbar button {
-    margin: 0;
-    border-radius: 15px;
-    padding: 0px 5px 0px 5px;
-}
-
-#taskbar button.active {
-    background-color: @color1;
-    border: 1px solid white;
-    opacity: 1;
-}
-
-#taskbar button:hover {
-    background-color: @color1;
-    opacity: 0.9;
-}
-
-#taskbar.empty {
-    background: transparent;
-    border: 0;
-    padding: 0;
-    margin: 0;
-}
-
-/* -----------------------------------------------------
- * Modules
- * ----------------------------------------------------- */
-
-.modules-left>widget:first-child>#workspaces {
-    margin-left: 0;
-}
-
-.modules-right>widget:last-child>#workspaces {
-    margin-right: 0;
-}
-
-/* -----------------------------------------------------
  * Custom Notification
  * ----------------------------------------------------- */
 
 #custom-notification {
-    /* background-color: @color1; */
-    /* margin: 0px 2px; */
-    /* padding: 2px 10px 0px 10px; */
     color: @textcolor2;
-    /* font-size: 16px; */
-    /* font-weight: normal; */
     opacity: 0.8;
 }
 
@@ -163,39 +99,10 @@ window#waybar {
     opacity: 1;
 }
 
-/* -----------------------------------------------------
- * Idle Inhibator
- * ----------------------------------------------------- */
-
-#idle_inhibitor {
-    margin-right: 15px;
-    font-size: 22px;
-    font-weight: bold;
-    opacity: 0.8;
-    color: @color2;
-}
-
-#idle_inhibitor.activated {
-    margin-right: 15px;
-    font-size: 20px;
-    font-weight: bold;
-    opacity: 0.8;
-    color: #dc2f2f;
-}
 
 /* -----------------------------------------------------
  * Custom Modules
  * ----------------------------------------------------- */
-
-#custom-arch {
-    font-size: 16px;
-    color: @textcolor1;
-    border-radius: 8px;
-    padding: 0px 10px 0px 10px;
-    margin: 3px 17px 3px 14px;
-    opacity: 0.8;
-    border: 3px solid @bordercolor;
-}
 
 #submap.VM {
     padding: 0px 10px 0px 10px;
@@ -208,8 +115,12 @@ window#waybar {
     padding: 2px 10px 0px 10px;
     border-radius: 8px;
     color: @textcolor2;
+    opacity: 0.8;
 }
 
+#custom-player:hover {
+    opacity: 1;
+}
 
 /* -----------------------------------------------------
  * Exit
@@ -228,58 +139,35 @@ window#waybar {
 }
 
 /* -----------------------------------------------------
- * Custom Updates
- * ----------------------------------------------------- */
-
-/* @keyframes blink-update {
-    to {
-        background-color: rgb(67, 190, 227);
-    }
-} */
-
-#custom-pacman {
-    animation-timing-function: linear;
-    animation-iteration-count: infinite;
-    animation-direction: alternate;
-    background-color: @color1;
-    margin: 5px 15px 5px 0px;
-    padding: 2px 10px 0px 10px;
-    border-radius: 8px;
-    color: @textcolor2;
-    font-size: 16px;
-    font-weight: normal;
-    opacity: 0.8;
-}
-
-#custom-pacman.pending-updates {
-    animation-name: blink-update;
-    animation-duration: 3s;
-    background-color: @color1;
-    margin: 5px 15px 5px 0px;
-    padding: 2px 10px 0px 10px;
-    border-radius: 8px;
-    color: @textcolor2;
-    font-size: 16px;
-    font-weight: normal;
-    opacity: 0.8;
-}
-
-#custom-pacman:hover {
-    opacity: 1;
-}
-
-/* -----------------------------------------------------
  * Hardware Group
  * ----------------------------------------------------- */
 
-#group-cpu,
-#group-memgpu {
-    /* margin: 2px 0px 0px 0px; */
-    padding: 0px;
+
+#cpu,
+#memory,
+#custom-cpu_usage,
+#custom-cpu_temp,
+#custom-memory_usage,
+#custom-power,
+#custom-internet_status {
+    /* background-color: @color1; */
     /* font-size: 16px; */
-    color: @color1;
+    color: @textcolor2;
+    /* border-radius: 8px;
+    padding: 2px 10px 0px 10px;
+    margin: 5px 15px 5px 0px; */
+    opacity: 0.8;
 }
 
+#cpu:hover,
+#memory:hover,
+#custom-cpu_usage:hover,
+#custom-cpu_temp:hover,
+#custom-memory_usage:hover,
+#custom-power:hover,
+#custom-internet_status:hover {
+    opacity: 1;
+}
 
 /* -----------------------------------------------------
  * Clock
@@ -304,7 +192,7 @@ window#waybar {
  * Pulseaudio
  * ----------------------------------------------------- */
 
-#pulseaudio {
+#wireplumber {
     /* background-color: @color1; */
     /* font-size: 16px; */
     color: @textcolor2;
@@ -314,11 +202,11 @@ window#waybar {
     opacity: 0.8;
 }
 
-#pulseaudio.muted {
+#wireplumber.muted {
     color: @textcolor2;
 }
 
-#pulseaudio:hover {
+#wireplumber:hover {
     opacity: 1;
 }
 
@@ -390,27 +278,4 @@ window#waybar {
 
 #tray>.needs-attention {
     -gtk-icon-effect: highlight;
-}
-
-#tray:hover {
-    opacity: 1;
-}
-
-/* -----------------------------------------------------
- * Weather
- * ----------------------------------------------------- */
-
-#custom-weather {
-    margin: 0px;
-    padding: 0px;
-    font-size: 16px;
-    color: @color2;
-}
-
-#custom-weather:hover {
-    opacity: 1;
-}
-
-#custom-combined {
-    margin: 0px;
 }

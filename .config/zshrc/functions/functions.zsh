@@ -14,7 +14,7 @@ _installlibs() {
     /usr/bin/cat ~/.personal/commonlibs.txt | \
   gum choose --cursor.foreground '#09F' --selected.foreground '#0FF' --no-limit --header 'Which libs do You need?' | \
   xargs -d '\n' -r -- \
-  sh -c 'gum spin --spinner dot --title "Installing selected packages..." --spinner.foreground "#09F" -- pip install "$@"' sh
+  sh -c 'gum spin --spinner dot --title "Installing selected packages..." --spinner.foreground "#09F" -- uv pip install "$@"' sh
 }
 
 _makevenv() {
@@ -47,16 +47,16 @@ _makevenv() {
         rm -rf venv
     fi
 
-    gum spin --title "Creating venv..." --spinner.foreground "#09F" -- python -m venv .venv
+    gum spin --title "Creating venv..." --spinner.foreground "#09F" -- uv venv venv .venv
     source .venv/bin/activate
-    gum spin --title "Upgrading pip..." --spinner.foreground "#09F" -- pip install --upgrade pip
+    gum spin --title "Upgrading pip..." --spinner.foreground "#09F" -- uv pip install --upgrade pip
 
     echo 'Venv created and activated'
 
     # Check for requirements.txt
     if [ -f "requirements.txt" ]; then
         if gum confirm "Found requirements.txt. Install dependencies?" --selected.background '#09F'; then
-            gum spin --title "Installing requirements.txt..." --spinner.foreground "#09F" -- pip install -r requirements.txt
+            gum spin --title "Installing requirements.txt..." --spinner.foreground "#09F" -- uv pip install -r requirements.txt
         fi
     fi
 
