@@ -37,8 +37,6 @@ kitty
 qt5-wayland
 qt6-wayland
 waybar
-waybar-updates
-wttrbar
 fastfetch
 lsd
 python-pip
@@ -57,12 +55,10 @@ libadwaita
 fuse2
 imagemagick
 jq
-xclip
 curl
 zen-browser-bin
 neovim
 htop
-python-pywal
 pinta
 blueman
 hyprshot
@@ -110,3 +106,4 @@ vicinae-bin
 cpio
 cmake
 zoxide
+uv

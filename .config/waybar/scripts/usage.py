@@ -270,7 +270,7 @@ def get_cpu_usage():
     # Format output for Waybar with conditional formatting for high usage
     if overall > 90:
         output = {
-            "text": f"CPU<span color='{CRITICAL_COLOR}'>{overall:.1f}%</span>",
+            "text": f"CPU:<span color='{CRITICAL_COLOR}'>{overall:.1f}%</span>",
             "tooltip": f"<span color='{PRIMARY_COLOR}'>󰍛 CPU Usage: {overall:.1f}%</span>\n\n",
             "class": "critical"
         }
