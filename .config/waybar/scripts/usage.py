@@ -270,19 +270,19 @@ def get_cpu_usage():
     # Format output for Waybar with conditional formatting for high usage
     if overall > 90:
         output = {
-            "text": f"CPU<span color='{CRITICAL_COLOR}'>{overall:.1f}%</span>",
+            "text": f" <span color='{CRITICAL_COLOR}'>{overall:.1f}%</span>",
             "tooltip": f"<span color='{PRIMARY_COLOR}'>󰍛 CPU Usage: {overall:.1f}%</span>\n\n",
             "class": "critical"
         }
     elif overall > 70:
         output = {
-            "text": f"CPU:<span color='{WARNING_COLOR}'>{overall:.1f}%</span>",
+            "text": f" <span color='{WARNING_COLOR}'>{overall:.1f}%</span>",
             "tooltip": f"<span color='{PRIMARY_COLOR}'>󰍛 CPU Usage: {overall:.1f}%</span>\n\n",
             "class": "high"
         }
     else:
         output = {
-            "text": f"CPU:{overall:.1f}%",
+            "text": f" {overall:.1f}%",
             "tooltip": f"<span color='{PRIMARY_COLOR}'>󰍛 CPU Usage: {overall:.1f}%</span>\n\n",
             "class": "normal"
         }
@@ -685,13 +685,13 @@ def get_memory_usage():
 
     # Set text and class based on memory usage
     if memory.percent > 90:
-        output["text"] = f"RAM:<span color='{CRITICAL_COLOR}'>{memory.percent}%</span>"
+        output["text"] = f" <span color='{CRITICAL_COLOR}'>{memory.percent}%</span>"
         output["class"] = "critical"
     elif memory.percent > 70:
-        output["text"] = f"RAM:<span color='{WARNING_COLOR}'>{memory.percent}%</span>"
+        output["text"] = f" <span color='{WARNING_COLOR}'>{memory.percent}%</span>"
         output["class"] = "high"
     else:
-        output["text"] = f"RAM:{memory.percent}%"
+        output["text"] = f" {memory.percent}%"
         output["class"] = "normal"
 
     # Add RAM details
