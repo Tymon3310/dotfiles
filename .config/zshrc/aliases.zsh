@@ -17,7 +17,7 @@ alias v='$EDITOR'
 alias vi='$EDITOR'
 alias vim='$EDITOR'
 alias icat='kitten icat'
-alias cat='bat'
+# alias cat='bat'
 
 # -----------------------------------------------------
 # Git
