@@ -307,7 +307,7 @@
     "on-click": "kitty -c ~/.config/kitty/headless.conf --class floating -e nmtui",
   },
   // Wireplumber
-  "wireplumber": {
+  "pulseaudio": {
     // "scroll-step": 1, // %, can be a float
     "format": " {icon} {volume}%",
     "format-bluetooth": "{volume}% {icon} {format_source}",

@@ -43,7 +43,7 @@
     // "custom/internet_status",
     // "custom/weather",
     // "custom/pacman",
-    "wireplumber",
+    "pulseaudio",
     "custom/notification",
     "clock",
     "custom/exit"
