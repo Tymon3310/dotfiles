@@ -17,9 +17,12 @@ api.nvim_set_keymap("c", "<C-l>", "C-u", { noremap = true })
 map("i", "<C-/>", "<Esc>gcc<CR>", { desc = "Comment one line", remap = true })
 map("v", "<C-/>", "gc<CR>", { desc = "Comment visual selection", remap = true })
 
-map("i", "C-E", ":Copilot suggestion dismiss<CR>", { desc = "Dismiss Copilot suggestion", remap = true })
+-- map("i", "C-E", ":Copilot suggestion dismiss<CR>", { desc = "Dismiss Copilot suggestion", remap = true })
 -- map({ "i", "n" }, "<CR>", "<ESC>:Copilot suggestion dismiss<CR><ESC>o", { desc = "Insert newline below", remap = true })
 
-map("i", "C- TAB ", ":Copilot sugestion accept<CR>", { desc = "Accept Copilot suggestion", remap = true })
+-- map("i", "C- TAB ", ":Copilot sugestion accept<CR>", { desc = "Accept Copilot suggestion", remap = true })
 
 map("n", "qq", "<nop>", { remap = true })
+
+vim.g.copilot_no_tab_map = true
+vim.keymap.set('i', '<S-Tab>', 'copilot#Accept("\\<S-Tab>")', { expr = true, replace_keycodes = false })

@@ -70,25 +70,6 @@ mkcd() {
     cd $1
 }
 
-cd() {
-  if [[ -n "$1" && -z "${1//.}" && ${#1} -ge 2 ]]; then
-    if [[ "$1" == ".." ]]; then
-        builtin cd "$@"
-        return $?
-    fi
-
-    local target=".."
-    for (( i=3; i <= ${#1}; i++ )); do
-      target="$target/.."
-    done
-    builtin cd "$target" "$@[2,-1]"
-    return $?
-  else
-    builtin cd "$@"
-    return $?
-  fi
-}
-
 tomp3 () {
   if [ -z "$1" ]; then
     echo "Usage: tomp3 <input_file.wav>"

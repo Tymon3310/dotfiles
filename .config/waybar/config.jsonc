@@ -1,52 +1,28 @@
 {
-  // General Settings
-  "layer": "top",
-  "margin-top": 10,
-  "margin-bottom": 0,
-  "margin-left": 4,
-  "margin-right": 4,
-  "spacing": 0,
-  // Load Modules
-  "include": [
-    "~/.config/waybar/modules.jsonc"
-    // "~/.config/waybar/workspaces.jsonc"
-  ],
-  // Modules Left
-  "modules-left": [
-    // "custom/empty",
-    // "custom/arch",
-    "hyprland/workspaces",
-    // "custom/empty",
-    // "wlr/taskbar",
-    "hyprland/window"
-    // "custom/cava",
-  ],
-  // Modules Center
-  "modules-center": [
-    // "hyprland/workspaces",
-    // "custom/empty",
-    "custom/player"
-    // "hyprland/workspaces#scratchpad"
-  ],
-  // Modules Right    
-  "modules-right": [
-    // "bluetooth",
-    //"network",
-    "hyprland/submap",
-    "tray",
-    // "group/cpu",
-    // "group/memgpu",
-    // "group/combined",
-    "custom/cpu_usage",
-    // "memory",
-    "group/mem-inr",
-    // "custom/internet_status",
-    // "custom/weather",
-    // "custom/pacman",
-    "pulseaudio",
-    "custom/notification",
-    "clock",
-    "custom/exit"
-  ]
-  
+    "layer": "top",
+    "margin-top": 10,
+    "margin-bottom": 0,
+    "margin-left": 4,
+    "margin-right": 4,
+    "spacing": 0,
+    "include": [
+        "~/.config/waybar/modules.jsonc"
+    ],
+    "modules-left": [
+        "hyprland/workspaces",
+        "hyprland/window"
+    ],
+    "modules-center": [
+        "custom/player"
+    ],
+    "modules-right": [
+        "hyprland/submap",
+        "tray",
+        "custom/cpu_usage",
+        "group/mem-inr",
+        "pulseaudio",
+        "custom/notification",
+        "clock",
+        "custom/exit"
+    ]
 }

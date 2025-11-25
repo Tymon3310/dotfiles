@@ -1,376 +1,174 @@
 {
-  "hyprland/workspaces": {
-    "on-scroll-up": "hyprctl dispatch workspace r-1",
-    "on-scroll-down": "hyprctl dispatch workspace r+1",
-    "on-click": "activate",
-    "active-only": false,
-    "all-outputs": false,
-    "show-special": false,
-    "format": "{icon}",
-    "format-icons": {
-        "active": "",
-        "default": "",
-        "empty": ""
+    // --- Workspaces ---
+    "hyprland/workspaces": {
+        "on-scroll-up": "hyprctl dispatch workspace r-1",
+        "on-scroll-down": "hyprctl dispatch workspace r+1",
+        "on-click": "activate",
+        "active-only": false,
+        "all-outputs": false,
+        "format": "{icon}",
+        "format-icons": {
+            "active": "",
+            "default": "",
+            "empty": ""
+        }
     },
-  },
-  "hyprland/workspaces#scratchpad": {
-    "all-outputs": true,
-    "active-only": true,
-    "show-special": true,
-    "disable-scroll": true,
-    "special-visible-only": true,
-    "ignore-workspaces": [
-      "\\d+$"
-    ]
-  },
-  "hyprland/submap": {
-    "format": "[ {} ]",
-    "tooltip": true,
-    "always-on": false,
-    "on-click": "hyprctl dispatch submap reset"
-  },
-  "custom/player": {
-    "type": "custom/script",
-    "return-type": "json",
-    // "exec": "python3 -u ~/.config/waybar/scripts/scrolling-mpris",
-    "exec": "~/.config/waybar/scripts/player.py -p spotify",
-    "format": "{}",
-    // "restart-interval": 1,
-    // "return-type": "json",
-    "on-click": "playerctl -p spotify play-pause",
-    "on-scroll-up": "playerctl -p spotify volume 0.1+",
-    "on-scroll-down": "playerctl -p spotify volume 0.1-",
-    "on-click-right": "playerctl -p spotify ",
-    "on-scroll-left": "playerctl -p spotify previous",
-    "on-scroll-right": "playerctl -p spotify next",
-    // "on-click": "playerctl -p YoutubeMusic play-pause",
-    // "on-scroll-up": "playerctl -p YoutubeMusic volume 0.1+",
-    // "on-scroll-down": "playerctl -p YoutubeMusic volume 0.1-",
-    // "on-click-right": "playerctl -p YoutubeMusic ",
-    // "on-scroll-left": "playerctl -p YoutubeMusic previous",
-    // "on-scroll-right": "playerctl -p YoutubeMusic next",
-    "tooltip": "true",
-    // "on-click": "playerctl --ignore-player=plasma-browser-integration,firefox play-pause",
-    // "on-scroll-up": "playerctl --ignore-player=plasma-browser-integration,firefox volume 0.1+",
-    // "on-scroll-down": "playerctl --ignore-player=plasma-browser-integration,firefox volume 0.1-",
-    // "ignored-players": "[firefox, zen-browser, zen-twilight, org.mpris.MediaPlayer2.plasma-browser-integration, org.mpris.MediaPlayer2.firefox.instance_1_47933]"
-  },
-  // Hyprland Window
-  "hyprland/window": {
-    "icon": true,
-    "icon-size": 16,
-    "rewrite": {
-      "(.*) Youtube (.*)": "$1 󰗃",
-      "(.*) — Zen Twilight": "$1",
-      "(.*) - Visual Studio Code - Insiders": "VS Code: $1"
-      // "zsh (.*) tymon": "~",
-      // "zsh in (.*)": "$1",
-    },
-    "separate-outputs": false
-  },
-  // Empty
-  "custom/empty": {
-    "format": "    "
-  },
 
-  // Power Menu
-  "custom/exit": {
-    "format": "",
-    // "on-click": "wlogout",
-    "on-click": "nwg-bar",
-    "tooltip-format": "Power Menu"
-  },
-  // Clock
-  "clock": {
-    "format": " {:%H:%M} ",
-    "timezone": "Poland",
-    "locale": "en_US.UTF-8",
-    // "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
-    "tooltip": true,
-    "tooltip-format": "<tt><small>{:%a %Od.%Om} {calendar}</small></tt>",
-    "calendar": {
-      "mode": "month",
-      "mode-mon-col": 3,
-      "weeks-pos": "right",
-      "on-scroll": 1,
-      "format": {
-        "months": "<span color='#ffead3'><b>{}</b></span>",
-        "days": "<span color='#ecc6d9'><b>{}</b></span>",
-        "weeks": "<span color='#99ffdd'><b>W{}</b></span>",
-        "weekdays": "<span color='#ffcc66'><b>{}</b></span>",
-        "today": "<span color='#ff6699'><b><u>{}</u></b></span>"
-      }
+    // --- Window Title ---
+    "hyprland/window": {
+        "icon": true,
+        "icon-size": 16,
+        "rewrite": {
+            "(.*) Youtube (.*)": "$1 󰗃",
+            "(.*) — Zen Twilight": "$1",
+            "(.*) - Visual Studio Code - Insiders": "VS Code: $1"
+        },
+        "separate-outputs": false
     },
-    "actions": {
-      "on-click-right": "mode",
-      "on-scroll-up": "tz_up",
-      "on-scroll-down": "tz_down",
-      "on-scroll-up": "shift_up",
-      "on-scroll-down": "shift_down"
+
+    // --- Submap (Resize modes etc) ---
+    "hyprland/submap": {
+        "format": "[ {} ]",
+        "tooltip": true,
+        "on-click": "hyprctl dispatch submap reset"
+    },
+
+    // --- Player (Event Driven) ---
+    "custom/player": {
+        "exec": "~/.config/waybar/scripts/player.py",
+        "return-type": "json",
+        "format": "{}",
+        "restart-interval": 3, // Restarts if script exits (no player)
+        "on-click": "playerctl --player=spotify play-pause",
+        "on-scroll-up": "playerctl --player=spotify volume 0.1+",
+        "on-scroll-down": "playerctl --player=spotify volume 0.1-",
+        "on-click-right": "playerctl --player=spotify next",
+        "on-scroll-left": "playerctl --player=spotify previous",
+        "on-scroll-right": "playerctl --player=spotify next",
+        "tooltip": true
+    },
+
+    // --- System Monitors (Daemonized) ---
+    "custom/cpu_usage": {
+        "exec": "~/.config/waybar/scripts/usage.py cpu",
+        "format": "{}",
+        "return-type": "json",
+        "restart-interval": 5,
+        "tooltip": true,
+        "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
+    },
+    "custom/memory_usage": {
+        "exec": "~/.config/waybar/scripts/usage.py memory",
+        "format": "{}",
+        "return-type": "json",
+        "restart-interval": 5,
+        "tooltip": true,
+        "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
+    },
+    "custom/internet_status": {
+        "exec": "~/.config/waybar/scripts/internet_status.py",
+        "format": "{}",
+        "return-type": "json",
+        "restart-interval": 10,
+        "tooltip": true
+    },
+
+    // --- Groups ---
+    "group/mem-inr": {
+        "orientation": "inherit",
+        "drawer": {
+            "transition-duration": 300,
+            "children-class": "not-memory",
+            "transition-left-to-right": true
+        },
+        "modules": [
+            "custom/memory_usage",
+            "custom/internet_status"
+        ]
+    },
+
+    // --- Audio ---
+    "pulseaudio": {
+        "format": " {icon} {volume}%",
+        "format-bluetooth": "{volume}% {icon} {format_source}",
+        "format-bluetooth-muted": " {icon} {format_source}",
+        "format-muted": " {format_source}",
+        "format-source": "{volume}% ",
+        "format-source-muted": "",
+        "format-icons": {
+            "headphone": " ",
+            "hands-free": " ",
+            "headset": " ",
+            "phone": " ",
+            "portable": " ",
+            "car": " ",
+            "default": ["", "", "", ""]
+        },
+        "on-click": "pwvucontrol",
+        "on-click-right": "pactl set-sink-mute @DEFAULT_SINK@ toggle",
+        "on-click-middle": "pactl set-source-mute @DEFAULT_SOURCE@ toggle"
+    },
+
+    // --- Tray ---
+    "tray": {
+        "show-passive-items": true,
+        "icon-size": 15,
+        "spacing": 6
+    },
+
+    // --- Notification Center ---
+    "custom/notification": {
+        "format": " {} {icon}",
+        "format-icons": {
+            "notification": "",
+            "none": "",
+            "dnd-notification": "",
+            "dnd-none": "",
+            "inhibited-notification": "",
+            "inhibited-none": "",
+            "dnd-inhibited-notification": "",
+            "dnd-inhibited-none": ""
+        },
+        "return-type": "json",
+        "exec-if": "which swaync-client",
+        "exec": "swaync-client -swb",
+        "on-click": "swaync-client -t -sw",
+        "on-click-right": "swaync-client -d -sw",
+        "tooltip": true,
+        "escape": true
+    },
+
+    // --- Clock ---
+    "clock": {
+        "format": " {:%H:%M} ",
+        "timezone": "Poland",
+        "locale": "en_US.UTF-8",
+        "tooltip": true,
+        "tooltip-format": "<tt><small>{:%a %Od.%Om} {calendar}</small></tt>",
+        "calendar": {
+            "mode": "month",
+            "mode-mon-col": 3,
+            "weeks-pos": "right",
+            "on-scroll": 1,
+            "format": {
+                "months": "<span color='#ffead3'><b>{}</b></span>",
+                "days": "<span color='#ecc6d9'><b>{}</b></span>",
+                "weeks": "<span color='#99ffdd'><b>W{}</b></span>",
+                "weekdays": "<span color='#ffcc66'><b>{}</b></span>",
+                "today": "<span color='#ff6699'><b><u>{}</u></b></span>"
+            }
+        },
+        "actions": {
+            "on-click-right": "mode",
+            "on-scroll-up": "shift_up",
+            "on-scroll-down": "shift_down"
+        }
+    },
+
+    // --- Power Menu ---
+    "custom/exit": {
+        "format": "",
+        "on-click": "nwg-bar",
+        "tooltip-format": "Power Menu"
     }
-  },
-  // CPU
-  "cpu": {
-    "interval": 1,
-    "format": "  {usage}%",
-    // "on-click": "kitty --class kitty,floating -T floating -e btop --update 1000"
-    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-  },
-  // Memory
-  "memory": {
-    "interval": 1,
-    "format": "/  {}%",
-    "tooltip-format": "Memory: {used}/{total}GiB Used, Swap {swapUsed}/{swapTotal}GiB Used",
-    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-  },
-  "custom/gpu": {
-    "exec": "cat /sys/class/hwmon/hwmon3/device/gpu_busy_percent",
-    "format": " {}% ",
-    "return-type": "",
-    "interval": 1,
-    "tooltip-format": "GPU: {}% Usage",
-    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-  },
-  "temperature#gpu": {
-    "format": " {temperatureC}°C ",
-    "format-critical": "<span color=\"#ed7a2d\">  {temperatureC}°C</span> ",
-    "hwmon-path": "/sys/class/drm/card1/device/hwmon/hwmon3/temp1_input",
-    "interval": 1,
-    "critical-threshold": 90,
-    "tooltip-format": "GPU: {temperatureC}°C Average",
-    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-  },
-  "temperature#cpu": {
-    "format": " {temperatureC}°C ",
-    "format-critical": "<span color=\"#ed7a2d\">  {temperatureC}°C</span> ",
-    "hwmon-path": "/sys/class/hwmon/hwmon4/temp2_input",
-    "interval": 1,
-    "critical-threshold": 90,
-    "tooltip-format": "CPU: {temperatureC}°C Average",
-    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-  },
-  "custom/power": {
-  "exec": "~/.config/waybar/scripts/power.py",
-  "format": "{}",
-  "return-type": "json",
-  "interval": 2,
-  "tooltip": true,
-  "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-  },
-    "custom/cpu_temp": {
-    "exec": "~/.config/waybar/scripts/temp.py cpu",
-    "format": "{}",
-    "return-type": "json",
-    "interval": 2,
-    "tooltip": true,
-    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-  },
-  
-  "custom/gpu_temp": {
-    "exec": "~/.config/waybar/scripts/temp.py gpu",
-    "format": "{}",
-    "return-type": "json",
-    "interval": 2,
-    "tooltip": true,
-    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-  },
-  "custom/cpu_usage": {
-  "exec": "~/.config/waybar/scripts/usage.py cpu",
-  "format": "{}",
-  "return-type": "json",
-  "interval": 2,
-  "tooltip": true,
-  "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-  },
-
-  "custom/gpu_usage": {
-    "exec": "~/.config/waybar/scripts/usage.py gpu",
-    "format": "{}",
-    "return-type": "json",
-    "interval": 2,
-    "tooltip": true,
-    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-  },
-  "custom/memory_usage": {
-    "exec": "~/.config/waybar/scripts/usage.py memory",
-    "format": "{}",
-    "return-type": "json",
-    "interval": 5,
-    "tooltip": true,
-    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-  },
-
-  "custom/combined": {
-    "exec": "~/.config/waybar/scripts/usage.py combined",
-    "format": "{}",
-    "return-type": "json",
-    "interval": 5,
-    "tooltip": true,
-    "on-click": "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop -e btop &"
-  },
-
-  // Internet Connectivity Status
-  "custom/internet_status": {
-    "exec": "~/.config/waybar/scripts/internet_status.py",
-    "format": "{}",
-
-    "return-type": "json",
-    // "interval": 5,
-    "tooltip": true
-  },
-  "group/cpu": {
-    "orientation": "inherit",
-    "drawer": {
-      "transition-duration": 300,
-      "children-class": "not-memory",
-      "transition-left-to-right": true
-    },
-    "modules": [
-      "custom/cpu_usage",
-      "custom/cpu_temp",
-      "custom/power"
-      
-    ]
-  },
-  "group/memgpu": {
-    "orientation": "inherit",
-    "drawer": {
-      "transition-duration": 300,
-      "children-class": "not-memory",
-      "transition-left-to-right": true
-    },
-    "modules": [
-      "custom/memory_usage",
-      "custom/gpu_usage",
-      "custom/gpu_temp"
-    ]
-  },
-  "group/memgpua": {
-    "orientation": "inherit",
-    "drawer": {
-      "transition-duration": 300,
-      "children-class": "not-memory",
-      "transition-left-to-right": true
-    },
-    "modules": [
-      "custom/memory_usage",
-      "group/gpu"
-    ]
-  },
-  "group/combined": {
-    "orientation": "inherit",
-    "drawer": {
-      "transition-duration": 300,
-      "children-class": "not-memory",
-      "transition-left-to-right": true
-    },
-    "modules": [
-      "custom/combined",
-      "custom/cpu_usage",
-      "custom/cpu_temp",
-      "custom/memory_usage",
-      "custom/gpu_usage",
-      "custom/gpu_temp",
-      "custom/power",
-      "custom/internet_status"
-
-    ]
-  },
-
-  "group/mem-inr" : {
-    "orientation": "inherit",
-    "drawer": {
-      "transition-duration": 300,
-      "children-class": "not-memory",
-      "transition-left-to-right": true
-    },
-    "modules": [
-      "custom/memory_usage",
-      "custom/internet_status"
-
-      
-    ]
-  },
-  
-    
-  // Network
-  "network": {
-    "format": "{ifname}",
-    "format-wifi": "   {signalStrength}%",
-    "format-ethernet": "  {ifname}",
-    "format-disconnected": "Disconnected",
-    "tooltip-format": " {ifname} via {gwaddri}",
-    "tooltip-format-wifi": "  {ifname} @ {essid}\nIP: {ipaddr}\nStrength: {signalStrength}%\nFreq: {frequency}MHz\nUp: {bandwidthUpBits} Down: {bandwidthDownBits}",
-    "tooltip-format-ethernet": " {ifname}\nIP: {ipaddr}\n up: {bandwidthUpBits} down: {bandwidthDownBits}",
-    "tooltip-format-disconnected": "Disconnected",
-    "max-length": 50,
-    "on-click": "kitty -c ~/.config/kitty/headless.conf --class floating -e nmtui",
-  },
-  // Wireplumber
-  "pulseaudio": {
-    // "scroll-step": 1, // %, can be a float
-    "format": " {icon} {volume}%",
-    "format-bluetooth": "{volume}% {icon} {format_source}",
-    "format-bluetooth-muted": " {icon} {format_source}",
-    "format-muted": " {format_source}",
-    "format-source": "{volume}% ",
-    "format-source-muted": "",
-    "format-icons": {
-      "headphone": " ",
-      "hands-free": " ",
-      "headset": " ",
-      "phone": " ",
-      "portable": " ",
-      "car": " ",
-      "default": [
-        "",
-        "",
-        "",
-        ""
-      ]
-    },
-    // "on-click": "pavucontrol-qt",
-    "on-click": "pwvucontrol",
-    "on-click-right": "pactl set-sink-mute @DEFAULT_SINK@ toggle",
-    "on-click-middle": "pactl set-source-mute @DEFAULT_SOURCE@ toggle"
-  },
-  // Bluetooth
-  "bluetooth": {
-    "format": " {status}",
-    "format-disabled": "",
-    "format-off": "",
-    "interval": 30,
-    "on-click": "blueman-manager",
-    "format-no-controller": ""
-  },
-  "custom/cava": {
-    "exec": "cava -p ~/.config/cava/config1 | sed -u 's/;//g;s/0/_/g;s/1/▂/g;s/2/▃/g;s/3/▄/g;s/4/▅/g;s/5/▆/g;s/6/▇/g;s/7/█/g;s/8/█/g;s/9/█/g;'"
-  },
-  // System tray
-  "tray": {
-    "show-passive-items": true,
-    "icon-size": 15,
-    "spacing": 6
-  },
-  // Notification
-  "custom/notification": {
-    "format": " {} {icon}",
-    "format-icons": {
-      "notification": "",
-      "none": "",
-      "dnd-notification": "",
-      "dnd-none": "",
-      "inhibited-notification": "",
-      "inhibited-none": "",
-      "dnd-inhibited-notification": "",
-      "dnd-inhibited-none": ""
-    },
-    "return-type": "json",
-    "exec-if": "which swaync-client",
-    "exec": "swaync-client -swb",
-    "on-click": "swaync-client -t -sw",
-    "on-click-right": "swaync-client -d -sw",
-    "tooltip-format": "Open Notifications",
-    "escape": true
-  },
 }
