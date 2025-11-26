@@ -1,4 +1,4 @@
-`#!/bin/bash
+#!/bin/bash
 
 # Define paths
 SSH_CONFIG_FILE="$HOME/.ssh/config"

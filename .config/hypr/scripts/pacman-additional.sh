@@ -32,23 +32,26 @@ echo
 
 configure_pacman_option() {
     local option_name="$1"
-    local regex_check="${2:-#${option_name}}" # Default to check for commented line
-    local sed_uncomment="s/^#${option_name}/${option_name}/"
     local confirmation_prompt="Do you want to activate ${option_name}?"
 
-    if grep -Fxq "${option_name}" /etc/pacman.conf; then
+    # 1. Check if already active (start of line, no #, followed by name, then word boundary or space)
+    if grep -q "^${option_name}\b" /etc/pacman.conf; then
         echo "${option_name} is already activated."
-    elif grep -Fxq "${regex_check}" /etc/pacman.conf; then # Check if it's commented out
+        return
+    fi
+
+    # 2. Check if commented out (start of line, #, optional spaces, name)
+    # We use regex to match lines like "#ParallelDownloads = 5" or "#Color"
+    if grep -q "^#[[:space:]]*${option_name}\b" /etc/pacman.conf; then
         if _gum_confirm "${confirmation_prompt}"; then
-            sudo sed -i "${sed_uncomment}" /etc/pacman.conf
-            echo "${option_name} activated." # Provide success feedback
+            # Uncomment: replace '#Option' or '# Option' with 'Option'
+            # We only replace the leading comment char, preserving the rest of the line (like '= 5')
+            sudo sed -i "s/^#[[:space:]]*${option_name}/${option_name}/" /etc/pacman.conf
+            echo "${option_name} activated."
         else
             echo "Activation of ${option_name} skipped."
         fi
     else
-        # If it's neither active nor commented, maybe add it or inform.
-        # For these specific options (Color, ParallelDownloads, VerbosePkgLists),
-        # they are usually present but commented out.
         echo "WARNING: ${option_name} line not found in pacman.conf. Skipping."
     fi
 }
@@ -58,12 +61,12 @@ configure_pacman_option "Color"
 configure_pacman_option "NoProgressBar"
 configure_pacman_option "VerbosePkgLists"
 
-if grep -Fxq "ILoveCandy" /etc/pacman.conf
-then
+if grep -Fxq "ILoveCandy" /etc/pacman.conf; then
     echo "ILoveCandy is already activated."
 else
-    if _gum_confirm "Do you want to activate ILoveCandy?" ;then
-        sudo sed -i '/^ParallelDownloads = .*/a ILoveCandy' /etc/pacman.conf
+    if _gum_confirm "Do you want to activate ILoveCandy?"; then
+        # Insert after ParallelDownloads, regardless of whether it is commented (#) or not
+        sudo sed -i '/^#\?ParallelDownloads/a ILoveCandy' /etc/pacman.conf
         echo "ILoveCandy activated."
     else
         echo "Activation of ILoveCandy skipped."

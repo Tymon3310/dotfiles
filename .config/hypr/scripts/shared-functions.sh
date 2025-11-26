@@ -15,12 +15,14 @@ _gum_confirm() {
 }
 
 _gum_spin() {
-
+    local title="$1"
+    shift
     if _command_exists gum; then
-        gum spin --spinner dot --title "$1" -- sleep "$2"
+        # Actually run the command passed as arguments
+        gum spin --spinner dot --title "$title" -- "$@"
     else
-        echo "$1"
-        sleep "$2"
+        echo "$title..."
+        "$@"
     fi
 }
 

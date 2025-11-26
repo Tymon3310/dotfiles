@@ -19,7 +19,7 @@ ICON_OFFLINE = "󰲜"
 
 class NetMonitor:
     def __init__(self):
-        self.targets = [("Google", "8.8.8.8", 53), ("Cloudflare", "1.1.1.1", 53)]
+        self.targets = [("Quad9", "9.9.9.9", 53), ("Google", "8.8.8.8", 53), ("Cloudflare", "1.1.1.1", 53), ("AdGuard", "192.168.1.62", 53)]
         self.router = self.get_default_gateway()
         self.check_connectivity()
         GLib.timeout_add_seconds(CHECK_INTERVAL, self.timer_tick)

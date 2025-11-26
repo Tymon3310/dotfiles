@@ -1,4 +1,3 @@
-
 #!/bin/bash
 
 # --- Configuration ---
@@ -157,11 +156,16 @@ find "$DOTFILES_DIR" -maxdepth 1 -type f -name ".*" -not -name ".git" -not -name
 echo "Symlinking contents of $CONFIG_DIR to $TARGET_CONFIG_DIR..."
 if [ -d "$CONFIG_DIR" ]; then
     for item in "$CONFIG_DIR"/*; do
-        if [ -e "$item" ]; then # Check if item exists
-            target_path="$TARGET_CONFIG_DIR/$(basename "$item")"
-            echo "Linking $(basename "$item") -> $target_path"
-            ln -sf "$item" "$target_path"
+        filename=$(basename "$item")
+        target="$TARGET_CONFIG_DIR/$filename"
+
+        if [ -e "$target" ]; then
+            echo "Backing up existing $target..."
+            mv "$target" "$target.bak_$(date +%s)"
         fi
+
+        echo "Linking $filename -> $target"
+        ln -sf "$item" "$target"
     done
 else
     echo "WARNING: $CONFIG_DIR not found in dotfiles repository. No config files linked."

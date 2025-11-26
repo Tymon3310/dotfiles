@@ -51,7 +51,7 @@ def build_version_map():
 
 def fetch_updates():
     """Fetch updates from all sources in parallel."""
-    click.secho(":: Fetching updates...", fg="cyan", bold=True)
+    # We don't print "Fetching..." here anymore because we do it after the sync in main()
     
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future_map = executor.submit(build_version_map)
@@ -79,10 +79,12 @@ def parse_updates(version_map, pac_raw, aur_raw, flat_raw):
                 old_ver = parts[1]
                 new_ver = parts[-1]
                 
-                repo = "core"
+                # Exact Version Match: Find which repo owns 'new_ver'
+                repo = "core" # Default fallback
                 if name in version_map and new_ver in version_map[name]:
                     repo = version_map[name][new_ver]
                 elif name in version_map:
+                    # Fallback: use the first repo found for this package if version mismatch
                     repo = list(version_map[name].values())[0]
 
                 updates.append({"name": name, "old": old_ver, "new": new_ver, "repo": repo})
@@ -115,7 +117,7 @@ def get_category(repo):
     return "Pacman"
 
 def print_summary_box(updates):
-    """Prints a summary box at the top, hiding categories with 0 updates."""
+    """Prints a summary box at the top."""
     pac_len = len([u for u in updates if get_category(u['repo']) == "Pacman"])
     aur_len = len([u for u in updates if get_category(u['repo']) == "AUR"])
     flt_len = len([u for u in updates if get_category(u['repo']) == "Flatpak"])
@@ -127,17 +129,13 @@ def print_summary_box(updates):
     
     if not items: return
 
-    # Box formatting
     width = max(len(i) for i in items) + 4
     
     click.secho("\n╭" + "─" * width + "╮", fg="bright_white", bold=True)
     for item in items:
-        # Simple alignment
         text = item.ljust(width - 4)
         click.secho("│  ", fg="bright_white", bold=True, nl=False)
         
-        # Colorize the count part if possible, but splitting by color is tricky 
-        # inside a box. Keep it clean white/bold for now or use category color.
         if "Pacman" in item: col = "blue"
         elif "AUR" in item: col = "cyan"
         else: col = "magenta"
@@ -146,16 +144,21 @@ def print_summary_box(updates):
         click.secho("  │", fg="bright_white", bold=True)
     click.secho("╰" + "─" * width + "╯", fg="bright_white", bold=True)
 
-
 @click.command()
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation and update all")
 def main(yes):
+    # 1. Sync Databases First (Fixes incorrect repo tagging)
     try:
-        subprocess.run(["sudo", "-v"], check=True)
+        # This refreshes the local DB so pacman -Sl is accurate
+        click.secho(":: Synchronizing package databases...", fg="cyan", bold=True)
+        subprocess.run(["sudo", "pacman", "-Sy"], check=True)
+        print("") # Newline for cleanliness
     except subprocess.CalledProcessError:
-        click.secho("Authentication failed.", fg="red")
+        click.secho("Authentication failed or sync error.", fg="red")
         sys.exit(1)
 
+    # 2. Fetch Updates (Now using fresh DB)
+    click.secho(":: Fetching updates...", fg="cyan", bold=True)
     version_map, pac, aur, flat = fetch_updates()
     all_updates = parse_updates(version_map, pac, aur, flat)
     
@@ -165,14 +168,14 @@ def main(yes):
 
     click.clear()
     
-    # 1. Print Summary Box
+    # 3. Print Summary
     print_summary_box(all_updates)
     
     max_name = max(len(u["name"]) for u in all_updates)
     idx_width = len(str(len(all_updates))) 
     prev_cat = None
     
-    # 2. Print List
+    # 4. Print List
     for idx, u in enumerate(all_updates, 1):
         cat = get_category(u["repo"])
         if cat != prev_cat:
@@ -196,7 +199,7 @@ def main(yes):
         
         click.echo(f"{idx_str} {repo_str:<3}  {name_str}  {ver_str}")
 
-    # 3. Selection
+    # 5. Interactive Selection
     updates_to_run = list(all_updates)
     ignored_names = []
 
@@ -230,9 +233,11 @@ def main(yes):
             click.secho("Aborted.", fg="red")
             sys.exit(0)
 
+    # 6. Execution
     sys_pkg_names = [u["name"] for u in updates_to_run if u["repo"] != "flatpak"]
     
     if sys_pkg_names or ignored_names:
+        # yay -Syu will see the fresh sync we just did, so it won't redownload DBs unnecessarily
         cmd = ["yay", "-Syu", "--noconfirm"]
         
         if ignored_names:

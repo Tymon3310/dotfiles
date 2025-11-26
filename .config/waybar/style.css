@@ -66,6 +66,10 @@ tooltip label {
     color: alpha(@color1, .4);
 }
 
+#workspaces button.empty.active {
+    color: @color1;
+}
+
 /* -----------------------------------------------------
  * Common Module Styling
  * ----------------------------------------------------- */

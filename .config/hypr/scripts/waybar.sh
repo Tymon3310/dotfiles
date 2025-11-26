@@ -1,44 +1,27 @@
 #!/bin/bash
-hyprctl seterror disable
-# Kill any existing waybar processes
+
+# Kill existing instances and wait for them to exit
 killall waybar 2>/dev/null
+while pgrep -x waybar >/dev/null; do sleep 1; done
 
-# Try to start waybar and capture any errors
-ERROR_LOG=$(waybar 2>&1)
-EXIT_CODE=$?
+# Start waybar in background, redirect logs to a file or journal
+waybar > /tmp/waybar.log 2>&1 &
+WAYBAR_PID=$!
 
-# If waybar failed to start, notify the user with the error
-if [ $EXIT_CODE -ne 0 ]; then
-    # Check if the output (stored in ERROR_LOG) actually contains an "[error]" marker
-    if echo "$ERROR_LOG" | grep -q "\\[error\\]"; then
-        # Genuine error based on Waybar's output
-        # Filter ERROR_LOG to only include lines with "[error]"
-        DISPLAY_ERROR=$(echo "$ERROR_LOG" | grep "\\[error\\]")
+# Wait a second to see if it crashes immediately
+sleep 1
 
-        echo "Waybar failed to start with error: $DISPLAY_ERROR" >&2
-
-        # Send notification with the (potentially trimmed) error
-        # notify-send --urgency=critical "Waybar Error" "$DISPLAY_ERROR"
-
-        # Log the full, original error to journalctl
-        echo "Waybar failed to start (output contained '[error]'): $ERROR_LOG" >&2
-
-        # Set Hyprland error display with the (potentially trimmed) error
-        hyprctl seterror 'rgba(ee6666ff)' "Waybar Error: $DISPLAY_ERROR"
-
-        exit 1 # Critical error, exit script with error status
-    else
-        # Waybar exited non-zero, but no "[error]" in its output.
-        # Treat as operational per user's problem description.
-        echo "Waybar exited with status $EXIT_CODE. Output did not contain '[error]'. Assuming operational." >&2
-        echo "Full Waybar output for diagnostics: $ERROR_LOG" >&2
-        hyprctl seterror disable # Clear any previous Hyprland error state
-        # Script will continue and exit 0 normally
+if ! ps -p $WAYBAR_PID > /dev/null; then
+    # Double check if waybar is running (in case of PID change)
+    if pgrep -x waybar >/dev/null; then
+        hyprctl seterror disable
+        exit 0
     fi
+    # It crashed
+    echo "Waybar failed to start!"
+    cat /tmp/waybar.log
+    hyprctl seterror 'rgba(ee6666ff)' "Waybar Crashed"
+    exit 1
 else
-    # Waybar exited with 0 (success)
-    # Clear any previous errors when Waybar starts successfully
     hyprctl seterror disable
-fi``
-
-exit 0
+fi

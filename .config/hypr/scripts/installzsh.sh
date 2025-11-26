@@ -36,11 +36,23 @@ echo
 # -----------------------------------------------------
 # Change shell to zsh
 
-while ! chsh -s $(which zsh); do
-  echo "ERROR: Authentication failed. Please enter the correct password."
-  sleep 1
-done
-echo "Shell is now zsh."
+if [ "$SHELL" != "$(which zsh)" ]; then
+    echo "Changing default shell to zsh..."
+    # Try up to 3 times
+    for i in {1..3}; do
+        if chsh -s "$(which zsh)"; then
+            echo "Shell changed successfully."
+            break
+        else
+            echo "Password incorrect or chsh failed. Attempt $i/3."
+            if [ $i -eq 3 ]; then
+                echo "Failed to change shell. You may need to do this manually: chsh -s $(which zsh)"
+            fi
+        fi
+    done
+else
+    echo "Shell is already zsh."
+fi
 
 # Installing oh-my-posh
 yay -S --needed oh-my-posh-bin
