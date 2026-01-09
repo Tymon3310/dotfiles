@@ -196,16 +196,16 @@ class SystemMonitor:
         top_procs = self.get_top_mem_procs()
 
         if mem.percent > 90:
-            text = f" <span color='{CRITICAL_COLOR}'>{mem.percent}%</span>"
+            text = f"<span color='{CRITICAL_COLOR}'>{mem.percent}%</span>"
             css = "critical"
         elif mem.percent > 70:
-            text = f" <span color='{WARNING_COLOR}'>{mem.percent}%</span>"
+            text = f"<span color='{WARNING_COLOR}'>{mem.percent}%</span>"
             css = "high"
         else:
-            text = f" {mem.percent}%"
+            text = f"{mem.percent}%"
             css = "normal"
 
-        tt = f"<span color='{PRIMARY_COLOR}'> RAM Usage: {mem.percent}%</span>\n"
+        tt = f"<span color='{PRIMARY_COLOR}'>RAM Usage: {mem.percent}%</span>\n"
         tt += f" ├─ Used: {mem.used/1024/1024/1024:.1f}GiB\n"
         tt += f" └─ Total: {mem.total/1024/1024/1024:.1f}GiB\n"
         if swap.total > 0:

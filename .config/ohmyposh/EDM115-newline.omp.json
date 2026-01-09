@@ -6,8 +6,7 @@
     "background": "transparent"
   },
   "transient_prompt": {
-    // "template": "   ❯❯ {{ .AbsolutePWD }}\n    ❯ ",
-    "template": "╰─❯ ",
+    "template": "\u2570\u2500❯ ",
     "foreground": "#ffffff",
     "background": "transparent",
     "newline": true
@@ -18,7 +17,7 @@
       "alignment": "left",
       "segments": [
         {
-          "properties": {
+          "options": {
             "cache_duration": "none"
           },
           "template": "\u256d\u2500",
@@ -27,7 +26,7 @@
           "style": "plain"
         },
         {
-          "properties": {
+          "options": {
             "cache_duration": "none"
           },
           "leading_diamond": "\ue0b6",
@@ -38,7 +37,7 @@
           "style": "diamond"
         },
         {
-          "properties": {
+          "options": {
             "cache_duration": "none"
           },
           "template": "\udb85\udc0b",
@@ -49,7 +48,7 @@
           "style": "powerline"
         },
         {
-          "properties": {
+          "options": {
             "cache_duration": "none"
           },
           "template": "{{ .Icon }} ",
@@ -60,7 +59,7 @@
           "style": "powerline"
         },
         {
-          "properties": {
+          "options": {
             "cache_duration": "none",
             "style": "full"
           },
@@ -78,7 +77,7 @@
       "alignment": "right",
       "segments": [
         {
-          "properties": {
+          "options": {
             "cache_duration": "none",
             "time_format": "15:04:05"
           },
@@ -90,7 +89,7 @@
           "style": "diamond"
         },
         {
-          "properties": {
+          "options": {
             "always_enabled": true,
             "cache_duration": "none",
             "style": "austin",
@@ -104,7 +103,7 @@
           "style": "diamond"
         },
         {
-          "properties": {
+          "options": {
             "branch_icon": "",
             "cache_duration": "none",
             "display_changing_color": true,
@@ -130,7 +129,7 @@
           "style": "diamond"
         },
         {
-          "properties": {
+          "options": {
             "display_mode": "files",
             "extensions": [
               "package-lock.json"
@@ -145,7 +144,7 @@
           "style": "diamond"
         },
         {
-          "properties": {
+          "options": {
             "display_mode": "files",
             "extensions": [
               "pnpm-lock.yaml"
@@ -160,7 +159,7 @@
           "style": "diamond"
         },
         {
-          "properties": {
+          "options": {
             "display_mode": "files"
           },
           "leading_diamond": "\ue0b6",
@@ -205,11 +204,11 @@
       "alignment": "left",
       "segments": [
         {
-          "properties": {
+          "options": {
             "always_enabled": true,
             "cache_duration": "none"
           },
-          "template": "╰─❯",
+          "template": "\u2570\u2500❯",
           "foreground": "#ffffff",
           "type": "text",
           "style": "diamond"
@@ -218,7 +217,7 @@
       "newline": true
     }
   ],
-  "version": 3,
-  "patch_pwsh_bleed": true,
-  "final_space": true
+  "version": 4,
+  "final_space": true,
+  "patch_pwsh_bleed": true
 }

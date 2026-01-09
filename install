@@ -28,7 +28,6 @@ ttf-material-design-icons-git
 ttf-monaspace-variable
 xdg-desktop-portal-hyprland
 xdg-desktop-portal-kde
-xdg-desktop-portal-gtk
 xdg-desktop-portal-wlr
 libnotify
 swaync
@@ -47,8 +46,6 @@ python-screeninfo
 python-psutil
 tumbler
 brightnessctl
-nm-connection-editor
-network-manager-applet
 gtk3
 gtk4
 libadwaita
@@ -64,11 +61,7 @@ blueman
 hyprshot
 hyprpicker
 cliphist
-nwg-look
-qt6ct-kde
-rofi-wayland
 hyprpolkitagent
-papirus-icon-theme
 breeze
 breeze-plus
 gvfs
@@ -100,10 +93,12 @@ pipes.c
 asciiquarium
 donut.c
 cbonsai
-sherlock-launcher-bin
 flatpak
 vicinae-bin
 cpio
 cmake
 zoxide
 uv
+hyprqt6engine
+ttf-google-sans
+ttf-google-sans-code-nf
