@@ -35,10 +35,6 @@
     "volume": {
       "label": "   "
     },
-    "label": {
-      "max-lines": 1,
-      "text": " "
-    },
     "mpris": {
       "image-size": 60,
       "image-radius": 12
