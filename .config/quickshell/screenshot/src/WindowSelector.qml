@@ -37,10 +37,9 @@ Item {
     property string windowClass: ""
     property var hoveredWindow: null  // In GLOBAL coords
 
-    Behavior on selectionX { SpringAnimation { spring: 4; damping: 0.4 } }
-    Behavior on selectionY { SpringAnimation { spring: 4; damping: 0.4 } }
-    Behavior on selectionHeight { SpringAnimation { spring: 4; damping: 0.4 } }
-    Behavior on selectionWidth { SpringAnimation { spring: 4; damping: 0.4 } }
+
+
+    // Removed SpringAnimations for instant responsiveness
 
     // Check if a window (in global coords) is selected
     function isWindowSelectedGlobal(windowInfo) {

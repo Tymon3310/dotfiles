@@ -16,6 +16,16 @@ Scope {
     property bool saveToDisk: true
     property string mode: "region"
     property bool ready: false
+    property bool uiReady: false
+    property var pendingAction: null
+    property bool processing: false
+    property bool showLoading: false
+    
+    Timer {
+        interval: 150
+        running: true
+        onTriggered: root.showLoading = true
+    }
     property var modes: [
         { mode: "region", icon: "region", label: "Region" },
         { mode: "window", icon: "window", label: "Window" },
@@ -74,6 +84,7 @@ Scope {
     }
 
     Component.onCompleted: {
+        root.uiReady = true
         const timestamp = Date.now()
         tempPath = Quickshell.cachePath(`screenshot-${timestamp}.png`)
         // Capture all monitors into one image
@@ -192,12 +203,37 @@ Scope {
     }
 
     onReadyChanged: {
-        if (ready && tempPath) {
-            startQRScan()
+        if (ready) {
+            if (pendingAction) {
+                root.processing = true
+                root.processScreenshot(
+                    pendingAction.x,
+                    pendingAction.y,
+                    pendingAction.width,
+                    pendingAction.height,
+                    pendingAction.openEditor
+                )
+                root.pendingAction = null
+                root.processing = false
+            } else if (tempPath) {
+                startQRScan()
+            }
         }
     }
 
     function processScreenshot(x, y, width, height, openEditor) {
+        if (!root.ready) {
+            root.pendingAction = {
+                x: x,
+                y: y,
+                width: width,
+                height: height,
+                openEditor: openEditor
+            }
+            root.processing = true
+            return
+        }
+
         // Handle stitching if multiple items selected
         if (selectedWindows.length > 0 || selectedScreens.length > 0) {
             var items = []
@@ -365,7 +401,7 @@ Scope {
             id: freezeWindow
             required property var modelData
             
-            visible: root.ready
+            visible: root.uiReady
             targetScreen: modelData
 
             property real screenX: modelData.x
@@ -377,6 +413,50 @@ Scope {
                 onActivated: () => {
                     root.cleanup()
                     Qt.quit()
+                }
+            }
+
+            Rectangle {
+                id: loadingIndicator
+                anchors.centerIn: parent
+                width: 120
+                height: 36
+                radius: 18
+                color: Qt.rgba(0.1, 0.1, 0.1, 0.9)
+                border.color: Qt.rgba(1, 1, 1, 0.2)
+                border.width: 1
+                visible: root.processing || (!root.ready && root.showLoading)
+                z: 100
+
+                Row {
+                    anchors.centerIn: parent
+                    spacing: 8
+
+                    Rectangle {
+                        width: 12
+                        height: 12
+                        color: "transparent"
+                        border.color: Qt.rgba(0.4, 0.8, 1.0, 1)
+                        border.width: 2
+                        radius: 6
+                        
+                        RotationAnimation on rotation {
+                            from: 0; to: 360; duration: 1000; loops: Animation.Infinite; running: loadingIndicator.visible
+                        }
+                        
+                        Rectangle {
+                            width: 4; height: 4; radius: 2; color: Qt.rgba(0.4, 0.8, 1.0, 1)
+                            anchors.top: parent.top
+                            anchors.horizontalCenter: parent.horizontalCenter
+                        }
+                    }
+
+                    Text {
+                        text: root.processing ? "Processing..." : "Initializing..."
+                        color: "white"
+                        font.pixelSize: 12
+                        font.weight: Font.Medium
+                    }
                 }
             }
 
