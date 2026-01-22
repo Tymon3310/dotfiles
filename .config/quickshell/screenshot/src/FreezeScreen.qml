@@ -10,7 +10,7 @@ PanelWindow {
     property bool frozen: false
 
     Timer {
-        interval: 100
+        interval: 20
         running: true
         repeat: false
         onTriggered: {
@@ -33,22 +33,28 @@ PanelWindow {
 
     color: "transparent"
 
-    OpacityAnimator {
-        target: root
-        from: 0
-        to: 1
-        duration: 150
-        running: true
-    }
-
-    exclusionMode: ExclusionMode.Exclude
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+    // exclusionMode: ExclusionMode.Exclude // Causes undefined warning, handled by visibility race for now
 
-    ScreencopyView {
-        captureSource: root.targetScreen
-        enabled: !root.frozen
+    Item {
+        id: contentContainer
         anchors.fill: parent
-        z: -1
+        opacity: 0
+
+        OpacityAnimator {
+            target: contentContainer
+            from: 0
+            to: 1
+            duration: 150
+            running: true
+        }
+
+        ScreencopyView {
+            captureSource: root.targetScreen
+            enabled: !root.frozen
+            anchors.fill: parent
+            z: -1
+        }
     }
 }

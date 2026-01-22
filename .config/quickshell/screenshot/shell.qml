@@ -19,13 +19,6 @@ Scope {
     property bool uiReady: false
     property var pendingAction: null
     property bool processing: false
-    property bool showLoading: false
-    
-    Timer {
-        interval: 150
-        running: true
-        onTriggered: root.showLoading = true
-    }
     property var modes: [
         { mode: "region", icon: "region", label: "Region" },
         { mode: "window", icon: "window", label: "Window" },
@@ -88,7 +81,7 @@ Scope {
         const timestamp = Date.now()
         tempPath = Quickshell.cachePath(`screenshot-${timestamp}.png`)
         // Capture all monitors into one image
-        captureProcess.command = ["grim", tempPath]
+        captureProcess.command = ["grim", "-l", "0", tempPath]
         captureProcess.running = true
     }
 
@@ -140,11 +133,14 @@ Scope {
         if (cropPath) Quickshell.execDetached(["rm", "-f", cropPath])
     }
 
+    Component.onDestruction: cleanup()
+
     Process {
         id: screenshotProcess
         running: false
 
         onExited: function() {
+            root.cleanup()
             Qt.quit()
         }
 
@@ -202,6 +198,8 @@ Scope {
         qrScanProcess.running = true
     }
 
+
+
     onReadyChanged: {
         if (ready) {
             if (pendingAction) {
@@ -233,7 +231,6 @@ Scope {
             root.processing = true
             return
         }
-
         // Handle stitching if multiple items selected
         if (selectedWindows.length > 0 || selectedScreens.length > 0) {
             var items = []
@@ -249,7 +246,6 @@ Scope {
             } else if (selectedScreens.length > 0) {
                 for (var i = 0; i < selectedScreens.length; i++) {
                     var name = selectedScreens[i]
-                    // Find screen object
                     for (var s = 0; s < Quickshell.screens.length; s++) {
                         if (Quickshell.screens[s].name === name) {
                             var scr = Quickshell.screens[s]
@@ -277,7 +273,6 @@ Scope {
                 y = minY
                 width = maxX - minX
                 height = maxY - minY
-                
                 // If we are just saving/copying, use stitching. For AI/OCR/Lens, use bounding box.
                 // Actually, stitching is better for visuals, bounding box better for context.
                 // Let's implement stitching for standard save/copy mode
@@ -386,13 +381,14 @@ Scope {
             const outputPath = root.saveToDisk ? `${picturesDir}/screenshot-${timestamp}.png` : tempPath
 
             screenshotProcess.command = ["sh", "-c",
-                `magick "${tempPath}" -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} "${outputPath}" && ` +
+                `magick "${tempPath}" -define png:compression-level=1 -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} "${outputPath}" && ` +
                 `wl-copy < "${outputPath}" && ` +
                 `rm "${tempPath}"`
             ]
             screenshotProcess.running = true
         }
     }
+
 
     Variants {
         model: Quickshell.screens
@@ -416,49 +412,7 @@ Scope {
                 }
             }
 
-            Rectangle {
-                id: loadingIndicator
-                anchors.centerIn: parent
-                width: 120
-                height: 36
-                radius: 18
-                color: Qt.rgba(0.1, 0.1, 0.1, 0.9)
-                border.color: Qt.rgba(1, 1, 1, 0.2)
-                border.width: 1
-                visible: root.processing || (!root.ready && root.showLoading)
-                z: 100
 
-                Row {
-                    anchors.centerIn: parent
-                    spacing: 8
-
-                    Rectangle {
-                        width: 12
-                        height: 12
-                        color: "transparent"
-                        border.color: Qt.rgba(0.4, 0.8, 1.0, 1)
-                        border.width: 2
-                        radius: 6
-                        
-                        RotationAnimation on rotation {
-                            from: 0; to: 360; duration: 1000; loops: Animation.Infinite; running: loadingIndicator.visible
-                        }
-                        
-                        Rectangle {
-                            width: 4; height: 4; radius: 2; color: Qt.rgba(0.4, 0.8, 1.0, 1)
-                            anchors.top: parent.top
-                            anchors.horizontalCenter: parent.horizontalCenter
-                        }
-                    }
-
-                    Text {
-                        text: root.processing ? "Processing..." : "Initializing..."
-                        color: "white"
-                        font.pixelSize: 12
-                        font.weight: Font.Medium
-                    }
-                }
-            }
 
             // Region/OCR/Lens/AI selector with cross-screen support
             Item {
@@ -504,7 +458,7 @@ Scope {
                     property real dimOpacity: 0.6
                     property vector2d screenSize: Qt.vector2d(parent.width, parent.height)
                     property real borderRadius: 10.0
-                    property real outlineThickness: 2.0
+                    property real outlineThickness: (crossScreenSelector.clampedWidth > 1 && crossScreenSelector.clampedHeight > 1) ? 2.0 : 0.0
 
                     fragmentShader: Qt.resolvedUrl("shaders/dimming.frag.qsb")
                 }
@@ -524,7 +478,7 @@ Scope {
                         ctx.lineWidth = 1;
                         ctx.setLineDash([5, 5]);
 
-                        if (!root.isSelecting) {
+                        if (!root.isSelecting && regionMouseArea.containsMouse) {
                             // Crosshair at mouse cursor
                             ctx.moveTo(crossScreenSelector.mouseX, 0);
                             ctx.lineTo(crossScreenSelector.mouseX, height);
@@ -548,6 +502,7 @@ Scope {
                 }
 
                 MouseArea {
+                    id: regionMouseArea
                     anchors.fill: parent
                     z: 3
                     hoverEnabled: true
@@ -824,7 +779,7 @@ Scope {
 
             // Control Bar (only on primary/first screen)
             WrapperRectangle {
-                visible: freezeWindow.modelData === Quickshell.screens[0]
+                visible: freezeWindow.modelData.name === Hyprland.focusedMonitor.name
                 z: 10
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom
