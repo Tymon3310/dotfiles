@@ -21,6 +21,9 @@ Item {
     property real mouseX: 0
     property real mouseY: 0
 
+    // Is currently dragging
+    property bool isDragging: false
+
     // Redraw guides when anything moves
     onSelectionXChanged: guides.requestPaint()
     onSelectionYChanged: guides.requestPaint()
@@ -84,6 +87,27 @@ Item {
         }
     }
 
+    // Dimensions display while dragging
+    Rectangle {
+        visible: root.isDragging && root.selectionWidth > 20 && root.selectionHeight > 20
+        x: root.selectionX + (root.selectionWidth - width) / 2
+        y: root.selectionY + (root.selectionHeight - height) / 2
+        width: dimensionsText.width + 24
+        height: dimensionsText.height + 12
+        radius: 6
+        color: Qt.rgba(0.1, 0.1, 0.1, 0.85)
+        z: 4
+
+        Text {
+            id: dimensionsText
+            anchors.centerIn: parent
+            text: Math.round(root.selectionWidth) + " × " + Math.round(root.selectionHeight)
+            color: "white"
+            font.pixelSize: 14
+            font.weight: Font.Medium
+        }
+    }
+
     MouseArea {
         id: mouseArea
         anchors.fill: parent
@@ -97,6 +121,7 @@ Item {
             root.selectionY = mouse.y
             root.selectionWidth = 0
             root.selectionHeight = 0
+            root.isDragging = true
         }
 
         onPositionChanged: (mouse) => {
@@ -112,6 +137,7 @@ Item {
         }
 
         onReleased: {
+            root.isDragging = false
             root.regionSelected(
                 Math.round(root.selectionX),
                 Math.round(root.selectionY),

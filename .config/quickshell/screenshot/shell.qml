@@ -27,6 +27,9 @@ Scope {
     property string aiPrompt: "Briefly describe this image in 2-3 sentences."
     property bool shiftHeld: false
 
+    // QR code detection for lens mode
+    property var detectedQRCodes: []  // Array of {x, y, width, height, data} in image coords
+
     // Calculate the minimum x/y offset across all screens
     // grim's combined output starts at (0,0) for the top-left of the bounding box
     property real minScreenX: {
@@ -50,6 +53,11 @@ Scope {
     property real globalStartY: 0
     property real globalEndX: 0
     property real globalEndY: 0
+    
+    // Multi-selection state
+    property var selectedWindows: [] // Array of window objects (address, x, y, width, height)
+    property var selectedScreens: [] // Array of screen names
+    property int windowMultiSelectCount: 0
 
     // Computed selection rect (normalized)
     property real selectionX: Math.min(globalStartX, globalEndX)
@@ -57,20 +65,63 @@ Scope {
     property real selectionWidth: Math.abs(globalEndX - globalStartX)
     property real selectionHeight: Math.abs(globalEndY - globalStartY)
 
+    Process {
+        id: captureProcess
+        running: false
+        onExited: {
+            root.ready = true
+        }
+    }
+
     Component.onCompleted: {
         const timestamp = Date.now()
         tempPath = Quickshell.cachePath(`screenshot-${timestamp}.png`)
         // Capture all monitors into one image
-        Quickshell.execDetached(["grim", tempPath])
-        showTimer.start()
+        captureProcess.command = ["grim", tempPath]
+        captureProcess.running = true
     }
 
-    Timer {
-        id: showTimer
-        interval: 100
-        running: false
-        repeat: false
-        onTriggered: root.ready = true
+    function toggleWindowSelection(win) {
+        let index = -1
+        for (let i = 0; i < selectedWindows.length; i++) {
+            if (selectedWindows[i].address === win.address) {
+                index = i
+                break
+            }
+        }
+        
+        // Create a copy of the array to ensure change detection works
+        let newSelection = []
+        for (let i = 0; i < selectedWindows.length; i++) {
+            newSelection.push(selectedWindows[i])
+        }
+
+        if (index !== -1) {
+            newSelection.splice(index, 1)
+        } else {
+            newSelection.push(win)
+        }
+        
+        selectedWindows = newSelection
+        windowMultiSelectCount = selectedWindows.length
+    }
+
+    function toggleScreenSelection(screenName) {
+        let index = selectedScreens.indexOf(screenName)
+        
+        // Copy array
+        let newSelection = []
+        for (let i = 0; i < selectedScreens.length; i++) {
+            newSelection.push(selectedScreens[i])
+        }
+        
+        if (index !== -1) {
+            newSelection.splice(index, 1)
+        } else {
+            newSelection.push(screenName)
+        }
+        
+        selectedScreens = newSelection
     }
 
     function cleanup() {
@@ -82,7 +133,7 @@ Scope {
         id: screenshotProcess
         running: false
 
-        onExited: () => {
+        onExited: function() {
             Qt.quit()
         }
 
@@ -94,7 +145,144 @@ Scope {
         }
     }
 
+    // QR code detection process
+    Process {
+        id: qrScanProcess
+        running: false
+
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var output = this.text.trim()
+                if (!output) {
+                    root.detectedQRCodes = []
+                    return
+                }
+                var codes = []
+                var lines = output.split('\n')
+                for (var i = 0; i < lines.length; i++) {
+                    var line = lines[i].trim()
+                    if (!line) continue
+                    var parts = line.split('|')
+                    if (parts.length >= 5) {
+                        codes.push({
+                            x: parseInt(parts[0]),
+                            y: parseInt(parts[1]),
+                            width: parseInt(parts[2]),
+                            height: parseInt(parts[3]),
+                            data: parts.slice(4).join('|')
+                        })
+                    }
+                }
+                root.detectedQRCodes = codes
+            }
+        }
+        stderr: StdioCollector {
+            onStreamFinished: {
+                if (this.text.trim()) console.log("QR scan stderr:", this.text)
+            }
+        }
+    }
+
+    function startQRScan() {
+        if (!tempPath) return
+        var parserScript = Quickshell.shellPath("qr_parse.py")
+        var cmd = "/usr/bin/zbarimg --set qrcode.enable=1 -q --xml '" + tempPath + "' | /usr/bin/python3 '" + parserScript + "'"
+        qrScanProcess.command = ["sh", "-c", cmd]
+        qrScanProcess.running = true
+    }
+
+    onReadyChanged: {
+        if (ready && tempPath) {
+            startQRScan()
+        }
+    }
+
     function processScreenshot(x, y, width, height, openEditor) {
+        // Handle stitching if multiple items selected
+        if (selectedWindows.length > 0 || selectedScreens.length > 0) {
+            var items = []
+            
+            // Collect all regions to stitch
+            if (selectedWindows.length > 0) {
+                for (var i = 0; i < selectedWindows.length; i++) {
+                    var w = selectedWindows[i]
+                    items.push({
+                        x: w.x, y: w.y, width: w.width, height: w.height
+                    })
+                }
+            } else if (selectedScreens.length > 0) {
+                for (var i = 0; i < selectedScreens.length; i++) {
+                    var name = selectedScreens[i]
+                    // Find screen object
+                    for (var s = 0; s < Quickshell.screens.length; s++) {
+                        if (Quickshell.screens[s].name === name) {
+                            var scr = Quickshell.screens[s]
+                            items.push({
+                                x: scr.x, y: scr.y, width: scr.width, height: scr.height
+                            })
+                            break
+                        }
+                    }
+                }
+            }
+
+            if (items.length > 0) {
+                // Calculate bounding box of all items
+                var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+                for (var i = 0; i < items.length; i++) {
+                    minX = Math.min(minX, items[i].x)
+                    minY = Math.min(minY, items[i].y)
+                    maxX = Math.max(maxX, items[i].x + items[i].width)
+                    maxY = Math.max(maxY, items[i].y + items[i].height)
+                }
+
+                // override input arguments with bounding box
+                x = minX
+                y = minY
+                width = maxX - minX
+                height = maxY - minY
+                
+                // If we are just saving/copying, use stitching. For AI/OCR/Lens, use bounding box.
+                // Actually, stitching is better for visuals, bounding box better for context.
+                // Let's implement stitching for standard save/copy mode
+                if (mode !== "ai" && mode !== "ocr" && mode !== "lens") {
+                     const picturesDir = Quickshell.env("SCREENSHOT_DIR") || Quickshell.env("XDG_SCREENSHOTS_DIR") || Quickshell.env("XDG_PICTURES_DIR") || (Quickshell.env("HOME") + "/Pictures")
+                    const now = new Date()
+                    const timestamp = Qt.formatDateTime(now, "yyyy-MM-dd_hh-mm-ss")
+                    const outputPath = root.saveToDisk ? `${picturesDir}/screenshot-${timestamp}.png` : tempPath
+                    
+                    // Build magick command
+                    // Start with empty canvas
+                    var cmd = `magick -size ${width}x${height} xc:none `
+                    
+                    for (var i = 0; i < items.length; i++) {
+                        var item = items[i]
+                        var cropX = Math.round(item.x - root.minScreenX)
+                        var cropY = Math.round(item.y - root.minScreenY)
+                        var destX = Math.round(item.x - minX)
+                        var destY = Math.round(item.y - minY)
+                        
+                        cmd += `\\( "${tempPath}" -crop ${item.width}x${item.height}+${cropX}+${cropY} +repage \\) -geometry +${destX}+${destY} -composite `
+                    }
+                    
+                    cmd += `"${outputPath}" && wl-copy < "${outputPath}" && rm "${tempPath}"`
+                    
+                    // If editor requested
+                     if (openEditor) {
+                        const cropPath = Quickshell.cachePath(`screenshot-crop-${Date.now()}.png`)
+                        // Rewrite command to output to cropPath instead
+                        cmd = cmd.replace(`"${outputPath}" &&`, `"${cropPath}" && satty --filename "${cropPath}" &&`)
+                    }
+                    
+                    root.ready = false
+                    screenshotProcess.command = ["sh", "-c", cmd]
+                    screenshotProcess.running = true
+                    return
+                }
+            }
+        }
+
+        // Standard single region logic below...
         // Ignore tiny accidental drags
         if (width < 10 || height < 10) return
 
@@ -319,18 +507,142 @@ Scope {
                         )
                     }
                 }
+
+                // QR Code overlays - visible in lens mode
+                Repeater {
+                    model: root.mode === "lens" ? root.detectedQRCodes : []
+
+                    Rectangle {
+                        id: qrOverlay
+                        required property var modelData
+                        required property int index
+
+                        // Convert image coordinates to local screen coordinates
+                        property real imgX: modelData.x + root.minScreenX
+                        property real imgY: modelData.y + root.minScreenY
+                        property real localX: imgX - freezeWindow.screenX
+                        property real localY: imgY - freezeWindow.screenY
+
+                        // Only show if QR code is on this screen
+                        visible: localX + modelData.width > 0 && localX < freezeWindow.modelData.width &&
+                                 localY + modelData.height > 0 && localY < freezeWindow.modelData.height
+
+                        x: localX - 8
+                        y: localY - 8
+                        width: modelData.width + 16
+                        height: modelData.height + 16
+                        radius: 8
+                        color: qrMouseArea.containsMouse ? Qt.rgba(0.2, 0.6, 1.0, 0.3) : Qt.rgba(0.2, 0.6, 1.0, 0.15)
+                        border.color: Qt.rgba(0.3, 0.7, 1.0, 0.9)
+                        border.width: 2
+                        z: 5
+
+                        Behavior on color { ColorAnimation { duration: 100 } }
+
+                        // QR icon badge
+                        Rectangle {
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.margins: -6
+                            width: 28
+                            height: 28
+                            radius: 14
+                            color: Qt.rgba(0.2, 0.5, 0.9, 0.95)
+
+                            Image {
+                                anchors.centerIn: parent
+                                width: 16
+                                height: 16
+                                sourceSize: Qt.size(64, 64)
+                                source: Quickshell.shellPath("icons/qr.svg")
+                                fillMode: Image.PreserveAspectFit
+                            }
+                        }
+
+                        // Data preview tooltip
+                        Rectangle {
+                            visible: qrMouseArea.containsMouse
+                            anchors.top: parent.bottom
+                            anchors.left: parent.left
+                            anchors.topMargin: 8
+                            width: qrDataColumn.width + 24
+                            height: qrDataColumn.height + 12
+                            radius: 6
+                            color: Qt.rgba(0.1, 0.1, 0.1, 0.95)
+                            z: 10
+
+                            Column {
+                                id: qrDataColumn
+                                anchors.centerIn: parent
+                                spacing: 2
+
+                                Text {
+                                    text: qrOverlay.modelData.data.length > 60 
+                                        ? qrOverlay.modelData.data.substring(0, 60) + "..." 
+                                        : qrOverlay.modelData.data
+                                    color: "white"
+                                    font.pixelSize: 12
+                                }
+
+                                Text {
+                                    text: "Click to copy" + (qrOverlay.modelData.data.indexOf("http") === 0 ? " & open" : "")
+                                    color: Qt.rgba(0.5, 0.8, 1.0, 0.7)
+                                    font.pixelSize: 10
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: qrMouseArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            z: 10
+
+                            onClicked: {
+                                var data = qrOverlay.modelData.data
+                                var isUrl = data.indexOf("http://") === 0 || data.indexOf("https://") === 0
+                                var cmd = isUrl
+                                    ? "printf '%s' '" + data.replace(/'/g, "'\"'\"'") + "' | wl-copy && notify-send 'QR Code' 'Copied & opening...' && xdg-open '" + data.replace(/'/g, "'\"'\"'") + "'"
+                                    : "printf '%s' '" + data.replace(/'/g, "'\"'\"'") + "' | wl-copy && notify-send 'QR Code' 'Copied to clipboard'"
+                                cmd += " && rm '" + root.tempPath + "'"
+                                root.ready = false
+                                screenshotProcess.command = ["sh", "-c", cmd]
+                                screenshotProcess.running = true
+                            }
+                        }
+                    }
+                }
             }
 
             WindowSelector {
                 visible: root.mode === "window"
                 anchors.fill: parent
                 monitor: freezeWindow.hyprlandMonitor
+                screenX: freezeWindow.screenX
+                screenY: freezeWindow.screenY
                 dimOpacity: 0.6
                 borderRadius: 10.0
                 outlineThickness: 2.0
-                onRegionSelected: (x, y, width, height) => {
-                    // Window coordinates are screen-local, add screen offset
-                    root.processScreenshot(freezeWindow.screenX + x, freezeWindow.screenY + y, width, height, false)
+                
+                // Pass root-level selection state
+                globalSelectedWindows: root.selectedWindows
+                
+                onRegionSelected: (x, y, width, height, openEditor) => {
+                    // Clear multi-selection because user clicked a specific window to capture IT ONLY
+                    root.selectedWindows = []
+                    root.selectedScreens = []
+                    root.windowMultiSelectCount = 0
+                    
+                    // Window coordinates are already global from WindowSelector
+                    root.processScreenshot(x, y, width, height, openEditor)
+                }
+                onCaptureRequested: (openEditor) => {
+                    // Capture all selected windows (stitching)
+                    root.processScreenshot(0, 0, 0, 0, openEditor)
+                }
+                onWindowToggled: (windowInfo) => {
+                    root.toggleWindowSelection(windowInfo)
                 }
             }
 
@@ -391,6 +703,23 @@ Scope {
                     onExited: screenSelector.isHovered = false
 
                     onClicked: (mouse) => {
+                        // Multi-selection with Ctrl
+                        if (mouse.modifiers & Qt.ControlModifier) {
+                            root.toggleScreenSelection(freezeWindow.modelData.name)
+                            return
+                        }
+
+                        // If clicking a selected screen, capture all selected screens
+                        if (root.selectedScreens.indexOf(freezeWindow.modelData.name) !== -1 && root.selectedScreens.length > 0) {
+                            root.processScreenshot(0, 0, 0, 0, false)
+                            return
+                        }
+
+                        // Otherwise clear selection and capture just this screen
+                        root.selectedWindows = []
+                        root.selectedScreens = []
+                        root.windowMultiSelectCount = 0
+
                         const openEditor = (mouse.modifiers & Qt.ShiftModifier)
                         root.processScreenshot(
                             freezeWindow.screenX,
@@ -400,6 +729,16 @@ Scope {
                             openEditor
                         )
                     }
+                }
+
+                // Selection indicator
+                Rectangle {
+                    visible: root.selectedScreens.indexOf(freezeWindow.modelData.name) !== -1
+                    anchors.fill: parent
+                    color: Qt.rgba(0.2, 0.6, 1.0, 0.3)
+                    border.color: Qt.rgba(0.4, 0.8, 1.0, 0.8)
+                    border.width: 4
+                    z: 5
                 }
             }
 
@@ -517,24 +856,63 @@ Scope {
                                 anchors.verticalCenter: parent.verticalCenter
                             }
 
-                            Text {
-                                text: "Shift+click for editor"
-                                color: Qt.rgba(1, 1, 1, 0.5)
-                                font.pixelSize: 11
+                            Column {
                                 anchors.verticalCenter: parent.verticalCenter
+                                spacing: 0
+
+                                // Stitch count hint
+                                Text {
+                                    visible: root.selectedScreens.length > 0 || root.windowMultiSelectCount > 0
+                                    text: {
+                                        if (root.selectedScreens.length > 0) return "Stitch: " + root.selectedScreens.length + " screens"
+                                        if (root.windowMultiSelectCount > 0) return "Stitch: " + root.windowMultiSelectCount + " windows"
+                                        return ""
+                                    }
+                                    color: Qt.rgba(0.5, 0.8, 1.0, 0.9)
+                                    font.pixelSize: 10
+                                    font.weight: Font.Medium
+                                }
+
+                                // Shift+click hint
+                                Text {
+                                    text: "Shift+click for editor"
+                                    color: Qt.rgba(1, 1, 1, 0.5)
+                                    font.pixelSize: 10
+                                }
+
+                                // Ctrl+click hint
+                                Text {
+                                    visible: root.mode === "window" || root.mode === "screen"
+                                    text: "Ctrl+click to multi-select"
+                                    color: Qt.rgba(1, 1, 1, 0.35)
+                                    font.pixelSize: 9
+                                }
                             }
                         }
 
                         // OCR/Lens hint
-                        Text {
+                        Column {
                             opacity: (root.mode === "ocr" || root.mode === "lens") ? 1 : 0
                             visible: opacity > 0
-                            text: root.mode === "ocr" ? "Select text to extract" : "Select area to search"
-                            color: Qt.rgba(1, 1, 1, 0.6)
-                            font.pixelSize: 12
+                            spacing: 2
                             anchors.verticalCenter: parent.verticalCenter
 
                             Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                            Text {
+                                text: root.mode === "ocr" ? "Select text to extract" : "Select area to search"
+                                color: Qt.rgba(1, 1, 1, 0.6)
+                                font.pixelSize: 12
+                            }
+
+                            Text {
+                                visible: root.mode === "lens"
+                                text: root.detectedQRCodes.length > 0 
+                                    ? root.detectedQRCodes.length + " QR code" + (root.detectedQRCodes.length > 1 ? "s" : "") + " detected"
+                                    : "No QR codes detected"
+                                color: root.detectedQRCodes.length > 0 ? Qt.rgba(0.4, 0.8, 1.0, 0.8) : Qt.rgba(1, 1, 1, 0.4)
+                                font.pixelSize: 10
+                            }
                         }
 
                         // AI Prompt input
