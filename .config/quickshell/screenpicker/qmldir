@@ -1,7 +1,0 @@
-singleton Root 1.0 shell.qml
-Popup 1.0 src/Popup.qml
-ScreenTab 1.0 src/ScreenTab.qml
-WindowTab 1.0 src/WindowTab.qml
-RegionTab 1.0 src/RegionTab.qml
-RegionOverlay 1.0 src/RegionOverlay.qml
-TabBarButton 1.0 src/TabBarButton.qml

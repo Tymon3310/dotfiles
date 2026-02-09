@@ -57,4 +57,25 @@ PanelWindow {
             z: -1
         }
     }
+
+    Rectangle {
+        id: flash
+        anchors.fill: parent
+        color: "white"
+        opacity: 0
+        z: 999
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: 200 } }
+    }
+
+    function triggerFlash() {
+        flash.opacity = 0.8
+        flashTimer.restart()
+    }
+
+    Timer {
+        id: flashTimer
+        interval: 50
+        onTriggered: flash.opacity = 0
+    }
 }

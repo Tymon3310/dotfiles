@@ -19,6 +19,7 @@ Scope {
     property bool uiReady: false
     property var pendingAction: null
     property bool processing: false
+    signal requestFlash()
     property var modes: [
         { mode: "region", icon: "region", label: "Region" },
         { mode: "window", icon: "window", label: "Window" },
@@ -50,6 +51,21 @@ Scope {
         return minY
     }
 
+    // Heuristic for primary screen: Largest area
+    property var primaryScreen: {
+        var maxArea = 0
+        var bestScreen = Quickshell.screens[0]
+        for (var i = 0; i < Quickshell.screens.length; i++) {
+            var s = Quickshell.screens[i]
+            var area = s.width * s.height
+            if (area > maxArea) {
+                maxArea = area
+                bestScreen = s
+            }
+        }
+        return bestScreen
+    }
+
     // Global selection state (for cross-screen selection)
     property bool isSelecting: false
     property real globalStartX: 0
@@ -68,21 +84,87 @@ Scope {
     property real selectionWidth: Math.abs(globalEndX - globalStartX)
     property real selectionHeight: Math.abs(globalEndY - globalStartY)
 
-    Process {
-        id: captureProcess
-        running: false
-        onExited: {
-            root.ready = true
-        }
-    }
-
     Component.onCompleted: {
+        console.log("Shell loaded, starting capture...")
         root.uiReady = true
         const timestamp = Date.now()
         tempPath = Quickshell.cachePath(`screenshot-${timestamp}.png`)
         // Capture all monitors into one image
         captureProcess.command = ["grim", "-l", "0", tempPath]
         captureProcess.running = true
+    }
+
+
+    Process {
+        id: captureProcess
+        running: false
+        onExited: function(exitCode) {
+            console.log("Capture process exited with code:", exitCode)
+            if (exitCode !== 0) {
+                 console.log("Grim failed!")
+            }
+            root.ready = true
+        }
+    }
+
+    // ...
+
+    Process {
+        id: qrScanProcess
+        running: false
+        
+        onExited: function(exitCode) {
+            console.log("QR Process exited with code:", exitCode)
+        }
+
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var output = this.text.trim()
+                console.log("QR Scan raw output length:", output.length)
+                // console.log("QR Scan raw output:", output)
+                if (!output) {
+                    root.detectedQRCodes = []
+                    return
+                }
+                var codes = []
+                var lines = output.split('\n')
+                for (var i = 0; i < lines.length; i++) {
+                    var line = lines[i].trim()
+                    if (!line) continue
+                    if (line.startsWith("[ WARN")) continue // Skip OpenCV warnings
+                    var parts = line.split('|')
+                    if (parts.length >= 5) {
+                        codes.push({
+                            x: parseInt(parts[0]),
+                            y: parseInt(parts[1]),
+                            width: parseInt(parts[2]),
+                            height: parseInt(parts[3]),
+                            data: parts.slice(4).join('|')
+                        })
+                    }
+                }
+                console.log("Parsed QR codes:", codes.length)
+                root.detectedQRCodes = codes
+            }
+        }
+        stderr: StdioCollector {
+            onStreamFinished: {
+                if (this.text.trim()) console.log("QR scan stderr:", this.text)
+            }
+        }
+    }
+
+    function startQRScan() {
+        if (!tempPath) {
+             console.log("startQRScan: No tempPath")
+             return
+        }
+        console.log("Starting QR Scan on:", tempPath)
+        var scanScript = Quickshell.shellPath("src/qr.py")
+        console.log("Using script:", scanScript)
+        var cmd = "/usr/bin/python3 '" + scanScript + "' '" + tempPath + "'"
+        qrScanProcess.command = ["sh", "-c", cmd]
+        qrScanProcess.running = true
     }
 
     function toggleWindowSelection(win) {
@@ -132,6 +214,15 @@ Scope {
         if (tempPath) Quickshell.execDetached(["rm", "-f", tempPath])
         if (cropPath) Quickshell.execDetached(["rm", "-f", cropPath])
     }
+    
+    Timer {
+        id: quitTimer
+        interval: 250
+        onTriggered: {
+            root.cleanup()
+            Qt.quit()
+        }
+    }
 
     Component.onDestruction: cleanup()
 
@@ -152,51 +243,7 @@ Scope {
         }
     }
 
-    // QR code detection process
-    Process {
-        id: qrScanProcess
-        running: false
 
-        stdout: StdioCollector {
-            onStreamFinished: {
-                var output = this.text.trim()
-                if (!output) {
-                    root.detectedQRCodes = []
-                    return
-                }
-                var codes = []
-                var lines = output.split('\n')
-                for (var i = 0; i < lines.length; i++) {
-                    var line = lines[i].trim()
-                    if (!line) continue
-                    var parts = line.split('|')
-                    if (parts.length >= 5) {
-                        codes.push({
-                            x: parseInt(parts[0]),
-                            y: parseInt(parts[1]),
-                            width: parseInt(parts[2]),
-                            height: parseInt(parts[3]),
-                            data: parts.slice(4).join('|')
-                        })
-                    }
-                }
-                root.detectedQRCodes = codes
-            }
-        }
-        stderr: StdioCollector {
-            onStreamFinished: {
-                if (this.text.trim()) console.log("QR scan stderr:", this.text)
-            }
-        }
-    }
-
-    function startQRScan() {
-        if (!tempPath) return
-        var parserScript = Quickshell.shellPath("qr_parse.py")
-        var cmd = "/usr/bin/zbarimg --set qrcode.enable=1 -q --xml '" + tempPath + "' | /usr/bin/python3 '" + parserScript + "'"
-        qrScanProcess.command = ["sh", "-c", cmd]
-        qrScanProcess.running = true
-    }
 
 
 
@@ -296,19 +343,30 @@ Scope {
                         cmd += `\\( "${tempPath}" -crop ${item.width}x${item.height}+${cropX}+${cropY} +repage \\) -geometry +${destX}+${destY} -composite `
                     }
                     
-                    cmd += `"${outputPath}" && wl-copy < "${outputPath}" && rm "${tempPath}"`
+
+                    // Add fast compression to output
+                    // Note: -define applies to the write.
                     
-                    // If editor requested
+                    // Logic reuse: If editor, construct edit command. Else construct save command.
                      if (openEditor) {
                         const cropPath = Quickshell.cachePath(`screenshot-crop-${Date.now()}.png`)
-                        // Rewrite command to output to cropPath instead
-                        cmd = cmd.replace(`"${outputPath}" &&`, `"${cropPath}" && satty --filename "${cropPath}" &&`)
+                        // Inject cropPath into the command
+                         cmd += `"${cropPath}" && satty --filename "${cropPath}" && rm "${tempPath}"`
+                    } else {
+                        cmd += `-define png:compression-level=1 "${outputPath}" && ` +
+                               `wl-copy < "${outputPath}" && ` +
+                               `notify-send "Screenshot Saved" "Path: ${outputPath}" -a "Quickshell Screenshot" -i camera-photo && ` +
+                               `paplay /usr/share/sounds/freedesktop/stereo/camera-shutter.oga && ` +
+                               `rm "${tempPath}"`
                     }
                     
-                    root.ready = false
-                    screenshotProcess.command = ["sh", "-c", cmd]
-                    screenshotProcess.running = true
+                    Quickshell.execDetached(["sh", "-c", cmd])
+                    
+                    tempPath = ""
+                    root.requestFlash()
+                    quitTimer.start()
                     return
+
                 }
             }
         }
@@ -332,8 +390,14 @@ Scope {
             const timestamp = Date.now()
             cropPath = Quickshell.cachePath(`screenshot-crop-${timestamp}.png`)
             const cmd = `magick "${tempPath}" -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} "${cropPath}" && satty --filename "${cropPath}" && rm "${tempPath}"`
-            screenshotProcess.command = ["sh", "-c", cmd]
-            screenshotProcess.running = true
+            
+            Quickshell.execDetached(["sh", "-c", cmd])
+            
+            tempPath = ""
+            // Satty handles UI, so maybe no flash? Or flash before?
+            // Flash + Quit
+            root.requestFlash()
+            quitTimer.start()
             return
         }
 
@@ -346,9 +410,8 @@ Scope {
             const apiKey = Quickshell.env("GEMINI_API_KEY") || ""
             // Escape prompt for JSON
             const escapedPrompt = root.aiPrompt.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')
-            // Build JSON by concatenating parts - avoids passing huge base64 as argument
-            const cmd = `exec 2>/tmp/screenshot-ai-error.log; ` +
-                `magick "${tempPath}" -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} "${cropPath}" && ` +
+            
+            const cmd = `magick "${tempPath}" -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} "${cropPath}" && ` +
                 `base64 -w0 "${cropPath}" > "${b64Path}" && ` +
                 `{ printf '{"contents":[{"parts":[{"text":"${escapedPrompt}"},{"inline_data":{"mime_type":"image/png","data":"'; cat "${b64Path}"; printf '"}}]}]}'; } > "${jsonPath}" && ` +
                 `curl -s --max-time 120 "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" ` +
@@ -358,13 +421,25 @@ Scope {
                 `TEXT=$(jq -r '.candidates[0].content.parts[0].text // .error.message // "Error: No response"' "${responsePath}") && ` +
                 `printf '%s' "$TEXT" | wl-copy && ` +
                 `notify-send 'AI Analysis' "$TEXT" && ` +
+                `paplay /usr/share/sounds/freedesktop/stereo/camera-shutter.oga && ` +
                 `rm -f "${tempPath}" "${cropPath}" "${jsonPath}" "${b64Path}" "${responsePath}"`
-            screenshotProcess.command = ["sh", "-c", cmd]
-            screenshotProcess.running = true
+            
+            Quickshell.execDetached(["sh", "-c", cmd])
+            
+            // Protect tempPath from cleanup
+            tempPath = ""
+            
+            root.requestFlash()
+            quitTimer.start()
+            
         } else if (mode === "ocr") {
-            const cmd = `text=$(magick "${tempPath}" -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} - | tesseract - - -l eng) && echo -n "$text" | wl-copy && notify-send 'OCR Complete' "$text" && rm "${tempPath}"`
-            screenshotProcess.command = ["sh", "-c", cmd]
-            screenshotProcess.running = true
+            const cmd = `text=$(magick "${tempPath}" -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} - | tesseract - - -l eng) && echo -n "$text" | wl-copy && notify-send 'OCR Complete' "$text" && paplay /usr/share/sounds/freedesktop/stereo/camera-shutter.oga && rm "${tempPath}"`
+            Quickshell.execDetached(["sh", "-c", cmd])
+            
+            tempPath = ""
+            root.requestFlash()
+            quitTimer.start()
+            
         } else if (mode === "lens") {
             const timestamp = Date.now()
             cropPath = Quickshell.cachePath(`screenshot-crop-${timestamp}.png`)
@@ -372,22 +447,42 @@ Scope {
                 `imageLink=$(curl -sF files[]=@"${cropPath}" 'https://uguu.se/upload' | jq -r '.files[0].url') && ` +
                 `xdg-open "https://lens.google.com/uploadbyurl?url=\${imageLink}" && ` +
                 `rm "${tempPath}" "${cropPath}"`
-            screenshotProcess.command = ["sh", "-c", cmd]
-            screenshotProcess.running = true
+                
+            Quickshell.execDetached(["sh", "-c", cmd])
+            
+            tempPath = ""
+            // No flash for Lens usually, but let's add it for consistency or user feedback? keeping as is (sync? no, detached)
+            // Original code didn't flash Lens in previous step, but user asked for flash. adding it.
+            root.requestFlash()
+            quitTimer.start()
+            
         } else {
             const picturesDir = Quickshell.env("SCREENSHOT_DIR") || Quickshell.env("XDG_SCREENSHOTS_DIR") || Quickshell.env("XDG_PICTURES_DIR") || (Quickshell.env("HOME") + "/Pictures")
             const now = new Date()
             const timestamp = Qt.formatDateTime(now, "yyyy-MM-dd_hh-mm-ss")
             const outputPath = root.saveToDisk ? `${picturesDir}/screenshot-${timestamp}.png` : tempPath
 
-            screenshotProcess.command = ["sh", "-c",
-                `magick "${tempPath}" -define png:compression-level=1 -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} "${outputPath}" && ` +
+            const cmd = `magick "${tempPath}" -define png:compression-level=1 -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} "${outputPath}" && ` +
                 `wl-copy < "${outputPath}" && ` +
+                `notify-send "Screenshot Saved" "Path: ${outputPath}" -a "Quickshell Screenshot" -i camera-photo && ` +
+                `paplay /usr/share/sounds/freedesktop/stereo/camera-shutter.oga && ` +
                 `rm "${tempPath}"`
-            ]
-            screenshotProcess.running = true
+            
+            Quickshell.execDetached(["sh", "-c", cmd])
+            
+            tempPath = ""
+            
+            // Visual Flash
+            root.requestFlash()
+            quitTimer.start()
         }
     }
+    
+    // Flash removed from here (moved to FreezeScreen)
+    
+
+
+
 
 
     Variants {
@@ -396,6 +491,13 @@ Scope {
         FreezeScreen {
             id: freezeWindow
             required property var modelData
+            
+            Connections {
+                target: root
+                function onRequestFlash() {
+                    freezeWindow.triggerFlash()
+                }
+            }
             
             visible: root.uiReady
             targetScreen: modelData
@@ -779,7 +881,7 @@ Scope {
 
             // Control Bar (only on primary/first screen)
             WrapperRectangle {
-                visible: freezeWindow.modelData.name === Hyprland.focusedMonitor.name
+                visible: freezeWindow.frozen && freezeWindow.modelData === root.primaryScreen
                 z: 10
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom

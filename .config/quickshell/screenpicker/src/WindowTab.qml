@@ -1,6 +1,7 @@
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
+import Quickshell.Io
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -12,6 +13,10 @@ Item {
 
     // Blue accent color
     readonly property color accentColor: "#89b4fa"
+    readonly property string cacheDir: "/tmp/quickshell_snapshots"
+
+    // Injected dependency
+    required property var snapshotService
 
     // Collect all windows from ALL workspaces
     property var allWindows: {
@@ -24,10 +29,12 @@ Item {
             for (let i = 0; i < Hyprland.monitors.values.length; i++) {
                 const mon = Hyprland.monitors.values[i]
                 if (mon.activeWorkspace) {
-                    activeWorkspaceIds.push(mon.activeWorkspace.id)
+                    activeWorkspaceIds.push(String(mon.activeWorkspace.id))
                 }
             }
         }
+        // Debug
+        // console.log("Active Workspaces: " + JSON.stringify(activeWorkspaceIds))
 
         // Iterate all workspaces
         for (let i = 0; i < Hyprland.workspaces.values.length; i++) {
@@ -37,7 +44,7 @@ Item {
                     const win = ws.toplevels.values[j]
                     
                     // Determine visibility
-                    const isVisible = activeWorkspaceIds.includes(ws.id)
+                    const isVisible = activeWorkspaceIds.includes(String(ws.id))
                     
                     let targetScreen = null
                     let monitorObj = null
@@ -98,6 +105,18 @@ Item {
             property var entry: modelData
             property bool isLive: entry.isVisible
             
+
+            property int reloadTrigger: 0
+
+            Connections {
+                target: root.snapshotService
+                function onWindowSnapshotted(addr) {
+                    if (addr === entry.window.address) {
+                        reloadTrigger++
+                    }
+                }
+            }
+            
             ColumnLayout {
                 anchors.fill: parent
                 anchors.margins: 8
@@ -109,13 +128,8 @@ Item {
                     Layout.fillHeight: true
                     clip: true
                     
-                    // Background
-                    Rectangle {
-                        anchors.fill: parent
-                        color: "#000000"
-                        radius: 4
-                        opacity: 0.5
-                    }
+                    // Background (Removed to avoid black bars)
+                    // Rectangle { anchors.fill: parent; color: "#000000"; ... }
 
                     // LIVE PREVIEW (Only if visible)
                     Item {
@@ -157,10 +171,33 @@ Item {
                             border.color: "#333333"
                             border.width: 1
                             radius: 4
+                            clip: true
+
+                            // Cached Preview
+                            Image {
+                                id: cachedPreview
+                                anchors.fill: parent
+                                source: `file://${root.cacheDir}/${delegateItem.entry.window.address}.png?t=${delegateItem.reloadTrigger}`
+                                asynchronous: true
+                                fillMode: Image.PreserveAspectFit
+                                cache: false 
+                                
+                                // Only visible if loaded successfully
+                                visible: status === Image.Ready
+                            }
+                            
+                            // Dim the preview to indicate it's not live
+                            Rectangle {
+                                anchors.fill: parent
+                                color: "black"
+                                opacity: 0.3
+                                visible: cachedPreview.visible
+                            }
                             
                             ColumnLayout {
                                 anchors.centerIn: parent
                                 spacing: 8
+                                visible: !cachedPreview.visible
                                 
                                 // Try to show icon
                                 Image {

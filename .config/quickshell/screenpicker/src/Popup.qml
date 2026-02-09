@@ -4,38 +4,22 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-PanelWindow {
+Window {
     id: root
 
     signal requestRegionSelect()
     signal screenSelected(string name)
     signal windowSelected(string address)
     signal cancelled()
+    
+    required property var snapshotService
 
-    screen: Quickshell.screens[0]
+    // Dynamic size: 90% of primary screen width, 80% height
+    width: (Quickshell.screens[0] ? Quickshell.screens[0].width : 1920) * 0.9
+    height: (Quickshell.screens[0] ? Quickshell.screens[0].height : 1080) * 0.8
     
-    // Fixed size
-    width: 800
-    height: 600
-    
-    // Center using margins
-    anchors {
-        left: true
-        top: true
-    }
-    
-    // Calculate center position
-    property real centerX: (screen.width - width) / 2
-    property real centerY: (screen.height - height) / 2
-    
-    margins {
-        left: centerX
-        top: centerY
-    }
-    
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
-    exclusionMode: ExclusionMode.Ignore
+    // Frameless window
+    flags: Qt.FramelessWindowHint | Qt.Dialog
     color: "transparent"
 
     // Main Container
@@ -61,8 +45,8 @@ PanelWindow {
                 onPressed: (mouse) => { clickPos = Qt.point(mouse.x, mouse.y) }
                 onPositionChanged: (mouse) => {
                     if (pressed) {
-                        root.margins.left += mouse.x - clickPos.x
-                        root.margins.top += mouse.y - clickPos.y
+                        root.x += mouse.x - clickPos.x
+                        root.y += mouse.y - clickPos.y
                     }
                 }
             }
@@ -143,6 +127,7 @@ PanelWindow {
             // Tab 2: Windows
             WindowTab {
                 active: stackLayout.currentIndex === 1
+                snapshotService: root.snapshotService
                 onWindowSelected: (addr) => root.windowSelected(addr)
             }
 
