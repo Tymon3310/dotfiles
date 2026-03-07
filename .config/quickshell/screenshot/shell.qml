@@ -84,16 +84,56 @@ Scope {
     property real selectionWidth: Math.abs(globalEndX - globalStartX)
     property real selectionHeight: Math.abs(globalEndY - globalStartY)
 
+    // Hyprland 0.54 fix: track frozen state separately from ready,
+    // so FreezeScreens survive when ready is toggled during save
+    property bool screensFrozen: false
+
     Component.onCompleted: {
         console.log("Shell loaded, starting capture...")
-        root.uiReady = true
+        root.uiReady = false
         const timestamp = Date.now()
         tempPath = Quickshell.cachePath(`screenshot-${timestamp}.png`)
-        // Capture all monitors into one image
-        captureProcess.command = ["grim", "-l", "0", tempPath]
+
+        // Hyprland 0.54 + grim 1.5.0: full multi-output grim hangs.
+        // Fix: capture each output in parallel, then stitch with magick.
+        const screens = Quickshell.screens
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+        for (let i = 0; i < screens.length; i++) {
+            const s = screens[i]
+            if (s.x < minX) minX = s.x
+            if (s.y < minY) minY = s.y
+            if (s.x + s.width > maxX) maxX = s.x + s.width
+            if (s.y + s.height > maxY) maxY = s.y + s.height
+        }
+        const totalW = maxX - minX
+        const totalH = maxY - minY
+
+        // Stage 1: parallel grim captures in PPM (zero compression = instant I/O)
+        let grabCmd = "pkill -9 -x grim 2>/dev/null; "
+        root._stitchTmpFiles = []
+        root._stitchCmd = ""
+        let compositeArgs = ""
+        for (let i = 0; i < screens.length; i++) {
+            const s = screens[i]
+            const tmpFile = Quickshell.cachePath(`screenshot-${timestamp}-${i}.ppm`)
+            root._stitchTmpFiles.push(tmpFile)
+            grabCmd += `timeout 3 grim -t ppm -o "${s.name}" "${tmpFile}" & `
+            const offsetX = s.x - minX
+            const offsetY = s.y - minY
+            compositeArgs += ` "${tmpFile}" -geometry +${offsetX}+${offsetY} -composite`
+        }
+        grabCmd += "wait"
+
+        // Stage 2 cmd (runs in background after UI shows)
+        root._stitchCmd = `magick -size ${totalW}x${totalH} canvas:black${compositeArgs} -define png:compression-level=1 "${tempPath}" && rm -f ${root._stitchTmpFiles.map(f => `"${f}"`).join(" ")}`
+
+        captureProcess.command = ["sh", "-c", grabCmd]
         captureProcess.running = true
     }
 
+    // Temp storage for stitch command
+    property var _stitchTmpFiles: []
+    property string _stitchCmd: ""
 
     Process {
         id: captureProcess
@@ -101,8 +141,25 @@ Scope {
         onExited: function(exitCode) {
             console.log("Capture process exited with code:", exitCode)
             if (exitCode !== 0) {
-                 console.log("Grim failed!")
+                 console.log("Grim capture failed with exit code:", exitCode)
+                 Quickshell.execDetached(["notify-send", "Screenshot Failed", "grim capture failed. Try restarting Hyprland.", "-u", "critical"])
+                 Qt.quit()
+                 return
             }
+            // Grim is done — show UI immediately while stitching happens in background
+            root.uiReady = true
+            root.screensFrozen = true
+            // Start stitch in background — root.ready = true when done
+            stitchProcess.command = ["sh", "-c", root._stitchCmd]
+            stitchProcess.running = true
+        }
+    }
+
+    Process {
+        id: stitchProcess
+        running: false
+        onExited: function(exitCode) {
+            console.log("Stitch process exited with code:", exitCode)
             root.ready = true
         }
     }
@@ -211,6 +268,9 @@ Scope {
     }
 
     function cleanup() {
+        // Release ScreencopyView handles before exit
+        root.screensFrozen = false
+        if (qrScanProcess.running) qrScanProcess.running = false
         if (tempPath) Quickshell.execDetached(["rm", "-f", tempPath])
         if (cropPath) Quickshell.execDetached(["rm", "-f", cropPath])
     }
@@ -225,23 +285,6 @@ Scope {
     }
 
     Component.onDestruction: cleanup()
-
-    Process {
-        id: screenshotProcess
-        running: false
-
-        onExited: function() {
-            root.cleanup()
-            Qt.quit()
-        }
-
-        stdout: StdioCollector {
-            onStreamFinished: console.log(this.text)
-        }
-        stderr: StdioCollector {
-            onStreamFinished: console.log(this.text)
-        }
-    }
 
 
 
@@ -486,7 +529,9 @@ Scope {
 
 
     Variants {
-        model: Quickshell.screens
+        // Defer FreezeScreen creation until grim finishes to avoid
+        // Hyprland 0.54 wlr-screencopy protocol conflict
+        model: root.screensFrozen ? Quickshell.screens : []
 
         FreezeScreen {
             id: freezeWindow
@@ -499,7 +544,7 @@ Scope {
                 }
             }
             
-            visible: root.uiReady
+            visible: true
             targetScreen: modelData
 
             property real screenX: modelData.x

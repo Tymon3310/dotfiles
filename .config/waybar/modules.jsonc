@@ -21,7 +21,8 @@
         "rewrite": {
             "(.*) Youtube (.*)": "$1 󰗃",
             "(.*) — Zen Twilight": "$1",
-            "(.*) - Visual Studio Code - Insiders": "VS Code: $1"
+            "(.*) - Visual Studio Code - Insiders": "VS Code: $1",
+            "(.*)Private Browsing(.*)": "󰌾"
         },
         "separate-outputs": false
     },

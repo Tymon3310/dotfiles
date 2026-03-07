@@ -61,3 +61,5 @@ alias 'vsc'='code-insiders'
 alias 'code'='code-insiders'
 
 alias 'hyexec'="hyprctl dispatch exec"
+
+alias 'gemini-cli'='gemini'
