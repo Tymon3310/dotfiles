@@ -1,4 +1,6 @@
 .config/hypr/conf/custom.conf
+.config/hypr/conf/custom.lua
+
 *.log
 *venv*
 

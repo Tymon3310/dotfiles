@@ -147,13 +147,18 @@ def apply_preprocessing_variants(img, lite=False):
     _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     add("binary", binary)
     
-    # 4. Binary Thresholding
-    _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    add("binary", binary)
+    # 5. Adaptive Thresholding (Crucial for borderless codes on dark/busy backgrounds)
+    # This creates artificial white quiet zones around dark modules by locally thresholding
+    adaptive = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 51, 2)
+    add("adaptive", adaptive)
     
-    # Pruned: Adaptive, Erode, Rotations are too slow and rarely needed.
-    # ZBar handles rotation natively.
-    # Otsu usually covers Adaptive cases.
+    # 6. Morphological Black Hat (Extracts dark modules from dark backgrounds)
+    kernel_size = 15
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
+    blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, kernel)
+    # Blackhat returns the dark spots on a black background. We need dark on white, so we invert.
+    blackhat_inv = cv2.bitwise_not(blackhat)
+    add("blackhat_inv", blackhat_inv)
     
     # 5. Sharpening (Moved from Lite to be available in Full too? It's cheap)
     kernel = np.array([[0, -1, 0], 

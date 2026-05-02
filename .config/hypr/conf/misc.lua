@@ -1,0 +1,16 @@
+-- -----------------------------------------------------
+-- Misc settings
+-- -----------------------------------------------------
+
+hl.config({
+    misc = {
+        disable_hyprland_logo = false,
+        allow_session_lock_restore = true,
+        middle_click_paste = false,
+        disable_splash_rendering = false,
+        -- initial_workspace_tracking = 2
+        vrr = 1,
+        key_press_enables_dpms = true,
+        animate_manual_resizes = true,
+    }
+})

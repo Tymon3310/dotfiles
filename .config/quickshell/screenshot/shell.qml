@@ -19,6 +19,7 @@ Scope {
     property bool uiReady: false
     property var pendingAction: null
     property bool processing: false
+    property bool instantCapture: false
     signal requestFlash()
     property var modes: [
         { mode: "region", icon: "region", label: "Region" },
@@ -91,6 +92,27 @@ Scope {
     Component.onCompleted: {
         console.log("Shell loaded, starting capture...")
         root.uiReady = false
+
+        // CLI args via env vars
+        const envMode = Quickshell.env("QS_MODE") || ""
+        const envInstant = Quickshell.env("QS_INSTANT") || ""
+        const validModes = ["region", "window", "screen", "ocr", "lens", "ai"]
+        if (envMode && validModes.includes(envMode)) {
+            root.mode = envMode
+            console.log("Mode set from QS_MODE:", envMode)
+        }
+        if (envInstant === "1" && (root.mode === "screen" || root.mode === "window")) {
+            root.instantCapture = true
+            console.log("Instant capture enabled for mode:", root.mode)
+            // Fetch geometry upfront via hyprctl (Hyprland QML API isn't available yet)
+            if (root.mode === "screen") {
+                instantGeoProcess.command = ["sh", "-c", "hyprctl monitors -j | jq -r '[.[] | select(.focused)][0] | [.x, .y, .width, .height] | @tsv'"]
+            } else {
+                instantGeoProcess.command = ["sh", "-c", "hyprctl activewindow -j | jq -r '[.at[0], .at[1], .size[0], .size[1]] | @tsv'"]
+            }
+            instantGeoProcess.running = true
+        }
+
         const timestamp = Date.now()
         tempPath = Quickshell.cachePath(`screenshot-${timestamp}.png`)
 
@@ -134,6 +156,30 @@ Scope {
     // Temp storage for stitch command
     property var _stitchTmpFiles: []
     property string _stitchCmd: ""
+    // Instant capture geometry: [x, y, w, h]
+    property var _instantGeo: null
+
+    Process {
+        id: instantGeoProcess
+        running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const parts = this.text.trim().split("\t")
+                if (parts.length === 4) {
+                    root._instantGeo = {
+                        x: parseInt(parts[0]),
+                        y: parseInt(parts[1]),
+                        w: parseInt(parts[2]),
+                        h: parseInt(parts[3])
+                    }
+                    console.log("Instant geometry:", root._instantGeo.x, root._instantGeo.y, root._instantGeo.w, root._instantGeo.h)
+                } else {
+                    console.log("Failed to parse instant geometry:", this.text)
+                    root.instantCapture = false
+                }
+            }
+        }
+    }
 
     Process {
         id: captureProcess
@@ -146,9 +192,11 @@ Scope {
                  Qt.quit()
                  return
             }
-            // Grim is done — show UI immediately while stitching happens in background
-            root.uiReady = true
-            root.screensFrozen = true
+            // Grim is done — show UI only for interactive captures
+            if (!root.instantCapture) {
+                root.uiReady = true
+                root.screensFrozen = true
+            }
             // Start stitch in background — root.ready = true when done
             stitchProcess.command = ["sh", "-c", root._stitchCmd]
             stitchProcess.running = true
@@ -161,6 +209,14 @@ Scope {
         onExited: function(exitCode) {
             console.log("Stitch process exited with code:", exitCode)
             root.ready = true
+
+            // Instant capture: process immediately without UI interaction
+            if (root.instantCapture && root._instantGeo) {
+                root.instantCapture = false
+                const g = root._instantGeo
+                console.log("Instant capture:", g.x, g.y, g.w, g.h)
+                root.processScreenshot(g.x, g.y, g.w, g.h, false)
+            }
         }
     }
 
@@ -303,7 +359,7 @@ Scope {
                 )
                 root.pendingAction = null
                 root.processing = false
-            } else if (tempPath) {
+            } else if (!root.instantCapture && tempPath) {
                 startQRScan()
             }
         }
@@ -398,7 +454,7 @@ Scope {
                     } else {
                         cmd += `-define png:compression-level=1 "${outputPath}" && ` +
                                `wl-copy < "${outputPath}" && ` +
-                               `notify-send "Screenshot Saved" "Path: ${outputPath}" -a "Quickshell Screenshot" -i camera-photo && ` +
+                               `( if [ "$(notify-send "Screenshot Saved" "Path: ${outputPath}" -a "Quickshell Screenshot" -i camera-photo --action=default=Open --wait)" = "default" ]; then xdg-open "${outputPath}"; fi ) & ` +
                                `paplay /usr/share/sounds/freedesktop/stereo/camera-shutter.oga && ` +
                                `rm "${tempPath}"`
                     }
@@ -456,14 +512,14 @@ Scope {
             
             const cmd = `magick "${tempPath}" -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} "${cropPath}" && ` +
                 `base64 -w0 "${cropPath}" > "${b64Path}" && ` +
-                `{ printf '{"contents":[{"parts":[{"text":"${escapedPrompt}"},{"inline_data":{"mime_type":"image/png","data":"'; cat "${b64Path}"; printf '"}}]}]}'; } > "${jsonPath}" && ` +
-                `curl -s --max-time 120 "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" ` +
+                `{ printf '{"contents":[{"parts":[{"text":"${escapedPrompt}"},{"inline_data":{"mime_type":"image/png","data":"'; cat "${b64Path}"; printf '"}}]}],"generationConfig":{"thinkingConfig":{"thinkingLevel":"low"}}}'; } > "${jsonPath}" && ` +
+                `curl -s --max-time 120 "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent" ` +
                 `-H "x-goog-api-key: ${apiKey}" ` +
                 `-H "Content-Type: application/json" ` +
                 `-X POST -d @"${jsonPath}" -o "${responsePath}" && ` +
                 `TEXT=$(jq -r '.candidates[0].content.parts[0].text // .error.message // "Error: No response"' "${responsePath}") && ` +
                 `printf '%s' "$TEXT" | wl-copy && ` +
-                `notify-send 'AI Analysis' "$TEXT" && ` +
+                `( if [ "$(notify-send 'AI Analysis' "$TEXT" --action=default=Open --wait)" = "default" ]; then printf '%s' "$TEXT" > /tmp/qs-ai.txt && xdg-open /tmp/qs-ai.txt; fi ) & ` +
                 `paplay /usr/share/sounds/freedesktop/stereo/camera-shutter.oga && ` +
                 `rm -f "${tempPath}" "${cropPath}" "${jsonPath}" "${b64Path}" "${responsePath}"`
             
@@ -476,7 +532,7 @@ Scope {
             quitTimer.start()
             
         } else if (mode === "ocr") {
-            const cmd = `text=$(magick "${tempPath}" -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} - | tesseract - - -l eng) && echo -n "$text" | wl-copy && notify-send 'OCR Complete' "$text" && paplay /usr/share/sounds/freedesktop/stereo/camera-shutter.oga && rm "${tempPath}"`
+            const cmd = `text=$(magick "${tempPath}" -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} - | tesseract - - -l eng) && echo -n "$text" | wl-copy && ( if [ "$(notify-send 'OCR Complete' "$text" --action=default=Open --wait)" = "default" ]; then printf '%s' "$text" > /tmp/qs-ocr.txt && xdg-open /tmp/qs-ocr.txt; fi ) & paplay /usr/share/sounds/freedesktop/stereo/camera-shutter.oga && rm "${tempPath}"`
             Quickshell.execDetached(["sh", "-c", cmd])
             
             tempPath = ""
@@ -507,7 +563,7 @@ Scope {
 
             const cmd = `magick "${tempPath}" -define png:compression-level=1 -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} "${outputPath}" && ` +
                 `wl-copy < "${outputPath}" && ` +
-                `notify-send "Screenshot Saved" "Path: ${outputPath}" -a "Quickshell Screenshot" -i camera-photo && ` +
+                `( if [ "$(notify-send "Screenshot Saved" "Path: ${outputPath}" -a "Quickshell Screenshot" -i camera-photo --action=default=Open --wait)" = "default" ]; then xdg-open "${outputPath}"; fi ) & ` +
                 `paplay /usr/share/sounds/freedesktop/stereo/camera-shutter.oga && ` +
                 `rm "${tempPath}"`
             
@@ -787,10 +843,12 @@ Scope {
                                 var cmd = isUrl
                                     ? "printf '%s' '" + data.replace(/'/g, "'\"'\"'") + "' | wl-copy && notify-send 'QR Code' 'Copied & opening...' && xdg-open '" + data.replace(/'/g, "'\"'\"'") + "'"
                                     : "printf '%s' '" + data.replace(/'/g, "'\"'\"'") + "' | wl-copy && notify-send 'QR Code' 'Copied to clipboard'"
-                                cmd += " && rm '" + root.tempPath + "'"
+                                cmd += " && rm -f '" + root.tempPath + "'"
                                 root.ready = false
-                                screenshotProcess.command = ["sh", "-c", cmd]
-                                screenshotProcess.running = true
+                                Quickshell.execDetached(["sh", "-c", cmd])
+                                root.tempPath = ""
+                                root.requestFlash()
+                                quitTimer.start()
                             }
                         }
                     }

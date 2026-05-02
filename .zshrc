@@ -51,9 +51,9 @@ zmodload zsh/parameter
 
 
 # Private exports
-source ~/.env
+#source ~/.env
 # SSH agent
-export SSH_AUTH_SOCK=~/.bitwarden-ssh-agent.sock
+#export SSH_AUTH_SOCK=~/.bitwarden-ssh-agent.sock
 
 export EDITOR=nvim
 export PATH="/usr/lib/ccache/bin/:$PATH"

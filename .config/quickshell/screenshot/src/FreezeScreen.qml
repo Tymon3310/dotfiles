@@ -34,7 +34,7 @@ PanelWindow {
     color: "transparent"
 
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
     // exclusionMode: ExclusionMode.Exclude // Causes undefined warning, handled by visibility race for now
 
     Item {
