@@ -1,10 +1,10 @@
--- ----------------------------------------------------- 
--- Environment Variables
--- ----------------------------------------------------- 
+local pref = require("conf.pref")
+
+hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
 
 -- Environment Variables
-hl.env("EDITOR", "nvim")
-hl.env("TERM", "kitty")
+hl.env("EDITOR", pref.EDITOR)
+hl.env("TERM", pref.TERM)
 
 -- Toolkit Backends
 hl.env("GDK_BACKEND", "wayland,x11,*")
@@ -16,6 +16,7 @@ hl.env("CLUTTER_BACKEND", "wayland")
 hl.env("XDG_CURRENT_DESKTOP", "Hyprland")
 hl.env("XDG_SESSION_TYPE", "wayland")
 hl.env("XDG_SESSION_DESKTOP", "Hyprland")
+hl.env("XDG_MENU_PREFIX", "arch-")
 
 -- QT Theming
 hl.env("QT_AUTO_SCREEN_SCALE_FACTOR", "1")

@@ -1,57 +1,52 @@
--- -----------------------------------------------------
--- Key bindings
--- -----------------------------------------------------
-
-local mainMod = "SUPER"
 local SCRIPTS = os.getenv("HOME") .. "/.config/hypr/scripts"
-local pref = require("pref")
+local pref = require("conf.pref")
+
+
 
 -- Applications
-hl.bind(mainMod " + RETURN", hl.dsp.exec_cmd(pref.TERM))
-hl.bind(mainMod " + B", hl.dsp.exec_cmd(pref.BROWSER))
-hl.bind(mainMod " + E", hl.dsp.exec_cmd(pref.FILE_MANAGER))
-hl.bind(mainMod " + CTRL + E", hl.dsp.exec_cmd(pref.EMOJI_PICKER))
-hl.bind(mainMod " + CTRL + C", hl.dsp.exec_cmd(pref.CALCULATOR))
-hl.bind(mainMod " + CTRL + RETURN", hl.dsp.exec_cmd(pref.LAUNCHER))
-hl.bind(mainMod " + SPACE", hl.dsp.exec_cmd(pref.LAUNCHER))
+hl.bind("SUPER + RETURN", hl.dsp.exec_cmd(pref.TERM))
+hl.bind("SUPER + B", hl.dsp.exec_cmd(pref.BROWSER))
+hl.bind("SUPER + E", hl.dsp.exec_cmd(pref.FILE_MANAGER))
+hl.bind("SUPER + CTRL + E", hl.dsp.exec_cmd(pref.EMOJI_PICKER))
+hl.bind("SUPER + CTRL + C", hl.dsp.exec_cmd(pref.CALCULATOR))
+hl.bind("SUPER + CTRL + RETURN", hl.dsp.exec_cmd(pref.LAUNCHER))
+hl.bind("SUPER + SPACE", hl.dsp.exec_cmd(pref.LAUNCHER))
 
 -- Windows
-hl.bind(mainMod " + Q", hl.dsp.window.close)
-hl.bind(mainMod " + SHIFT + Q", hl.dsp.window.kill)
-hl.bind(mainMod " + F", hl.dsp.window.fullscreen({ "fullscreen", "toggle" }))
-hl.bind(mainMod " + M", hl.dsp.window.fullscreen({ "maximized", "toggle" }))
-hl.bind(mainMod " + T", hl.dsp.window.float({ "toggle" }))
-hl.bind(mainMod " + S", hl.dsp.window.pseudo())
-hl.bind(mainMod "+ J", hl.dsp.layout("togglesplit"))
-hl.bind(mainMod " + left", hl.dsp.focus({ "left" }))
-hl.bind(mainMod " + right", hl.dsp.focus({ "right" }))
-hl.bind(mainMod " + up", hl.dsp.focus({ "up" }))
-hl.bind(mainMod " + down", hl.dsp.focus({ "down" }))
-hl.bind(mainMod " + mouse:272", hl.dsp.window.drag(), { mouse = true })
-hl.bind(mainMod " + mouse:273", hl.dsp.window.resize(), { mouse = true })
-hl.bind(mainMod " + SHIFT + right", hl.dsp.window.resize(100, 0))
-hl.bind(mainMod " + SHIFT + left", hl.dsp.window.resize(-100, 0))
-hl.bind(mainMod " + SHIFT + down", hl.dsp.window.resize(0, 100))
-hl.bind(mainMod " + SHIFT + up", hl.dsp.window.resize(0, -100))
-hl.bind(mainMod " + K", hl.dsp.window.swap())
-hl.bind(mainMod " + ALT + left", hl.dsp.window.swap("left"))
-hl.bind(mainMod " + ALT + right", hl.dsp.window.swap("right"))
-hl.bind(mainMod " + ALT + up", hl.dsp.window.swap("up"))
-hl.bind(mainMod " + ALT + down", hl.dsp.window.swap("down"))
-hl.bind(mainMod " + ALT + Tab", hl.dsp.window.cycle_next())
-hl.bind(mainMod " + ALT + SHIFT + Tab", hl.dsp.window.cycle_next(false))
-hl.bind(mainMod " + CTRL + Tab", hl.dsp.window.alter_zorder("top"))
+hl.bind("SUPER + Q", hl.dsp.window.close())
+hl.bind("SUPER + SHIFT + Q", hl.dsp.window.kill())
+hl.bind("SUPER + F", hl.dsp.window.fullscreen({ "fullscreen", "toggle" }))
+hl.bind("SUPER + M", hl.dsp.window.fullscreen({ "maximized", "toggle" }))
+hl.bind("SUPER + T", hl.dsp.window.float({ "toggle" }))
+hl.bind("SUPER + S", hl.dsp.window.pseudo())
+hl.bind("SUPER + J", hl.dsp.layout("togglesplit"))
+hl.bind("SUPER + left", hl.dsp.focus({ direction = "left" }))
+hl.bind("SUPER + right", hl.dsp.focus({ direction = "right" }))
+hl.bind("SUPER + up", hl.dsp.focus({ direction = "up" }))
+hl.bind("SUPER + down", hl.dsp.focus({ direction = "down" }))
+hl.bind("SUPER + mouse:272", hl.dsp.window.drag(), { mouse = true })
+hl.bind("SUPER + mouse:273", hl.dsp.window.resize(), { mouse = true })
+hl.bind("SUPER + SHIFT + right", hl.dsp.window.resize({ x = 100, y = 0, relative = true }))
+hl.bind("SUPER + SHIFT + left", hl.dsp.window.resize({ x = -100, y = 0, relative = true }))
+hl.bind("SUPER + SHIFT + down", hl.dsp.window.resize({ x = 0, y = 100, relative = true }))
+hl.bind("SUPER + SHIFT + up", hl.dsp.window.resize({ x = 0, y = -100, relative = true }))
+hl.bind("SUPER + K", hl.dsp.layout("swapsplit"))
+hl.bind("SUPER + ALT + left", hl.dsp.window.swap({ direction = "left" }))
+hl.bind("SUPER + ALT + right", hl.dsp.window.swap({ direction = "right" }))
+hl.bind("SUPER + ALT + up", hl.dsp.window.swap({ direction = "up" }))
+hl.bind("SUPER + ALT + down", hl.dsp.window.swap({ direction = "down" }))
+hl.bind("SUPER + ALT + Tab", hl.dsp.window.cycle_next())
+hl.bind("SUPER + ALT + SHIFT + Tab", hl.dsp.window.cycle_next(false))
+hl.bind("SUPER + CTRL + Tab", hl.dsp.window.alter_zorder({ mode = "top" }))
 
 -- Actions
-hl.bind(mainMod " + PRINT", hl.dsp.exec_cmd(pref.SCREENSHOT))
-hl.bind(mainMod " + SHIFT + S", hl.dsp.exec_cmd(pref.SCREENSHOT))
--- hl.bind("mainMod + CTRL + S", hl.dsp.exec_cmd, SCRIPTS .. "/ocr.sh")
--- hl.bind("mainMod + ALT + S", hl.dsp.exec_cmd, SCRIPTS .. "/hyprshot -z -m region --raw | satty --filename -")
-hl.bind(mainMod " + CTRL + Q", hl.dsp.exec_cmd("nwg-bar"))
-hl.bind(mainMod " + SHIFT + B", hl.dsp.exec_cmd(SCRIPTS .. "/waybar.sh"))
-hl.bind(mainMod " + V", hl.dsp.exec_cmd(pref.CLIP))
+hl.bind("SUPER + PRINT", hl.dsp.exec_cmd(pref.SCREENSHOT))
+hl.bind("SUPER + SHIFT + S", hl.dsp.exec_cmd(pref.SCREENSHOT))
+hl.bind("SUPER + CTRL + Q", hl.dsp.exec_cmd("nwg-bar"))
+hl.bind("SUPER + SHIFT + B", restart_waybar)
+hl.bind("SUPER + V", hl.dsp.exec_cmd(pref.CLIP))
 
--- Workspaces
+-- Per monitor Workspaces
 
 local split_workspaces = HYPR_SPLIT_WORKSPACES or {
     per_monitor = 10,
@@ -80,13 +75,17 @@ end
 
 local function focus_local_workspace(local_workspace)
     return function()
-        hl.dsp.focus({ workspace = get_workspace_id(local_workspace) })
+        hl.dispatch(hl.dsp.focus({ workspace = get_workspace_id(local_workspace) }))
     end
 end
 
-local function move_to_local_workspace(local_workspace)
+local function move_to_local_workspace(local_workspace, follow)
     return function()
-        hl.dsp.window.move({ workspace = get_workspace_id(local_workspace) })
+        local workspace_id = get_workspace_id(local_workspace)
+        local active_window = hl.get_active_window()
+        if active_window then
+            hl.dispatch(hl.dsp.window.move({ workspace = workspace_id, follow = follow }))
+        end
     end
 end
 
@@ -106,7 +105,7 @@ local function cycle_local_workspace(step)
         end
 
         local next_workspace = ((local_workspace - 1 + step) % split_workspaces.per_monitor) + 1
-        hl.dsp.focus({ workspace = get_workspace_id(next_workspace, monitor) })
+        hl.dispatch(hl.dsp.focus({ workspace = get_workspace_id(next_workspace, monitor) }))
     end
 end
 
@@ -142,7 +141,7 @@ local function move_window_to_workspace(window, workspace_id)
         return false
     end
 
-    hl.dsp.window.move({ workspace = workspace_id, window = window.address })
+    hl.dispatch(hl.dsp.window.move({ workspace = workspace_id }))
     return true
 end
 
@@ -162,7 +161,7 @@ local function center_window_if_needed(window)
     local max_y = mon_y + mon_h
 
     if win_x < min_x or win_y < min_y or win_x > max_x or win_y > max_y then
-        hl.dsp.window.center(window.address)
+        hl.dispatch(hl.dsp.window.center(window.address))
         return true
     end
 
@@ -221,34 +220,31 @@ end
 
 -- Switch workspaces with mainMod + [1-9,0]
 -- Move active window to a workspace with mainMod + SHIFT + [1-9,0]
+-- Move active window and follow with mainMod + CTRL + SHIFT + [1-9,0]
 for local_workspace = 1, split_workspaces.per_monitor do
     local key = local_workspace % 10
-    hl.bind(mainMod " + " .. key, focus_local_workspace(local_workspace))
-    hl.bind(mainMod " + SHIFT + " .. key, move_to_local_workspace(local_workspace))
+    hl.bind("SUPER + " .. key, focus_local_workspace(local_workspace))
+    hl.bind("SUPER + SHIFT + " .. key, move_to_local_workspace(local_workspace, false))
+    hl.bind("SUPER + CTRL + SHIFT + " .. key, move_to_local_workspace(local_workspace, true))
 end
 
-hl.bind(mainMod " + Tab", cycle_local_workspace(1))
-hl.bind(mainMod " + SHIFT + Tab", cycle_local_workspace(-1))
+hl.bind("SUPER + Tab", cycle_local_workspace(1))
+hl.bind("SUPER + SHIFT + Tab", cycle_local_workspace(-1))
 
-hl.bind(mainMod " + mouse_down", cycle_local_workspace(1))
-hl.bind(mainMod " + mouse_up", cycle_local_workspace(-1))
-hl.bind(mainMod " + G", recover_active_window)
-hl.bind(mainMod " + CTRL + G", recover_rogue_windows)
+hl.bind("SUPER + mouse_down", cycle_local_workspace(1))
+hl.bind("SUPER + mouse_up", cycle_local_workspace(-1))
+hl.bind("SUPER + G", recover_active_window)
+hl.bind("SUPER + CTRL + G", recover_rogue_windows)
 
 hl.on("monitor.removed", schedule_workspace_recovery)
 hl.on("monitor.added", schedule_workspace_recovery)
 hl.on("window.open", schedule_window_recovery)
 
--- Passthrough SUPER KEY to Virtual Machine
-hl.bind(mainMod "+ P", hl.dsp.submap("clean"))
 hl.define_submap("clean", function()
-    hl.bind(mainMod "+ esc", hl.dsp.submap("reset"))
+    hl.bind("SUPER + Escape", hl.dsp.submap("reset"))
 end)
 
--- btop on special workspace
-hl.bind(mainMod " + SHIFT + F",
-    hl.dsp.exec_cmd(
-        "pgrep btop && hyprctl dispatch togglespecialworkspace btop || kitty --class btop --config ~/.config/kitty/headless.conf -e btop && hyprctl dispatch centerwindow"))
+hl.bind("SUPER + SHIFT + F", toggle_btop_special)
 
 --Custom media keys
 local player = "spotify"
@@ -284,5 +280,5 @@ hl.bind("XF86MonBrightnessDown",
 
 
 hl.bind("XF86AudioMicMute", hl.dsp.exec_cmd("pactl set-source-mute @DEFAULT_SOURCE@ toggle"))
-hl.bind("XF86Lock", hl.dsp.exec_cmd("hyprlock"))
+hl.bind("XF86ScreenSaver", hl.dsp.exec_cmd("hyprlock"))
 hl.bind("code:238", hl.dsp.exec_cmd("brightnessctl -d smc::kbd_backlight s +10"))

@@ -60,6 +60,12 @@ alias 'venvoff'='deactivate'
 alias 'vsc'='code-insiders'
 alias 'code'='code-insiders'
 
-alias 'hyexec'="hyprctl dispatch exec"
+hyexec() {
+    [[ $# -gt 0 ]] || return 0
+    local cmd="$*"
+    cmd=${cmd//\\/\\\\}
+    cmd=${cmd//\"/\\\"}
+    hyprctl eval "hl.dispatch(hl.dsp.exec_cmd(\"$cmd\"))"
+}
 
 alias 'gemini-cli'='gemini'

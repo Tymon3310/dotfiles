@@ -1,7 +1,3 @@
--- -----------------------------------------------------
--- Layouts
--- -----------------------------------------------------
-
 HYPR_SPLIT_WORKSPACES = {
     per_monitor = 10,
     monitor_order = {
@@ -14,7 +10,7 @@ local split_workspaces = HYPR_SPLIT_WORKSPACES
 
 hl.config({
     dwindle = {
-        pseudotile = true,
+        -- smart_split = true,
         preserve_split = true,
     },
 

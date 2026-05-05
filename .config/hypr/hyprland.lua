@@ -1,44 +1,24 @@
--- -----------------------------------------------------
+-- Core system setup
+require("conf.monitor")
+require("conf.environment")
 
--- -----------------------------------------------------
--- Monitor
--- -----------------------------------------------------
-require("monitor")
+-- Configuration and helpers (load before input/keybinding)
+require("conf.misc")
 
--- -----------------------------------------------------
--- Environment
--- -----------------------------------------------------
-require("environment")
--- -----------------------------------------------------
--- Keyboard
--- -----------------------------------------------------
-require("keyboard")
+-- Input and key handling
+require("conf.keyboard")
+require("conf.keybinding")
 
--- -----------------------------------------------------
--- Autostart
--- -----------------------------------------------------
-require("autostart")
+-- Startup services and autostart apps
+require("conf.autostart")
 
--- -----------------------------------------------------
--- Load configuration files
--- -----------------------------------------------------
-require("decoration")
-require("layout")
-require("misc")
-require("keybinding")
-require("windowrule")
+-- Window appearance and behavior
+require("conf.decoration")
+require("conf.layout")
+require("conf.windowrule")
 
--- -----------------------------------------------------
--- Animation
--- -----------------------------------------------------
-require("animation")
+-- Visual effects and animation
+require("conf.animation")
 
--- -----------------------------------------------------
--- Custom
--- -----------------------------------------------------
-require("custom")
-
--- -----------------------------------------------------
--- Environment for xdg-desktop-portal-hyprland
--- -----------------------------------------------------
-hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
+-- Custom user overrides
+require("conf.custom")

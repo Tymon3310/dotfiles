@@ -1,6 +1,4 @@
-
-
-hl.monitor ({
+hl.monitor({
     output = "DP-1",
     mode = "2560x1440@164.96Hz",
     position = "auto-left",
@@ -9,7 +7,7 @@ hl.monitor ({
     supports_wide_color = 1,
     supports_hdr = 1
 })
-hl.monitor ({
+hl.monitor({
     output = "DP-2",
     mode = "1920x1080@144.00Hz",
     position = "auto-right",
@@ -18,7 +16,7 @@ hl.monitor ({
     supports_wide_color = 1,
     supports_hdr = 0
 })
-hl.monitor ({
+hl.monitor({
     output = "",
     mode = "preferred",
     position = "auto",

@@ -1,5 +1,5 @@
 -- Generic & Multiple properties
--- =====================================================
+
 
 hl.window_rule({
   name = "empty_no_blur",
@@ -19,7 +19,7 @@ hl.window_rule {
 }
 
 -- Floating windows
--- =====================================================
+
 
 hl.window_rule {
   name = "pip",
@@ -98,7 +98,7 @@ hl.window_rule {
 }
 
 -- Dialog & Picker windows
--- =====================================================
+
 
 hl.window_rule {
   name = "share_picker",
@@ -148,7 +148,8 @@ hl.window_rule {
 
 
 -- Workspace specific
--- =====================================================
+
+
 
 hl.window_rule {
   name = "btop",
@@ -193,7 +194,7 @@ hl.window_rule {
 }
 
 -- No screen share
--- =====================================================
+
 
 hl.window_rule {
   name = "bitwarden",
@@ -231,7 +232,7 @@ hl.window_rule {
 }
 
 -- Layer rules
--- =====================================================
+
 
 hl.layer_rule {
   name = "vicinae_dim",
@@ -251,7 +252,7 @@ hl.layer_rule {
 
 
 -- Fixes
--- =====================================================
+
 
 hl.window_rule {
   name = "jetbrains_tooltips",

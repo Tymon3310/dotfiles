@@ -1,11 +1,10 @@
--- -----------------------------------------------------
--- Autostart
--- -----------------------------------------------------
 local SCRIPTS = os.getenv("HOME") .. "/.config/hypr/scripts"
 
 hl.on("hyprland.start", function()
-    hl.exec_cmd("hyprctl reload -n")
+    hl.exec_cmd("hyprctl reload --no-warnings")
     hl.exec_cmd(SCRIPTS .. "/xdg.sh")
+
+    hl.exec_cmd("xrandr --output DP-1 --primary")
 
     -- hl.exec_cmd("/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1")
     -- hl.exec_cmd("systemctl --user start hyprpolkitagent")
@@ -20,13 +19,15 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("hypridle")
     hl.exec_cmd("wl-paste --watch cliphist store")
     -- hl.exec_cmd("waybar")
-    hl.exec_cmd(SCRIPTS .. "/waybar.sh")
+    restart_waybar()
     hl.exec_cmd("XDG_MENU_PREFIX=arch- kbuildsycoca6")
     hl.exec_cmd("playerctld daemon")
     hl.exec_cmd("/usr/lib/kdeconnectd &")
     hl.exec_cmd("vicinae server")
     hl.exec_cmd("wl-clip-persist --clipboard regular")
     hl.exec_cmd("hyprsunset")
-    hl.exec_cmd(SCRIPTS .. "/bw_fix.sh")
-    hl.exec_cmd("jbl-quantum-tray")
+
+    -- Start btop in background on special workspace
+    hl.exec_cmd("kitty --class btop --config ~/.config/kitty/headless.conf -e btop", { workspace = "special:btop" })
+    hl.timer(normalize_btop_window, { timeout = 300, type = "oneshot" })
 end)
