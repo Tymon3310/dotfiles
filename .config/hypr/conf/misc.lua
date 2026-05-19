@@ -1,3 +1,18 @@
+-- Configuration
+hl.config({
+    misc = {
+        disable_hyprland_logo = false,
+        allow_session_lock_restore = true,
+        middle_click_paste = false,
+        disable_splash_rendering = false,
+        -- initial_workspace_tracking = 2
+        vrr = 1,
+        key_press_enables_dpms = true,
+        animate_manual_resizes = true,
+    }
+})
+
+
 -- Waybar Management
 function restart_waybar()
     os.execute("pkill -9 waybar 2>/dev/null")
@@ -115,16 +130,19 @@ hl.on("window.title", function(client)
     end
 end)
 
--- Configuration
-hl.config({
-    misc = {
-        disable_hyprland_logo = false,
-        allow_session_lock_restore = true,
-        middle_click_paste = false,
-        disable_splash_rendering = false,
-        -- initial_workspace_tracking = 2
-        vrr = 1,
-        key_press_enables_dpms = true,
-        animate_manual_resizes = true,
-    }
-})
+-- Fix for apps opening on wrong workspace (especially first instances)
+-- Moves new windows from unexpected workspaces to the currently focused workspace
+hl.on("window.open_early", function(client)
+    -- Small delay to let Hyprland finish placing the window
+    hl.timer(function()
+        local active_ws = hl.get_active_workspace()
+
+        if not active_ws or not client or not client.workspace then return end
+
+        -- Check if window is on a different workspace than the active one
+        if client.workspace.id ~= active_ws.id then
+            -- Move it to the currently focused workspace
+            hl.dispatch(hl.dsp.window.move({ workspace = active_ws.id, window = client.address }))
+        end
+    end, { timeout = 50, type = "oneshot" })
+end)

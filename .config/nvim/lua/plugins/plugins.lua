@@ -1,6 +1,6 @@
 return {
 
-  { "folke/snacks.nvim", opts = { dashboard = { enabled = false } } },
+  -- { "folke/snacks.nvim",  opts = { dashboard = { enabled = false } } },
 
   { "Mofiqul/vscode.nvim" },
 
@@ -16,16 +16,13 @@ return {
     "kevinoid/vim-jsonc",
   },
   {
-    "kmonad/kmonad-vim",
-  },
-  {
     "nvim-neo-tree/neo-tree.nvim",
     branch = "v3.x",
     dependencies = {
       "nvim-lua/plenary.nvim",
       "nvim-tree/nvim-web-devicons", -- not strictly required, but recommended
       "MunifTanjim/nui.nvim",
-      "3rd/image.nvim", -- Optional image support in preview window: See `# Preview Mode` for more information
+      "3rd/image.nvim",              -- Optional image support in preview window: See `# Preview Mode` for more information
     },
     opts = {
       sources = {
@@ -35,12 +32,12 @@ return {
         "document_symbols",
       },
       auto_clean_after_session_restore = true, -- Automatically clean up broken neo-tree buffers saved in sessions
-      close_if_last_window = true, -- Close Neo-tree if it is the last window left in the tab
-      default_source = "filesystem", -- you can choose a specific source `last` here which indicates the last used source
+      close_if_last_window = true,             -- Close Neo-tree if it is the last window left in the tab
+      default_source = "filesystem",           -- you can choose a specific source `last` here which indicates the last used source
       enable_diagnostics = true,
       enable_git_status = true,
       enable_modified_markers = true, -- Show markers for files with unsaved changes.
-      enable_opened_markers = true, -- Enable tracking of opened files. Required for `components.name.highlight_opened_files`
+      enable_opened_markers = true,   -- Enable tracking of opened files. Required for `components.name.highlight_opened_files`
       icon = {
         git_status = {
           symbols = {

@@ -16,3 +16,7 @@ echo "YOU ARE IN BASH, TYPE ZSH FOR MORE FULL FEATURED SHELL"
 
 source ~/.config/zshrc/aliases.zsh
 source "$HOME/.cargo/env"
+
+
+# Added by Antigravity CLI installer
+export PATH="/home/tymon/.local/bin:$PATH"

@@ -223,8 +223,10 @@ Item {
                 target: root
 
                 function onCheckHover(mouseX, mouseY) {
-                    const monitorX = root.monitor.lastIpcObject.x
-                    const monitorY = root.monitor.lastIpcObject.y
+                    // mouseX, mouseY are in screen-local coordinates from MouseArea
+                    // Get window position in screen-local coords
+                    const monitorX = root.screenX
+                    const monitorY = root.screenY
 
                     // Screen-local coords for display
                     const windowX = modelData.lastIpcObject.at[0] - monitorX
@@ -256,8 +258,9 @@ Item {
                 }
 
                 function onWindowClicked(mouseX, mouseY, ctrlHeld, shiftHeld) {
-                    const monitorX = root.monitor.lastIpcObject.x
-                    const monitorY = root.monitor.lastIpcObject.y
+                    // mouseX, mouseY are in screen-local coordinates from MouseArea
+                    const monitorX = root.screenX
+                    const monitorY = root.screenY
 
                     const windowX = modelData.lastIpcObject.at[0] - monitorX
                     const windowY = modelData.lastIpcObject.at[1] - monitorY

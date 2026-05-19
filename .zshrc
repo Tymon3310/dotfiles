@@ -137,3 +137,7 @@ export SUDO_PROMPT=$(printf '\x1b[38;2;255;255;255m╭─\x1b[38;2;0;43;84m\x
 
 
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv zsh)"
+
+
+# Added by Antigravity CLI installer
+export PATH="/home/tymon/.local/bin:$PATH"

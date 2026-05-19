@@ -513,7 +513,7 @@ Scope {
             const cmd = `magick "${tempPath}" -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} "${cropPath}" && ` +
                 `base64 -w0 "${cropPath}" > "${b64Path}" && ` +
                 `{ printf '{"contents":[{"parts":[{"text":"${escapedPrompt}"},{"inline_data":{"mime_type":"image/png","data":"'; cat "${b64Path}"; printf '"}}]}],"generationConfig":{"thinkingConfig":{"thinkingLevel":"low"}}}'; } > "${jsonPath}" && ` +
-                `curl -s --max-time 120 "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent" ` +
+                `curl -s --max-time 120 "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent" ` +
                 `-H "x-goog-api-key: ${apiKey}" ` +
                 `-H "Content-Type: application/json" ` +
                 `-X POST -d @"${jsonPath}" -o "${responsePath}" && ` +

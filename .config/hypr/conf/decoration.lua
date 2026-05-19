@@ -7,7 +7,6 @@ hl.config({
             active_border = 0x0070D84f,
             -- inactive_border = 0xffffffff,
         },
-        layout = "dwindle",
         resize_on_border = true,
     },
 
