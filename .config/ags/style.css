@@ -1,0 +1,272 @@
+* {
+  font-family: "Google Sans Code NF", "Inter", sans-serif;
+  font-size: 12px;
+}
+
+button, menubutton {
+  all: unset;
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Fix for black corners on popovers */
+popover {
+  background: transparent;
+}
+popover contents {
+  background: rgba(15, 15, 15, 0.98);
+  border: 1px solid rgba(0, 112, 216, 0.4);
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+  padding: 0;
+}
+popover.menu {
+  padding: 8px;
+}
+popover.menu contents {
+  padding: 4px;
+  border-radius: 12px;
+}
+popover.menu modelbutton {
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: white;
+}
+popover.menu modelbutton:hover {
+  background: rgba(0, 112, 216, 0.2);
+  color: #0070D8;
+}
+popover.menu modelbutton label {
+  color: white;
+}
+
+window.Bar {
+  background: transparent;
+}
+window.Bar .centerbox {
+  background: linear-gradient(to bottom, rgba(20, 20, 20, 0.98) 0%, rgba(10, 10, 10, 0.98) 100%);
+  color: #ffffff;
+  border-bottom: 2px solid #0070D8;
+  border-radius: 0 0 12px 12px;
+  margin: 0 16px;
+  padding: 0 8px;
+  min-height: 30px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+.Workspaces {
+  padding: 0 4px;
+}
+.Workspaces .workspace-item {
+  padding: 4px 8px;
+  margin: 4px 1px;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.4);
+  transition: all 0.2s ease;
+}
+.Workspaces .workspace-item.focused {
+  background: rgba(0, 112, 216, 0.2);
+  color: #0070D8;
+  font-weight: 800;
+}
+.Workspaces .workspace-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.WindowTitle {
+  padding: 0 8px;
+}
+.WindowTitle label {
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+}
+.WindowTitle image {
+  margin-right: 4px;
+}
+
+.MediaIsland {
+  background: rgba(0, 112, 216, 0.1);
+  padding: 0 12px;
+  margin: 4px 0;
+  border-radius: 18px;
+  transition: all 0.2s ease;
+}
+.MediaIsland:hover {
+  background: rgba(0, 112, 216, 0.2);
+}
+.MediaIsland label {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.status-module {
+  padding: 0 4px;
+  margin: 4px 0;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+  color: white; /* All white by default */
+}
+.status-module:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.status-module label.icon {
+  color: white; /* Changed from $accent back to white */
+  font-size: 13px;
+  margin-right: 2px;
+}
+.status-module.cpu {
+  color: #ffffff;
+}
+.status-module.ram {
+  color: #ffffff;
+}
+.status-module.warning {
+  color: #ff9a3c;
+}
+.status-module.warning label.icon {
+  color: #ff9a3c;
+}
+.status-module.critical {
+  color: #ff5e5e;
+}
+.status-module.critical label.icon {
+  color: #ff5e5e;
+  font-weight: 900;
+}
+
+.SysTray {
+  padding: 0 4px;
+}
+.SysTray image {
+  margin: 0 1px;
+}
+
+.separator {
+  background: rgba(255, 255, 255, 0.15);
+  min-width: 1px;
+  margin: 8px 6px;
+}
+.separator.small {
+  margin: 10px 4px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.Dashboard {
+  min-width: 320px;
+  padding: 20px;
+}
+.Dashboard .player-title {
+  font-weight: 800;
+  font-size: 16px;
+}
+.Dashboard .player-artist {
+  color: rgba(255, 255, 255, 0.6);
+}
+.Dashboard .player-slider {
+  margin: 12px 0;
+}
+.Dashboard .player-slider trough {
+  background: rgba(255, 255, 255, 0.1);
+  min-height: 4px;
+  border-radius: 4px;
+}
+.Dashboard .player-slider highlight {
+  background: #0070D8;
+  min-height: 4px;
+  border-radius: 4px;
+}
+.Dashboard .player-slider slider {
+  background: white;
+  min-width: 12px;
+  min-height: 12px;
+  border-radius: 100%;
+  margin: -4px 0;
+}
+.Dashboard .player-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  font-size: 16px;
+}
+.Dashboard .player-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.Dashboard .player-btn.highlight {
+  background: rgba(0, 112, 216, 0.1);
+  color: #0070D8;
+}
+.Dashboard .grid-header {
+  color: #0070D8;
+  font-weight: 900;
+  font-size: 10px;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+
+.popover-box {
+  padding: 16px;
+  min-width: 280px;
+}
+.popover-box .section-title {
+  font-size: 10px;
+  font-weight: 900;
+  color: #0070D8;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+.popover-box .detail-text {
+  font-family: "Google Sans Code NF", monospace;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.4;
+}
+.popover-box .jbl-big-icon {
+  font-size: 24px;
+  color: #ff9a3c;
+  margin-right: 8px;
+}
+.popover-box .grid-header {
+  font-size: 14px;
+  font-weight: 800;
+  color: white;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 8px;
+}
+
+calendar {
+  background: transparent;
+  color: white;
+  padding: 8px;
+  border: none;
+}
+calendar:selected {
+  background: #0070D8;
+  border-radius: 6px;
+}
+calendar.header {
+  background: transparent;
+  color: #0070D8;
+  font-weight: 800;
+}
+calendar.button {
+  color: white;
+}
+calendar.button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+calendar label {
+  color: rgba(255, 255, 255, 0.9);
+}
+calendar view {
+  background: transparent;
+}
+
+/*# sourceMappingURL=style.css.map */

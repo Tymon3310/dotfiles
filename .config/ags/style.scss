@@ -1,0 +1,168 @@
+$bg: rgba(15, 15, 15, 0.98);
+$fg: #ffffff;
+$accent: #0070D8;
+$border: rgba(0, 112, 216, 0.4);
+$warning: #ff9a3c;
+$critical: #ff5e5e;
+
+* {
+  font-family: "Google Sans Code NF", "Inter", sans-serif;
+  font-size: 12px;
+}
+
+button, menubutton {
+  all: unset;
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Fix for black corners on popovers */
+popover {
+  background: transparent;
+  
+  contents {
+    background: rgba(15, 15, 15, 0.98);
+    border: 1px solid $border;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+    padding: 0;
+  }
+
+  &.menu {
+    padding: 8px;
+    contents { padding: 4px; border-radius: 12px; }
+    modelbutton {
+      padding: 8px 12px; border-radius: 8px; color: white;
+      &:hover { background: rgba(0, 112, 216, 0.2); color: $accent; }
+      label { color: white; }
+    }
+  }
+}
+
+window.Bar {
+  background: transparent;
+
+  .centerbox {
+    background: linear-gradient(to bottom, rgba(20, 20, 20, 0.98) 0%, rgba(10, 10, 10, 0.98) 100%);
+    color: $fg;
+    border-bottom: 2px solid $accent;
+    border-radius: 0 0 12px 12px;
+    margin: 0 16px;
+    padding: 0 8px;
+    min-height: 30px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  }
+}
+
+.Workspaces {
+  padding: 0 4px;
+  .workspace-item {
+    padding: 4px 8px;
+    margin: 4px 1px;
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.4);
+    transition: all 0.2s ease;
+
+    &.focused {
+      background: rgba(0, 112, 216, 0.2);
+      color: $accent;
+      font-weight: 800;
+    }
+
+    &:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+  }
+}
+
+.WindowTitle {
+  padding: 0 8px;
+  label { font-weight: 700; color: rgba(255, 255, 255, 0.9); }
+  image { margin-right: 4px; }
+}
+
+.MediaIsland {
+  background: rgba(0, 112, 216, 0.1);
+  padding: 0 12px;
+  margin: 4px 0;
+  border-radius: 18px;
+  transition: all 0.2s ease;
+  &:hover { background: rgba(0, 112, 216, 0.2); }
+  label { font-size: 11px; font-weight: 700; }
+}
+
+.status-module {
+  padding: 0 4px;
+  margin: 4px 0;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+  color: white; /* All white by default */
+  
+  &:hover { background: rgba(255, 255, 255, 0.1); }
+
+  label.icon {
+    color: white; /* Changed from $accent back to white */
+    font-size: 13px;
+    margin-right: 2px;
+  }
+  
+  &.cpu { color: #ffffff; }
+  &.ram { color: #ffffff; }
+
+  &.warning { color: $warning; label.icon { color: $warning; } }
+  &.critical { color: $critical; label.icon { color: $critical; font-weight: 900; } }
+}
+
+.SysTray {
+  padding: 0 4px;
+  image { margin: 0 1px; }
+}
+
+.separator {
+  background: rgba(255, 255, 255, 0.15);
+  min-width: 1px;
+  margin: 8px 6px;
+  
+  &.small {
+    margin: 10px 4px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+}
+
+.Dashboard {
+  min-width: 320px;
+  padding: 20px;
+  .player-title { font-weight: 800; font-size: 16px; }
+  .player-artist { color: rgba(255, 255, 255, 0.6); }
+  .player-slider {
+    margin: 12px 0;
+    trough { background: rgba(255, 255, 255, 0.1); min-height: 4px; border-radius: 4px; }
+    highlight { background: $accent; min-height: 4px; border-radius: 4px; }
+    slider { background: white; min-width: 12px; min-height: 12px; border-radius: 100%; margin: -4px 0; }
+  }
+  .player-btn {
+    padding: 8px 16px; border-radius: 8px; background: rgba(255, 255, 255, 0.05); color: white; font-size: 16px;
+    &:hover { background: rgba(255, 255, 255, 0.1); }
+    &.highlight { background: rgba(0, 112, 216, 0.1); color: $accent; }
+  }
+  .grid-header { color: $accent; font-weight: 900; font-size: 10px; letter-spacing: 1px; margin-bottom: 4px; }
+}
+
+.popover-box {
+  padding: 16px;
+  min-width: 280px;
+  .section-title { font-size: 10px; font-weight: 900; color: $accent; letter-spacing: 1.2px; text-transform: uppercase; margin-top: 8px; margin-bottom: 4px; }
+  .detail-text { font-family: "Google Sans Code NF", monospace; font-size: 11px; color: rgba(255, 255, 255, 0.8); line-height: 1.4; }
+  .jbl-big-icon { font-size: 24px; color: #ff9a3c; margin-right: 8px; }
+  .grid-header { font-size: 14px; font-weight: 800; color: white; margin-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 8px; }
+}
+
+calendar {
+  background: transparent; color: white; padding: 8px; border: none;
+  &:selected { background: $accent; border-radius: 6px; }
+  &.header { background: transparent; color: $accent; font-weight: 800; }
+  &.button { color: white; &:hover { background: rgba(255, 255, 255, 0.1); } }
+  label { color: rgba(255, 255, 255, 0.9); }
+  view { background: transparent; }
+}
