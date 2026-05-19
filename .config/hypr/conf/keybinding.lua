@@ -69,7 +69,7 @@ layout.setup_events()
 -- Move active window and follow with mainMod + CTRL + SHIFT + [1-9,0] or CTRL + SHIFT + F[1-10]
 for local_workspace = 1, layout.per_monitor do
     local key
-    
+
     if local_workspace <= 10 then
         -- Use number keys 1-9, 0 for workspaces 1-10
         key = local_workspace % 10
@@ -77,7 +77,7 @@ for local_workspace = 1, layout.per_monitor do
         -- Use F1-F10 for workspaces 11-20
         key = "F" .. (local_workspace - 10)
     end
-    
+
     hl.bind("SUPER + " .. key, layout.focus_local_workspace(local_workspace))
     hl.bind("SUPER + SHIFT + " .. key, layout.move_to_local_workspace(local_workspace, false))
     hl.bind("SUPER + CTRL + SHIFT + " .. key, layout.move_to_local_workspace(local_workspace, true))
