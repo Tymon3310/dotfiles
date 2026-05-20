@@ -74,6 +74,37 @@ export default function Dashboard() {
     }
   })
 
+  const weather = createPoll({ temp: "--", feelsLike: "--", desc: "Loading...", icon: "󰖐", location: "Locating..." }, 900000, async () => {
+    try {
+      const res = await execAsync("curl -s 'https://wttr.in/?format=j1'").catch(() => null)
+      if (!res) return { temp: "--", feelsLike: "--", desc: "Unavailable", icon: "󰖐", location: "Offline" }
+      const data = JSON.parse(res)
+      const current = data.current_condition[0]
+      const temp = current.temp_C
+      const feelsLike = current.FeelsLikeC
+      const desc = current.weatherDesc[0].value
+      const code = current.weatherCode
+      const area = data.nearest_area[0].areaName[0].value
+      
+      // Map code to icon
+      let icon = "󰖐"
+      const c = parseInt(code)
+      if (c === 113) icon = "󰖙" // Sunny
+      else if (c === 116) icon = "󰖕" // Partly Cloudy
+      else if ([119, 122].includes(c)) icon = "󰖐" // Cloudy
+      else if ([143, 248, 260].includes(c)) icon = "󰖑" // Fog
+      else if ([176, 263, 266, 293, 296, 299, 302, 353, 356].includes(c)) icon = "󰖗" // Light rain
+      else if ([305, 308, 359, 362].includes(c)) icon = "󰖖" // Heavy rain
+      else if ([200, 386, 389, 392].includes(c)) icon = "󰙾" // Thunder
+      else if ([179, 182, 185, 227, 230, 281, 284, 311, 314, 317, 320, 323, 326, 329, 332, 335, 338, 350, 365, 368, 371, 395].includes(c)) icon = "󰼶" // Snow
+      
+      return { temp, feelsLike, desc, icon, location: area }
+    } catch (e) {
+      console.error("Weather fetch error:", e)
+      return { temp: "--", feelsLike: "--", desc: "Error", icon: "󰖐", location: "Unknown" }
+    }
+  })
+
   return (
     <box orientation={Gtk.Orientation.VERTICAL} class="Dashboard popover-box" spacing={20}>
       <box class="dashboard-section player-mini" orientation={Gtk.Orientation.VERTICAL} spacing={8}>
@@ -103,7 +134,7 @@ export default function Dashboard() {
            <button onClicked={() => execAsync("playerctl -p spotify next").catch(() => {})} class="player-btn">
               <label label="󰒭" />
            </button>
-        </box>
+         </box>
       </box>
 
       <box orientation={Gtk.Orientation.VERTICAL} spacing={12} class="info-grid">
@@ -134,6 +165,20 @@ export default function Dashboard() {
         <box orientation={Gtk.Orientation.VERTICAL} spacing={4}>
            <label label="NETWORK SPEED:" class="section-title" halign={Gtk.Align.START} />
            <label label={netSpeed} halign={Gtk.Align.START} class="detail-text" />
+        </box>
+
+        <box orientation={Gtk.Orientation.VERTICAL} spacing={4}>
+           <label label="WEATHER:" class="section-title" halign={Gtk.Align.START} />
+           <box spacing={8} valign={Gtk.Align.CENTER}>
+              <label label={weather.as(w => w.icon)} class="weather-icon" />
+              <box orientation={Gtk.Orientation.VERTICAL} spacing={2}>
+                 <box spacing={8}>
+                    <label label={weather.as(w => `${w.temp}°C`)} class="detail-text weather-temp" />
+                    <label label={weather.as(w => `(Feels ${w.feelsLike}°C)`)} class="detail-text weather-feels" />
+                 </box>
+                 <label label={weather.as(w => `${w.desc} | ${w.location}`)} class="detail-text weather-desc" />
+              </box>
+           </box>
         </box>
       </box>
     </box>

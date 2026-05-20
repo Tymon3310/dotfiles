@@ -22,18 +22,33 @@ button, menubutton {
 /* Fix for black corners on popovers */
 popover {
   background: transparent;
+  margin-top: -6px; /* Pull popover up to sit flush against the bar's bottom edge */
+
+  > arrow {
+    opacity: 0;
+    background: transparent;
+    border-color: transparent;
+  }
   
   contents {
     background: rgba(15, 15, 15, 0.98);
     border: 1px solid $border;
-    border-radius: 16px;
+    border-top: none; /* Seamless merge with the bar's bottom border */
+    border-radius: 0 0 16px 16px; /* Curve only the bottom corners */
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
     padding: 0;
+
+    /* Smooth emerge animation */
+    animation: popover-emerge 0.15s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   &.menu {
     padding: 8px;
-    contents { padding: 4px; border-radius: 12px; }
+    contents { 
+      padding: 4px; 
+      border-radius: 0 0 12px 12px; 
+      border-top: none;
+    }
     modelbutton {
       padding: 8px 12px; border-radius: 8px; color: white;
       &:hover { background: rgba(0, 112, 216, 0.2); color: $accent; }
@@ -42,19 +57,47 @@ popover {
   }
 }
 
+@keyframes popover-emerge {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 window.Bar {
   background: transparent;
 
-  .centerbox {
-    background: linear-gradient(to bottom, rgba(20, 20, 20, 0.98) 0%, rgba(10, 10, 10, 0.98) 100%);
-    color: $fg;
+  .BarContainer {
+    background: transparent;
+  }
+
+  .BarHeader {
+    background: rgba(15, 15, 15, 0.98);
     border-bottom: 2px solid $accent;
     border-radius: 0 0 12px 12px;
     margin: 0 16px;
-    padding: 0 8px;
-    min-height: 30px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
   }
+
+  .centerbox {
+    color: $fg;
+    padding: 0 8px;
+    min-height: 30px;
+  }
+}
+
+.dropdown-area {
+  background: rgba(15, 15, 15, 0.98);
+  border: 2px solid $accent;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  margin-top: -2px; /* Overlap with BarHeader bottom border */
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  padding: 16px;
 }
 
 .Workspaces {
@@ -117,6 +160,17 @@ window.Bar {
 .SysTray {
   padding: 0 4px;
   image { margin: 0 1px; }
+  .tray-item {
+    background: transparent;
+    border: none;
+    padding: 2px 4px;
+    box-shadow: none;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+    &:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+  }
 }
 
 .separator {
@@ -156,6 +210,22 @@ window.Bar {
   .detail-text { font-family: "Google Sans Code NF", monospace; font-size: 11px; color: rgba(255, 255, 255, 0.8); line-height: 1.4; }
   .jbl-big-icon { font-size: 24px; color: #ff9a3c; margin-right: 8px; }
   .grid-header { font-size: 14px; font-weight: 800; color: white; margin-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 8px; }
+  .weather-icon {
+    font-size: 28px;
+    color: #ff9a3c;
+    text-shadow: 0 0 8px rgba(255, 154, 60, 0.4);
+    margin-right: 8px;
+  }
+  .weather-temp {
+    font-weight: 800;
+    color: white;
+  }
+  .weather-feels {
+    color: rgba(255, 255, 255, 0.6);
+  }
+  .weather-desc {
+    color: rgba(255, 255, 255, 0.8);
+  }
 }
 
 calendar {
@@ -166,3 +236,77 @@ calendar {
   label { color: rgba(255, 255, 255, 0.9); }
   view { background: transparent; }
 }
+
+.tray-popover {
+  > contents {
+    background: rgba(12, 12, 12, 0.98);
+    border: 2px solid $accent;
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7);
+    padding: 6px;
+    min-width: 180px;
+  }
+
+  .tray-menu-box {
+    padding: 2px;
+  }
+
+  .tray-menu-title {
+    font-size: 10px;
+    font-weight: 900;
+    color: $accent;
+    letter-spacing: 1px;
+    padding: 4px 8px 6px 8px;
+  }
+
+  .tray-sep {
+    background: rgba(255, 255, 255, 0.1);
+    min-height: 1px;
+    margin: 4px 4px;
+  }
+
+  .tray-menu-item {
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 13px;
+    padding: 6px 12px;
+    min-width: 160px;
+
+    label { color: inherit; }
+
+    &:hover {
+      background: rgba(0, 112, 216, 0.25);
+      color: white;
+    }
+
+    &:active {
+      background: rgba(0, 112, 216, 0.4);
+    }
+
+    &.tray-menu-item-disabled {
+      color: rgba(255, 255, 255, 0.3);
+      &:hover { background: transparent; }
+    }
+  }
+
+  .tray-menu-section {
+    font-size: 10px;
+    font-weight: 800;
+    color: rgba(255, 255, 255, 0.4);
+    padding: 4px 12px 2px 12px;
+    letter-spacing: 0.8px;
+  }
+
+  .tray-submenu {
+    margin-left: 8px;
+  }
+
+  .tray-menu-empty {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+}
+

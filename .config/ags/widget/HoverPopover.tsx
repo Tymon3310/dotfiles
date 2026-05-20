@@ -4,7 +4,7 @@ export default function HoverPopover({ child, popover }: { child: any, popover: 
     const pop = new Gtk.Popover({
         child: popover,
         position: Gtk.PositionType.BOTTOM,
-        has_arrow: true,
+        has_arrow: false,
         autohide: false
     })
 

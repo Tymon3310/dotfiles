@@ -5,7 +5,7 @@ hl.config({
         allow_session_lock_restore = true,
         middle_click_paste = false,
         disable_splash_rendering = false,
-        -- initial_workspace_tracking = 2
+        initial_workspace_tracking = 0,
         vrr = 1,
         key_press_enables_dpms = true,
         animate_manual_resizes = true,
@@ -130,19 +130,53 @@ hl.on("window.title", function(client)
     end
 end)
 
--- Fix for apps opening on wrong workspace (especially first instances)
--- Moves new windows from unexpected workspaces to the currently focused workspace
-hl.on("window.open_early", function(client)
-    -- Small delay to let Hyprland finish placing the window
-    hl.timer(function()
-        local active_ws = hl.get_active_workspace()
+-- -- Fix for apps opening on wrong workspace (especially first instances)
+-- -- Moves new windows from unexpected workspaces to the currently focused workspace
+-- hl.on("window.open_early", function(client)
+--     -- Small delay to let Hyprland finish placing the window
+--     hl.timer(function()
+--         local active_ws = hl.get_active_workspace()
 
-        if not active_ws or not client or not client.workspace then return end
+--         local log_file = io.open("/tmp/hypr_debug.log", "a")
+--         if log_file then
+--             local client_ws_id = (client and client.workspace) and client.workspace.id or "nil"
+--             local active_ws = hl.get_active_workspace()
+--             local active_ws_id = active_ws and active_ws.id or "nil"
+--             local active_mon = hl.get_active_monitor()
+--             local active_mon_name = active_mon and active_mon.name or "nil"
+--             local active_mon_focused = active_mon and tostring(active_mon.focused) or "nil"
+--             local active_ws_with_mon = hl.get_active_workspace(active_mon)
+--             local active_ws_with_mon_id = active_ws_with_mon and active_ws_with_mon.id or "nil"
 
-        -- Check if window is on a different workspace than the active one
-        if client.workspace.id ~= active_ws.id then
-            -- Move it to the currently focused workspace
-            hl.dispatch(hl.dsp.window.move({ workspace = active_ws.id, window = client.address }))
-        end
-    end, { timeout = 50, type = "oneshot" })
-end)
+--             log_file:write(string.format("[%s] open_early timer:\n", os.date("%H:%M:%S")))
+--             log_file:write(string.format("  client: class=%s, title=%s, ws=%s\n", client and client.class or "nil",
+--                 client and client.title or "nil", tostring(client_ws_id)))
+--             log_file:write(string.format("  active_ws: %s\n", tostring(active_ws_id)))
+--             log_file:write(string.format("  active_mon: name=%s, focused=%s\n", active_mon_name, active_mon_focused))
+--             log_file:write(string.format("  active_ws_with_mon: %s\n", tostring(active_ws_with_mon_id)))
+
+--             -- Log all monitors
+--             log_file:write("  monitors:\n")
+--             for _, m in ipairs(hl.get_monitors() or {}) do
+--                 log_file:write(string.format("    - name=%s, id=%s, focused=%s\n", m.name, m.id, tostring(m.focused)))
+--             end
+
+--             -- Log all workspaces
+--             log_file:write("  workspaces:\n")
+--             for _, w in ipairs(hl.get_workspaces() or {}) do
+--                 local w_mon_name = w.monitor and w.monitor.name or "nil"
+--                 log_file:write(string.format("    - id=%d, name=%s, monitor=%s, active=%s, visible=%s\n", w.id, w.name,
+--                     w_mon_name, tostring(w.active), tostring(w.visible)))
+--             end
+--             log_file:close()
+--         end
+
+--         if not active_ws or not client or not client.workspace then return end
+
+--         -- Check if window is on a different workspace than the active one
+--         if client.workspace.id ~= active_ws.id then
+--             -- Move it to the currently focused workspace
+--             hl.dispatch(hl.dsp.window.move({ workspace = active_ws.id, window = client.address }))
+--         end
+--     end, { timeout = 50, type = "oneshot" })
+-- end)

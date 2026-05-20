@@ -15,20 +15,30 @@ button, menubutton {
 /* Fix for black corners on popovers */
 popover {
   background: transparent;
+  margin-top: -6px; /* Pull popover up to sit flush against the bar's bottom edge */
+}
+popover > arrow {
+  opacity: 0;
+  background: transparent;
+  border-color: transparent;
 }
 popover contents {
   background: rgba(15, 15, 15, 0.98);
   border: 1px solid rgba(0, 112, 216, 0.4);
-  border-radius: 16px;
+  border-top: none; /* Seamless merge with the bar's bottom border */
+  border-radius: 0 0 16px 16px; /* Curve only the bottom corners */
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
   padding: 0;
+  /* Smooth emerge animation */
+  animation: popover-emerge 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 popover.menu {
   padding: 8px;
 }
 popover.menu contents {
   padding: 4px;
-  border-radius: 12px;
+  border-radius: 0 0 12px 12px;
+  border-top: none;
 }
 popover.menu modelbutton {
   padding: 8px 12px;
@@ -43,18 +53,43 @@ popover.menu modelbutton label {
   color: white;
 }
 
+@keyframes popover-emerge {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 window.Bar {
   background: transparent;
 }
-window.Bar .centerbox {
-  background: linear-gradient(to bottom, rgba(20, 20, 20, 0.98) 0%, rgba(10, 10, 10, 0.98) 100%);
-  color: #ffffff;
+window.Bar .BarContainer {
+  background: transparent;
+}
+window.Bar .BarHeader {
+  background: rgba(15, 15, 15, 0.98);
   border-bottom: 2px solid #0070D8;
   border-radius: 0 0 12px 12px;
   margin: 0 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+window.Bar .centerbox {
+  color: #ffffff;
   padding: 0 8px;
   min-height: 30px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+.dropdown-area {
+  background: rgba(15, 15, 15, 0.98);
+  border: 2px solid #0070D8;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  margin-top: -2px; /* Overlap with BarHeader bottom border */
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  padding: 16px;
 }
 
 .Workspaces {
@@ -143,6 +178,17 @@ window.Bar .centerbox {
 }
 .SysTray image {
   margin: 0 1px;
+}
+.SysTray .tray-item {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  box-shadow: none;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+.SysTray .tray-item:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .separator {
@@ -240,6 +286,22 @@ window.Bar .centerbox {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   padding-bottom: 8px;
 }
+.popover-box .weather-icon {
+  font-size: 28px;
+  color: #ff9a3c;
+  text-shadow: 0 0 8px rgba(255, 154, 60, 0.4);
+  margin-right: 8px;
+}
+.popover-box .weather-temp {
+  font-weight: 800;
+  color: white;
+}
+.popover-box .weather-feels {
+  color: rgba(255, 255, 255, 0.6);
+}
+.popover-box .weather-desc {
+  color: rgba(255, 255, 255, 0.8);
+}
 
 calendar {
   background: transparent;
@@ -267,6 +329,70 @@ calendar label {
 }
 calendar view {
   background: transparent;
+}
+
+.tray-popover > contents {
+  background: rgba(12, 12, 12, 0.98);
+  border: 2px solid #0070D8;
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7);
+  padding: 6px;
+  min-width: 180px;
+}
+.tray-popover .tray-menu-box {
+  padding: 2px;
+}
+.tray-popover .tray-menu-title {
+  font-size: 10px;
+  font-weight: 900;
+  color: #0070D8;
+  letter-spacing: 1px;
+  padding: 4px 8px 6px 8px;
+}
+.tray-popover .tray-sep {
+  background: rgba(255, 255, 255, 0.1);
+  min-height: 1px;
+  margin: 4px 4px;
+}
+.tray-popover .tray-menu-item {
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  padding: 6px 12px;
+  min-width: 160px;
+}
+.tray-popover .tray-menu-item label {
+  color: inherit;
+}
+.tray-popover .tray-menu-item:hover {
+  background: rgba(0, 112, 216, 0.25);
+  color: white;
+}
+.tray-popover .tray-menu-item:active {
+  background: rgba(0, 112, 216, 0.4);
+}
+.tray-popover .tray-menu-item.tray-menu-item-disabled {
+  color: rgba(255, 255, 255, 0.3);
+}
+.tray-popover .tray-menu-item.tray-menu-item-disabled:hover {
+  background: transparent;
+}
+.tray-popover .tray-menu-section {
+  font-size: 10px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 4px 12px 2px 12px;
+  letter-spacing: 0.8px;
+}
+.tray-popover .tray-submenu {
+  margin-left: 8px;
+}
+.tray-popover .tray-menu-empty {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+  padding: 8px 12px;
 }
 
 /*# sourceMappingURL=style.css.map */
