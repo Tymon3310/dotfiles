@@ -141,3 +141,4 @@ eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv zsh)"
 
 # Added by Antigravity CLI installer
 export PATH="/home/tymon/.local/bin:$PATH"
+
