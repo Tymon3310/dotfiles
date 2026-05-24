@@ -13,7 +13,7 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("/usr/lib/pam_kwallet_init")
     -- hl.exec_cmd("dbus-update-activation-environment --all && gnome-keyring-daemon --start --components=secrets")
 
-    hl.exec_cmd("swaync")
+    -- hl.exec_cmd("swaync")
     hl.exec_cmd("swayosd-server")
     -- hl.exec_cmd("hyprpaper")
     hl.exec_cmd("linux-wallpaper-engine-ux")

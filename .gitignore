@@ -3,4 +3,7 @@
 
 *.log
 *venv*
-
+.config/quickshell/spotify_config.json
+.config/quickshell/spotify_tokens.json
+.config/quickshell/key.pem
+.config/quickshell/cert.pem

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import Quickshell
+import Quickshell.Hyprland
 
 Item {
     id: root
@@ -15,9 +16,9 @@ Item {
     WheelHandler {
         onWheel: (event) => {
             if (event.angleDelta.y > 0) {
-                Quickshell.execDetached(["hyprctl", "dispatch", "hl.dsp.focus({ workspace = \"e-1\" })"]);
+                Hyprland.dispatch("hl.dsp.focus({ workspace = \"e-1\" })");
             } else if (event.angleDelta.y < 0) {
-                Quickshell.execDetached(["hyprctl", "dispatch", "hl.dsp.focus({ workspace = \"e+1\" })"]);
+                Hyprland.dispatch("hl.dsp.focus({ workspace = \"e+1\" })");
             }
         }
     }
@@ -106,7 +107,7 @@ Item {
                 
                 // Layout dimensions
                 height: 8
-                width: focused ? 20 : 8
+                width: (focused && root.monitorHyprland && root.monitorHyprland.focused) ? 20 : 8
                 implicitWidth: width
                 radius: 4
                 
@@ -130,22 +131,18 @@ Item {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     
-                    CustomToolTip {
-                        visible: mouseArea.containsMouse
-                        delay: 500
-                        text: "Workspace " + name + " (" + windows + " windows)"
-                    }
+                    
                     
                     onClicked: {
                         // Use Hyprland 0.55+ Lua dispatch syntax
-                        Quickshell.execDetached(["hyprctl", "dispatch", "hl.dsp.focus({ workspace = \"" + wsId + "\" })"]);
+                        Hyprland.dispatch("hl.dsp.focus({ workspace = \"" + wsId + "\" })");
                     }
                     
                     onWheel: (event) => {
                         if (event.angleDelta.y > 0) {
-                            Quickshell.execDetached(["hyprctl", "dispatch", "hl.dsp.focus({ workspace = \"e-1\" })"]);
+                            Hyprland.dispatch("hl.dsp.focus({ workspace = \"e-1\" })");
                         } else if (event.angleDelta.y < 0) {
-                            Quickshell.execDetached(["hyprctl", "dispatch", "hl.dsp.focus({ workspace = \"e+1\" })"]);
+                            Hyprland.dispatch("hl.dsp.focus({ workspace = \"e+1\" })");
                         }
                     }
                 }

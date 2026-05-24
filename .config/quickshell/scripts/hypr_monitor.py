@@ -80,7 +80,8 @@ def get_state():
             state[mon_name] = {
                 "active_workspace": active_ws_id,
                 "active_window": mon_active_window,
-                "workspaces": filtered_ws
+                "workspaces": filtered_ws,
+                "focused": mon.get("focused", False)
             }
         return state
     except Exception as e:

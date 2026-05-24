@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Services.SystemTray
 import Quickshell.Services.Pipewire
+import Quickshell.Services.Notifications
 
 Row {
     id: root
@@ -19,6 +20,23 @@ Row {
     property date selectedDate: new Date()
     property real clockCenterX: clockWidget.x + clockWidget.width / 2
     property bool clockHovered: false
+
+    // Custom System Tray Menu properties exposed to parent Bar.qml
+    property bool trayMenuOpen: false
+    property real trayMenuCenterX: 0
+    property bool trayHovered: false
+    property alias activeMenuOpener: trayMenuOpener
+
+    // Notification panel properties exposed to parent Bar.qml
+    property bool notifPanelOpen: false
+    property bool notifHovered: false
+    property var notifServer: null
+    property var notifHistory: null
+    property bool notifDnd: false
+
+    QsMenuOpener {
+        id: trayMenuOpener
+    }
     
     // Access stats safely
     property var stats: root.sysData ? root.sysData : ({ "cpu": 0, "ram": 0 })
@@ -41,10 +59,14 @@ Row {
         id: trayRow
         spacing: 8
         anchors.verticalCenter: parent.verticalCenter
-        visible: SystemTray.items.length > 0
+        visible: SystemTray.items.values.length > 0
+        
+        HoverHandler {
+            onHoveredChanged: root.trayHovered = hovered
+        }
         
         Repeater {
-            model: SystemTray.items
+            model: SystemTray.items.values
             
             delegate: Item {
                 width: 18
@@ -66,20 +88,25 @@ Row {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     
-                    CustomToolTip {
-                        visible: trayMouse.containsMouse && modelData.title !== ""
-                        delay: 500
-                        text: modelData.title
-                    }
+                    
                     
                     onClicked: (mouse) => {
                         if (mouse.button === Qt.LeftButton) {
                             modelData.activate();
                         } else if (mouse.button === Qt.RightButton) {
-                            if (modelData.hasMenu) {
+                            if (modelData.hasMenu && modelData.menu) {
                                 if (root.parentWindow) {
-                                    var pos = mapToItem(root.parentWindow.contentItem, mouse.x, mouse.y);
-                                    modelData.display(root.parentWindow, pos.x, pos.y);
+                                    if (trayMenuOpener.menu === modelData.menu && root.trayMenuOpen) {
+                                        root.trayMenuOpen = false;
+                                    } else {
+                                        trayMenuOpener.menu = modelData.menu;
+                                        
+                                        var localCenter = width / 2;
+                                        var wPos = mapToItem(root.parentWindow.contentItem, localCenter, 0);
+                                        root.trayMenuCenterX = wPos.x;
+                                        
+                                        root.trayMenuOpen = true;
+                                    }
                                 }
                             }
                         }
@@ -153,6 +180,8 @@ Row {
     }
 
     Separator {}
+
+
 
     // ==========================================
     // 3. AUDIO WIDGET (PipeWire + JBL status)
@@ -234,11 +263,7 @@ Row {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 
-                CustomToolTip {
-                    visible: audioMouse.containsMouse
-                    delay: 500
-                    text: "Volume: " + Math.round(audioRow.vol * 100) + "%\nLeft Click: pwvucontrol\nRight Click: Toggle Mute\nMiddle Click: Mic Mute Toggle\nScroll: Change Volume"
-                }
+                
                 
                 onClicked: (mouse) => {
                     if (mouse.button === Qt.LeftButton) {
@@ -335,67 +360,44 @@ Row {
     Separator {}
 
     // ==========================================
-    // 4. NOTIFICATION WIDGET (SwayNC)
+    // 4. NOTIFICATION WIDGET (with preview bulge)
+    // ==========================================
+    // 4. NOTIFICATION WIDGET
     // ==========================================
     Item {
         id: notifWidget
         width: notifRow.width
         height: 20
         anchors.verticalCenter: parent.verticalCenter
-        
-        property string countText: "0"
-        property string altState: "none"
-        property string toolTipText: "No Notifications"
-        
-        readonly property var iconMap: ({
-            "notification": "",
-            "none": "",
-            "dnd-notification": "",
-            "dnd-none": "",
-            "inhibited-notification": "",
-            "inhibited-none": "",
-            "dnd-inhibited-notification": "",
-            "dnd-inhibited-none": ""
-        })
-        
-        function getIcon(state) {
-            return iconMap[state] || "";
-        }
 
-        Process {
-            id: swayncProc
-            command: ["swaync-client", "-swb"]
-            running: true
-            stdout: SplitParser {
-                onRead: (line) => {
-                    try {
-                        var data = JSON.parse(line);
-                        notifWidget.countText = data.text || "0";
-                        notifWidget.altState = data.alt || "none";
-                        notifWidget.toolTipText = data.tooltip || "No Notifications";
-                    } catch (e) {
-                        console.log("SwayNC JSON error: " + e);
-                    }
-                }
-            }
+        readonly property int count: root.notifHistory
+            ? root.notifHistory.totalCount : 0
+
+        HoverHandler {
+            onHoveredChanged: root.notifHovered = hovered
         }
 
         Row {
             id: notifRow
             spacing: 4
             anchors.verticalCenter: parent.verticalCenter
-            
+
+            // Bell icon
             Text {
-                text: notifWidget.getIcon(notifWidget.altState)
+                text: root.notifDnd ? "\uf1f6" : "\uf0f3"
                 font.family: root.customFont
                 font.pixelSize: 12
-                color: notifWidget.altState.includes("dnd") ? "#ff3b30" : (notifWidget.countText !== "0" ? "#ff9500" : "#FFFFFF")
+                color: root.notifDnd
+                    ? "#FF4C4C"
+                    : (notifWidget.count > 0 ? "#ff9500" : (root.notifPanelOpen ? "#0070D8" : "#FFFFFF"))
                 anchors.verticalCenter: parent.verticalCenter
+                Behavior on color { ColorAnimation { duration: 150 } }
             }
-            
+
+            // Unread count badge
             Text {
-                visible: notifWidget.countText !== "0" && notifWidget.countText !== ""
-                text: notifWidget.countText
+                visible: notifWidget.count > 0 && !root.notifDnd
+                text: notifWidget.count
                 font.family: root.customFont
                 font.pixelSize: 10
                 font.bold: true
@@ -405,17 +407,16 @@ Row {
         }
 
         MouseArea {
-            id: notifMouse
             anchors.fill: parent
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            
+
             onClicked: (mouse) => {
                 if (mouse.button === Qt.LeftButton) {
-                    Quickshell.execDetached(["swaync-client", "-t", "-sw"]);
+                    root.notifPanelOpen = !root.notifPanelOpen;
                 } else if (mouse.button === Qt.RightButton) {
-                    Quickshell.execDetached(["swaync-client", "-d", "-sw"]);
+                    root.notifDnd = !root.notifDnd;
                 }
             }
         }
@@ -485,7 +486,7 @@ Row {
         anchors.verticalCenter: parent.verticalCenter
         
         Text {
-            text: ""
+            text: "⏻"
             font.family: root.customFont
             font.pixelSize: 12
             anchors.centerIn: parent

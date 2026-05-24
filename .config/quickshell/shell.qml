@@ -1,5 +1,7 @@
+//@ pragma UseQApplication - Reloading bar config
 import Quickshell
 import Quickshell.Io
+import Quickshell.Services.Notifications
 import QtQuick
 import "components"
 
@@ -14,7 +16,21 @@ ShellRoot {
         "vram_used_gib": 0.0,
         "vram_total_gib": 0.0,
         "net_rx": "0 B/s",
-        "net_tx": "0 B/s"
+        "net_tx": "0 B/s",
+        "cpu_cores": [],
+        "cpu_ghz": 0.0,
+        "cpu_procs": [],
+        "mem_procs": [],
+        "gpu_procs": [],
+        "gpu_sclk": 0,
+        "gpu_mclk": 0,
+        "gpu_temp": 0.0,
+        "gpu_temp_junction": 0.0,
+        "gpu_temp_mem": 0.0,
+        "cpu_temp": 0.0,
+        "ping_gateway": -1.0,
+        "ping_cloudflare": -1.0,
+        "ping_google": -1.0
     })
 
     // Global Spotify track data (updated by spotify_status.py)
@@ -29,11 +45,50 @@ ShellRoot {
         "loop": "Off",
         "shuffle": false,
         "volume": 0.5,
-        "playerName": ""
+        "playerName": "",
+        "queue": [],
+        "isrc": "",
+        "contextName": ""
     })
 
     // Global Hyprland status data per monitor (updated by hypr_monitor.py)
     property var hyprlandData: ({})
+
+    // ── Active Window Filter ──────────────────────────────────────────────────
+    // List of app class / title fragments to hide from the active window display.
+    // Matching is case-insensitive; any partial match on class OR title hides the entry.
+    // Examples: "firefox", "code", "kitty", "steam"
+    property var windowTitleBlocklist: [
+        "Private Browsing", "Incognito", "porn"
+    ]
+
+    // ── Native Notification Daemon ────────────────────────────────────────────
+    // Kill swaync so we can own the org.freedesktop.Notifications D-Bus name
+    Process {
+        id: killSwaync
+        command: ["pkill", "-x", "swaync"]
+        running: true
+    }
+
+    NotificationServer {
+        id: globalNotifServer
+        keepOnReload: true
+        actionsSupported: true
+        bodySupported: true
+        imageSupported: true
+        bodyMarkupSupported: true
+        persistenceSupported: true
+
+        onNotification: (notification) => {
+            console.log("[NotificationServer] received notification: ID=" + notification.id + ", appName=" + notification.appName + ", summary=" + notification.summary);
+            notification.tracked = true;
+        }
+    }
+
+    NotificationHistory {
+        id: globalNotifHistory
+        notifServer: globalNotifServer
+    }
 
     // Process to run system stats daemon
     Process {
@@ -115,6 +170,9 @@ ShellRoot {
             sysData: shellRoot.sysData
             spotifyData: shellRoot.spotifyData
             hyprlandData: shellRoot.hyprlandData
+            windowTitleBlocklist: shellRoot.windowTitleBlocklist
+            notifServer: globalNotifServer
+            notifHistory: globalNotifHistory
         }
     }
 }

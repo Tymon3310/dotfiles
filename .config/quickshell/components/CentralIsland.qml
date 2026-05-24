@@ -25,6 +25,12 @@ Item {
         return mins + ":" + secs.toString().padStart(2, '0');
     }
     
+    function getVolIcon(v) {
+        if (v <= 0.01) return "";
+        if (v < 0.33) return "";
+        return "";
+    }
+    
     // Spotify text generator
     function getSpotifyText() {
         if (!spotify || !spotify.title || spotify.status === "Stopped") {
@@ -32,14 +38,17 @@ Item {
         }
         var elapsed = root.formatTime(spotify.position);
         var total = root.formatTime(spotify.length);
-        return spotify.title + " [" + elapsed + "/" + total + "]";
+        var vol = spotify.volume !== undefined ? spotify.volume : 0.5;
+        var volIcon = root.getVolIcon(vol);
+        var volPct = Math.round(vol * 100);
+        return spotify.title + " [" + elapsed + "/" + total + "] " + volIcon + " " + volPct + "%";
     }
     
     // Main visible pill on the bar
     Rectangle {
         id: islandContainer
         height: 24
-        width: Math.max(180, Math.min(300, scrollerText.contentWidth + 50))
+        width: Math.max(180, Math.min(320, scrollerText.contentWidth + 50))
         radius: 12
         color: "#99000000"
         border.color: root.dashboardOpen ? "#0070D8" : "#33FFFFFF"
@@ -97,9 +106,21 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
             onContainsMouseChanged: root.hovered = containsMouse
-            onClicked: {
-                root.dashboardOpen = !root.dashboardOpen;
+            onClicked: (mouse) => {
+                if (mouse.button === Qt.RightButton) {
+                    Quickshell.execDetached(["playerctl", "--player=spotify", "play-pause"]);
+                } else {
+                    root.dashboardOpen = !root.dashboardOpen;
+                }
+            }
+            onWheel: (event) => {
+                if (event.angleDelta.y > 0) {
+                    Quickshell.execDetached(["playerctl", "--player=spotify", "volume", "0.05+"]);
+                } else if (event.angleDelta.y < 0) {
+                    Quickshell.execDetached(["playerctl", "--player=spotify", "volume", "0.05-"]);
+                }
             }
         }
     }

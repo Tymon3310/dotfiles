@@ -6,8 +6,24 @@ ToolTip {
     
     padding: 8
     
+    readonly property var parentWindow: parent ? parent.Window.window : null
+    
     y: parent ? parent.height + 14 : 36
-    x: parent ? (parent.width - implicitWidth) / 2 : 0
+    x: {
+        if (!parent) return 0;
+        var targetX = (parent.width - implicitWidth) / 2;
+        var windowWidth = parentWindow ? parentWindow.width : 1920;
+        var absoluteX = parent.mapToItem(null, targetX, 0).x;
+        var rightLimit = windowWidth - 12;
+        if (absoluteX + implicitWidth > rightLimit) {
+            targetX -= (absoluteX + implicitWidth - rightLimit);
+        }
+        var leftLimit = 12;
+        if (absoluteX < leftLimit) {
+            targetX += (leftLimit - absoluteX);
+        }
+        return targetX;
+    }
     
     enter: Transition {
         NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 150; easing.type: Easing.OutQuad }
@@ -21,6 +37,9 @@ ToolTip {
         font.family: "Google Sans Code NF"
         font.pixelSize: 11
         color: "#FFFFFF"
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
+        width: control.availableWidth
     }
     
     background: Rectangle {
