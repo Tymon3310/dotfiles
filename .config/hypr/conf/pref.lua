@@ -4,7 +4,7 @@ return {
     EDITOR = "nvim",
     BROWSER = "zen-twilight",
     FILE_MANAGER = "dolphin",
-    SCREENSHOT = "quickshell -c ~/.config/quickshell/screenshot -n",
+    SCREENSHOT = 'function() trigger_screenshot("region", "0") end)',
     CALCULATOR = "qalculate-qt",
     EMOJI_PICKER = "vicinae vicinae://launch/core/search-emojis",
     CLIP = "vicinae vicinae://launch/clipboard/history",

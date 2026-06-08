@@ -1,9 +1,10 @@
-//@ pragma UseQApplication - Reloading bar config
+// pragma UseQApplication - Reloading bar config
 import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Notifications
 import QtQuick
 import "components"
+import "screenshot/src"
 
 ShellRoot {
     id: shellRoot
@@ -33,7 +34,7 @@ ShellRoot {
         "ping_google": -1.0
     })
 
-    // Global Spotify track data (updated by spotify_status.py)
+    // Global media track data (updated by media_status.py)
     property var spotifyData: ({
         "title": "",
         "artist": "",
@@ -114,10 +115,10 @@ ShellRoot {
         }
     }
 
-    // Process to run Spotify MPRIS listener daemon
+    // Process to run media status listener daemon (Spotify + Radio Eska)
     Process {
-        id: spotifyListenerProcess
-        command: ["/home/tymon/dotfiles/.config/quickshell/scripts/spotify_status.py"]
+        id: mediaListenerProcess
+        command: ["/home/tymon/dotfiles/.config/quickshell/scripts/media_status.py"]
         running: true
         stdout: SplitParser {
             onRead: (line) => {
@@ -127,13 +128,13 @@ ShellRoot {
                         shellRoot.spotifyData = data;
                     }
                 } catch (e) {
-                    console.log("SpotifyListener JSON parse error: " + e + " for line: " + line);
+                    console.log("MediaListener JSON parse error: " + e + " for line: " + line);
                 }
             }
         }
         stderr: SplitParser {
             onRead: (line) => {
-                console.log("SpotifyListener STDERR: " + line);
+                console.log("MediaListener STDERR: " + line);
             }
         }
     }
@@ -173,6 +174,59 @@ ShellRoot {
             windowTitleBlocklist: shellRoot.windowTitleBlocklist
             notifServer: globalNotifServer
             notifHistory: globalNotifHistory
+        }
+    }
+
+    // ── Screenshot Tool Dynamic Loader ────────────────────────────────────────
+    Loader {
+        id: screenshotLoader
+        active: false
+
+        property string envId: ""
+        property string modeOverride: ""
+        property string instantOverride: ""
+
+        source: Qt.resolvedUrl("screenshot/shell.qml")
+
+        onLoaded: {
+            console.log("[MainShell] Screenshot tool QML loaded dynamically")
+            item.isLoadedDynamically = true
+            if (envId) {
+                item.externalTimestamp = envId
+            }
+            if (modeOverride) {
+                item.mode = modeOverride
+            }
+            if (instantOverride === "1") {
+                item.instantCapture = true
+            }
+            item.initializeCapture()
+        }
+    }
+
+    Connections {
+        target: screenshotLoader.item
+        ignoreUnknownSignals: true
+        function onFinished() {
+            console.log("[MainShell] Screenshot tool finished, unloading component")
+            screenshotLoader.active = false
+            // Clear properties
+            screenshotLoader.envId = ""
+            screenshotLoader.modeOverride = ""
+            screenshotLoader.instantOverride = ""
+        }
+    }
+
+    IpcHandler {
+        target: "screenshot"
+
+        function trigger(envId: string, mode: string, instant: string): void {
+            console.log("[MainShell] IPC call received: screenshot trigger")
+            // Set properties first, then activate the loader
+            screenshotLoader.envId = envId
+            screenshotLoader.modeOverride = mode
+            screenshotLoader.instantOverride = instant
+            screenshotLoader.active = true
         }
     }
 }

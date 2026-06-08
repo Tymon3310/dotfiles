@@ -66,8 +66,8 @@ PanelWindow {
         layer.samples: 4
         
         // Morphing animation variables
-        property real targetDashHeight: dashboardContainer ? (dashboardContainer.expandedMode === "none" ? 432 : (dashboardContainer.expandedMode === "weather" ? 582 : 702)) : 432
-        property real dashY: centerIsland.dashboardOpen ? (30 + targetDashHeight) : 30
+        property real targetDashHeight: dashboardContainer ? (dashboardContainer.targetHeight + 28) : 432
+        property real dashY: centerIsland.dashboardOpen ? (4 + targetDashHeight) : 30
         property real dashRadius: centerIsland.dashboardOpen ? 12 : 0
         property real dashDipY: centerIsland.dashboardOpen ? 12 : 0
         
@@ -138,8 +138,9 @@ PanelWindow {
         readonly property real trayX2: trayActive ? trayX1 + 200 : calX1 - pathCalRadius
         readonly property real trayX1: trayActive ? Math.max(12, Math.min(barWindow.width - 212, activeTrayCenterX - 100)) : calX1 - pathCalRadius
         
-        readonly property real dashX2: dashboardActive ? barWindow.width / 2 + 180 : trayX1 - pathTrayRadius
-        readonly property real dashX1: dashboardActive ? dashX2 - 360 : trayX1 - pathTrayRadius
+        readonly property real dashWidth: centerIsland ? centerIsland.width : 360
+        readonly property real dashX2: dashboardActive ? (barWindow.width / 2 + dashWidth / 2) : (trayX1 - pathTrayRadius)
+        readonly property real dashX1: dashboardActive ? (barWindow.width / 2 - dashWidth / 2) : (trayX1 - pathTrayRadius)
         
         ShapePath {
             strokeColor: "#0070D8"
@@ -489,10 +490,10 @@ PanelWindow {
         dashboardOpen: centerIsland.dashboardOpen
         
         width: 360
-        height: Math.max(0, barBackground.dashY - 30)
+        height: Math.max(0, barBackground.dashY - 4)
         clip: true
         anchors.top: parent.top
-        anchors.topMargin: 30
+        anchors.topMargin: 4
         anchors.horizontalCenter: parent.horizontalCenter
         
         opacity: centerIsland.dashboardOpen ? 1.0 : 0.0

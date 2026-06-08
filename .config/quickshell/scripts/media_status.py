@@ -9,6 +9,7 @@ import base64
 import urllib.request
 import urllib.parse
 import threading
+import socket
 gi.require_version('Playerctl', '2.0')
 from gi.repository import Playerctl, GLib
 
@@ -46,7 +47,15 @@ def query_api(endpoint, access_token):
             headers={"Authorization": f"Bearer {access_token}"}
         )
         with urllib.request.urlopen(req, timeout=5) as response:
-            return json.loads(response.read().decode('utf-8'))
+            if getattr(response, "status", None) == 204:
+                return None
+            raw_data = response.read()
+            if not raw_data:
+                return None
+            content = raw_data.decode('utf-8')
+            if not content.strip():
+                return None
+            return json.loads(content)
     except Exception as e:
         sys.stderr.write(f"Error querying Spotify API {endpoint}: {e}\n")
         return None
@@ -90,6 +99,139 @@ def get_context_name(context, access_token, cache):
         return "Podcast"
         
     return ""
+
+SOURCE_FILE = "/tmp/active_media_source"
+IPC_SOCKET = "/tmp/mpv-radio-ipc"
+
+def get_active_source():
+    try:
+        if os.path.exists(SOURCE_FILE):
+            with open(SOURCE_FILE, "r") as f:
+                src = f.read().strip().lower()
+                if src in ("spotify", "radio"):
+                    return src
+    except:
+        pass
+    return "spotify"
+
+def is_mpv_running():
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(0.1)
+        s.connect(IPC_SOCKET)
+        s.close()
+        return True
+    except:
+        return False
+
+def get_mpv_status():
+    res = {
+        "title": "Radio Eska",
+        "artist": "Offline",
+        "volume": 0.5,
+        "status": "Stopped",
+        "position": 0,
+        "length": 0,
+        "full_title": ""
+    }
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(0.2)
+        s.connect(IPC_SOCKET)
+        
+        cmds = [
+            {"command": ["get_property", "media-title"], "request_id": 1},
+            {"command": ["get_property", "volume"], "request_id": 2},
+            {"command": ["get_property", "pause"], "request_id": 3}
+        ]
+        payload = "\n".join(json.dumps(c) for c in cmds) + "\n"
+        s.sendall(payload.encode())
+        
+        buffer = ""
+        responses = {}
+        start_time = time.time()
+        while len(responses) < 3 and (time.time() - start_time < 0.2):
+            chunk = s.recv(4096).decode()
+            if not chunk:
+                break
+            buffer += chunk
+            while "\n" in buffer:
+                line, buffer = buffer.split("\n", 1)
+                if line.strip():
+                    try:
+                        data = json.loads(line)
+                        req_id = data.get("request_id")
+                        if req_id in (1, 2, 3):
+                            responses[req_id] = data.get("data")
+                    except:
+                        pass
+        s.close()
+        
+        if 3 in responses:
+            is_paused = responses[3]
+            res["status"] = "Paused" if is_paused else "Playing"
+        else:
+            res["status"] = "Playing"
+            
+        if 1 in responses and responses[1]:
+            full_title = responses[1]
+            res["full_title"] = full_title
+            import re
+            if re.match(r'^(reklama|reklamy)\b', full_title.strip(), re.IGNORECASE):
+                res["artist"] = "Radio Eska"
+                res["title"] = "Ad Break"
+            elif " - " in full_title:
+                parts = full_title.split(" - ", 1)
+                res["artist"] = parts[0].strip()
+                res["title"] = parts[1].strip()
+            else:
+                res["artist"] = "Radio Eska"
+                res["title"] = full_title
+        else:
+            res["artist"] = "Radio Eska"
+            res["title"] = "Live Stream"
+            
+        if 2 in responses and responses[2] is not None:
+            res["volume"] = responses[2] / 100.0
+            
+    except Exception as e:
+        res["status"] = "Stopped"
+        res["artist"] = "Offline"
+        res["title"] = "Radio Eska"
+        
+    return res
+
+def fetch_track_duration(artist, title):
+    if title.strip().lower() in ("advertisement", "reklama", "live stream", "ad break", "ad"):
+        return 0
+    try:
+        import re
+        # Clean up common radio metadata suffixes
+        clean_title = re.sub(r'\s*[\(\[][fF]eat\..*?[\)\]]', '', title)
+        clean_title = re.sub(r'\s*[\(\[][rR]adio\s+[eE]dit.*?[\)\]]', '', clean_title)
+        clean_title = re.sub(r'\s*-\s*[rR]adio\s*[eE]dit', '', clean_title)
+        
+        # Try direct GET API first
+        url = f"https://lrclib.net/api/get?artist_name={urllib.parse.quote(artist)}&track_name={urllib.parse.quote(clean_title)}"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        try:
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                return data.get("duration", 0)
+        except Exception as get_err:
+            # Fall back to general SEARCH API
+            search_url = f"https://lrclib.net/api/search?artist_name={urllib.parse.quote(artist)}&track_name={urllib.parse.quote(clean_title)}"
+            search_req = urllib.request.Request(search_url, headers={'User-Agent': 'Mozilla/5.0'})
+            try:
+                with urllib.request.urlopen(search_req, timeout=5) as response:
+                    search_data = json.loads(response.read().decode('utf-8'))
+                    if search_data and len(search_data) > 0:
+                        return search_data[0].get("duration", 0)
+            except Exception as search_err:
+                sys.stderr.write(f"Search API failed: {search_err}\n")
+    except Exception as e:
+        sys.stderr.write(f"Error fetching track duration: {e}\n")
+    return 0
 
 class SpotifyApiWorker:
     def __init__(self):
@@ -241,7 +383,7 @@ class SpotifyApiWorker:
                 sys.stderr.write(f"Error in API worker loop: {e}\n")
                 time.sleep(5)
 
-class SpotifyListener:
+class MediaListener:
     def __init__(self):
         self.manager = Playerctl.PlayerManager()
         self.manager.connect('name-appeared', self.on_player_appeared)
@@ -253,7 +395,44 @@ class SpotifyListener:
         self.api_thread = threading.Thread(target=self.api_worker.run_loop, daemon=True)
         self.api_thread.start()
         
+        # Radio state variables
+        self.radio_active_track = ""
+        self.radio_track_start_time = 0.0
+        self.radio_duration = 0
+        self.radio_lock = threading.Lock()
+        
+        # Load persisted radio state if exists
+        try:
+            if os.path.exists("/tmp/radio_current_track_info.json"):
+                with open("/tmp/radio_current_track_info.json", "r") as f:
+                    state = json.load(f)
+                    self.radio_active_track = state.get("track", "")
+                    self.radio_track_start_time = state.get("start_time", 0.0)
+                    self.radio_duration = state.get("duration", 0)
+        except Exception as e:
+            sys.stderr.write(f"Error loading persisted radio state: {e}\n")
+        
         self.find_spotify()
+
+    def save_radio_state(self):
+        try:
+            with open("/tmp/radio_current_track_info.json", "w") as f:
+                json.dump({
+                    "track": self.radio_active_track,
+                    "start_time": self.radio_track_start_time,
+                    "duration": self.radio_duration
+                }, f)
+        except Exception as e:
+            sys.stderr.write(f"Error saving radio state: {e}\n")
+
+    def update_radio_duration(self, artist, title):
+        def worker():
+            dur = fetch_track_duration(artist, title)
+            with self.radio_lock:
+                if self.radio_active_track == f"{title} - {artist}":
+                    self.radio_duration = dur
+                    self.save_radio_state()
+        threading.Thread(target=worker, daemon=True).start()
  
     def find_spotify(self):
         for name in self.manager.props.player_names:
@@ -294,6 +473,66 @@ class SpotifyListener:
         self.send_update()
  
     def send_update(self):
+        source = get_active_source()
+        if source == "radio":
+            radio_status = get_mpv_status()
+            
+            # Check if track changed to query duration
+            track_str = f"{radio_status['title']} - {radio_status['artist']}"
+            if radio_status["status"] == "Playing":
+                if track_str != self.radio_active_track:
+                    self.radio_active_track = track_str
+                    self.radio_track_start_time = time.time()
+                    self.radio_duration = 0  # reset
+                    try:
+                        if os.path.exists("/tmp/radio_position_offset"):
+                            os.remove("/tmp/radio_position_offset")
+                    except:
+                        pass
+                    self.save_radio_state()
+                    self.update_radio_duration(radio_status['artist'], radio_status['title'])
+                
+                if os.path.exists("/tmp/radio_position_offset"):
+                    try:
+                        with open("/tmp/radio_position_offset", "r") as f:
+                            new_start = float(f.read().strip())
+                            if new_start != self.radio_track_start_time:
+                                self.radio_track_start_time = new_start
+                                self.save_radio_state()
+                    except:
+                        pass
+                    try:
+                        os.remove("/tmp/radio_position_offset")
+                    except:
+                        pass
+
+                pos = int((time.time() - self.radio_track_start_time) * 1000000)
+                if self.radio_duration > 0:
+                    pos = min(pos, self.radio_duration * 1000000)
+            else:
+                self.radio_active_track = ""
+                pos = 0
+                
+            length = self.radio_duration * 1000000
+            
+            print(json.dumps({
+                "title": radio_status["title"],
+                "artist": radio_status["artist"],
+                "album": "Radio Eska",
+                "artUrl": "file:///home/tymon/dotfiles/icons/eska.png",
+                "position": pos,
+                "length": length,
+                "status": radio_status["status"],
+                "loop": "Off",
+                "shuffle": False,
+                "volume": radio_status["volume"],
+                "playerName": "mpv",
+                "queue": [],
+                "isrc": "",
+                "contextName": "Radio Eska"
+            }), flush=True)
+            return
+
         if not self.player:
             print(json.dumps({
                 "status": "Stopped",
@@ -383,13 +622,18 @@ class SpotifyListener:
             }), flush=True)
  
     def tick(self):
-        if self.player and self.player.props.playback_status == Playerctl.PlaybackStatus.PLAYING:
-            self.send_update()
+        source = get_active_source()
+        if source == "radio":
+            if is_mpv_running():
+                self.send_update()
+        else:
+            if self.player and self.player.props.playback_status == Playerctl.PlaybackStatus.PLAYING:
+                self.send_update()
         return True
  
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal.SIG_DFL)
-    listener = SpotifyListener()
+    listener = MediaListener()
     GLib.timeout_add(250, listener.tick)
     loop = GLib.MainLoop()
     try:

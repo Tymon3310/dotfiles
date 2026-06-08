@@ -20,3 +20,7 @@ source "$HOME/.cargo/env"
 
 # Added by Antigravity CLI installer
 export PATH="/home/tymon/.local/bin:$PATH"
+
+# terminal-wakatime setup
+export PATH="$HOME/.wakatime:$PATH"
+eval "$(terminal-wakatime init)"

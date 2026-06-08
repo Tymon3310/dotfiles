@@ -180,3 +180,76 @@ end)
 --         end
 --     end, { timeout = 50, type = "oneshot" })
 -- end)
+
+-- Screenshot Tool Management
+function trigger_screenshot(mode, instant)
+    mode = mode or "region"
+    instant = instant or "0"
+
+    -- Generate a unique timestamp in nanoseconds
+    local f_time = io.popen("date +%s%N")
+    local timestamp = f_time:read("*a"):gsub("%s+", "")
+    f_time:close()
+
+    local tmp_dir = "/tmp"
+
+    -- Get active monitors from hl.get_monitors()
+    local screens = {}
+    local monitors = hl.get_monitors()
+    if monitors then
+        for _, m in ipairs(monitors) do
+            if m.name and m.disabled == false then
+                table.insert(screens, m.name)
+            elseif m.name and m.disabled == nil then
+                table.insert(screens, m.name)
+            end
+        end
+    end
+
+    -- Fallback to parsing from hyprctl if hl.get_monitors() was empty
+    if #screens == 0 then
+        local f_mon = io.popen("hyprctl monitors -j")
+        local json_str = f_mon:read("*a")
+        if f_mon then f_mon:close() end
+        if json_str then
+            for name in json_str:gmatch('"name":%s*"([^"]+)"') do
+                table.insert(screens, name)
+            end
+        end
+    end
+
+    -- Fallback default
+    if #screens == 0 then
+        screens = {"DP-1", "DP-2"}
+    end
+
+    -- Construct the single shell command chain
+    local cmd = "pkill -9 -x grim 2>/dev/null; pids=(); "
+    for _, s in ipairs(screens) do
+        local ppm_path = tmp_dir .. "/quickshell-screenshot-" .. timestamp .. "-" .. s .. ".ppm"
+        cmd = cmd .. "timeout 3 grim -t ppm -o " .. s .. " " .. ppm_path .. " & pids+=($!); "
+    end
+
+    -- Check if quickshell main shell is running
+    local main_running = false
+    local f_list = io.popen("quickshell list -a")
+    if f_list then
+        local list_str = f_list:read("*a") or ""
+        f_list:close()
+        if list_str:find("/quickshell/shell.qml") then
+            main_running = true
+        end
+    end
+
+    if main_running then
+        cmd = cmd .. "quickshell ipc -p ~/.config/quickshell call screenshot trigger " .. timestamp .. " " .. mode .. " " .. instant .. "; "
+    else
+        cmd = cmd .. "QS_ID=" .. timestamp .. " QS_MODE=" .. mode .. " QS_INSTANT=" .. instant .. " quickshell -p ~/.config/quickshell/screenshot -n & "
+    end
+
+    cmd = cmd .. "for pid in \"${pids[@]}\"; do wait \"$pid\" 2>/dev/null; done; "
+    cmd = cmd .. "touch " .. tmp_dir .. "/quickshell-screenshot-" .. timestamp .. ".done"
+
+    -- Run in background to avoid blocking Hyprland main loop
+    os.execute("(" .. cmd .. ") &")
+end

@@ -54,8 +54,8 @@ hl.bind("SUPER + ALT + SHIFT + Tab", hl.dsp.window.cycle_next(false))
 hl.bind("SUPER + CTRL + Tab", hl.dsp.window.alter_zorder({ mode = "top" }))
 
 -- Actions
-hl.bind("SUPER + PRINT", hl.dsp.exec_cmd(pref.SCREENSHOT))
-hl.bind("SUPER + SHIFT + S", hl.dsp.exec_cmd(pref.SCREENSHOT))
+hl.bind("SUPER + PRINT", function() trigger_screenshot("region", "0") end)
+hl.bind("SUPER + SHIFT + S", function() trigger_screenshot("region", "0") end)
 hl.bind("SUPER + CTRL + Q", hl.dsp.exec_cmd("nwg-bar"))
 hl.bind("SUPER + SHIFT + B", restart_waybar)
 hl.bind("SUPER + V", hl.dsp.exec_cmd(pref.CLIP))

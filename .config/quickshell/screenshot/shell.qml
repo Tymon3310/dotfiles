@@ -6,10 +6,22 @@ import Quickshell.Hyprland
 import Quickshell.Widgets
 import Quickshell.Io
 
-import "src"
+import "./src"
 
 Scope {
     id: root
+
+    property string externalTimestamp: ""
+    property bool isLoadedDynamically: false
+    signal finished()
+
+    function exitTool() {
+        root.cleanup()
+        root.finished()
+        if (!root.isLoadedDynamically) {
+            Qt.quit()
+        }
+    }
 
     property string tempPath: ""
     property string cropPath: ""
@@ -89,13 +101,28 @@ Scope {
     // so FreezeScreens survive when ready is toggled during save
     property bool screensFrozen: false
 
-    Component.onCompleted: {
+    Timer {
+        id: startupTimer
+        interval: 0
+        running: false
+        repeat: false
+        onTriggered: {
+            if (!root.isLoadedDynamically) {
+                root.initializeCapture()
+            }
+        }
+    }
+
+    Component.onCompleted: startupTimer.start()
+
+    function initializeCapture() {
         console.log("Shell loaded, starting capture...")
         root.uiReady = false
 
         // CLI args via env vars
         const envMode = Quickshell.env("QS_MODE") || ""
         const envInstant = Quickshell.env("QS_INSTANT") || ""
+        const envId = Quickshell.env("QS_ID") || ""
         const validModes = ["region", "window", "screen", "ocr", "lens", "ai"]
         if (envMode && validModes.includes(envMode)) {
             root.mode = envMode
@@ -113,8 +140,8 @@ Scope {
             instantGeoProcess.running = true
         }
 
-        const timestamp = Date.now()
-        tempPath = Quickshell.cachePath(`screenshot-${timestamp}.png`)
+        const timestamp = root.externalTimestamp ? root.externalTimestamp : (envId ? envId : Date.now())
+        tempPath = `/tmp/quickshell-screenshot-${timestamp}.png`
 
         // Hyprland 0.54 + grim 1.5.0: full multi-output grim hangs.
         // Fix: capture each output in parallel, then stitch with magick.
@@ -130,26 +157,36 @@ Scope {
         const totalW = maxX - minX
         const totalH = maxY - minY
 
-        // Stage 1: parallel grim captures in PPM (zero compression = instant I/O)
-        let grabCmd = "pkill -9 -x grim 2>/dev/null; "
         root._stitchTmpFiles = []
-        root._stitchCmd = ""
         let compositeArgs = ""
         for (let i = 0; i < screens.length; i++) {
             const s = screens[i]
-            const tmpFile = Quickshell.cachePath(`screenshot-${timestamp}-${i}.ppm`)
+            const tmpFile = `/tmp/quickshell-screenshot-${timestamp}-${s.name}.ppm`
             root._stitchTmpFiles.push(tmpFile)
-            grabCmd += `timeout 3 grim -t ppm -o "${s.name}" "${tmpFile}" & `
             const offsetX = s.x - minX
             const offsetY = s.y - minY
             compositeArgs += ` "${tmpFile}" -geometry +${offsetX}+${offsetY} -composite`
         }
-        grabCmd += "wait"
 
         // Stage 2 cmd (runs in background after UI shows)
         root._stitchCmd = `magick -size ${totalW}x${totalH} canvas:black${compositeArgs} -define png:compression-level=1 "${tempPath}" && rm -f ${root._stitchTmpFiles.map(f => `"${f}"`).join(" ")}`
 
-        captureProcess.command = ["sh", "-c", grabCmd]
+        if (root.externalTimestamp || envId) {
+            // Under wrapper script: grim is already running/finished in background.
+            // Wait for the done file touched by the wrapper script.
+            const doneFile = `/tmp/quickshell-screenshot-${timestamp}.done`
+            captureProcess.command = ["sh", "-c", `while [ ! -f "${doneFile}" ]; do sleep 0.005; done && rm -f "${doneFile}"`]
+        } else {
+            // Fallback: run grim capture itself if launched directly.
+            let grabCmd = "pkill -9 -x grim 2>/dev/null; "
+            for (let i = 0; i < screens.length; i++) {
+                const s = screens[i]
+                const tmpFile = `/tmp/quickshell-screenshot-${timestamp}-${s.name}.ppm`
+                grabCmd += `timeout 3 grim -t ppm -o "${s.name}" "${tmpFile}" & `
+            }
+            grabCmd += "wait"
+            captureProcess.command = ["sh", "-c", grabCmd]
+        }
         captureProcess.running = true
     }
 
@@ -189,7 +226,7 @@ Scope {
             if (exitCode !== 0) {
                  console.log("Grim capture failed with exit code:", exitCode)
                  Quickshell.execDetached(["notify-send", "Screenshot Failed", "grim capture failed. Try restarting Hyprland.", "-u", "critical"])
-                 Qt.quit()
+                 root.exitTool()
                  return
             }
             // Grim is done — show UI only for interactive captures
@@ -273,7 +310,7 @@ Scope {
              return
         }
         console.log("Starting QR Scan on:", tempPath)
-        var scanScript = Quickshell.shellPath("src/qr.py")
+        var scanScript = Qt.resolvedUrl("src/qr.py").toString().replace("file://", "")
         console.log("Using script:", scanScript)
         var cmd = "/usr/bin/python3 '" + scanScript + "' '" + tempPath + "'"
         qrScanProcess.command = ["sh", "-c", cmd]
@@ -329,14 +366,26 @@ Scope {
         if (qrScanProcess.running) qrScanProcess.running = false
         if (tempPath) Quickshell.execDetached(["rm", "-f", tempPath])
         if (cropPath) Quickshell.execDetached(["rm", "-f", cropPath])
+        
+        // Clean up raw PPM files if any remain (e.g. if cancelled before stitch)
+        if (root._stitchTmpFiles && root._stitchTmpFiles.length > 0) {
+            for (var i = 0; i < root._stitchTmpFiles.length; i++) {
+                Quickshell.execDetached(["rm", "-f", root._stitchTmpFiles[i]])
+            }
+        }
+        
+        // Clean up the .done file if it exists
+        const envId = Quickshell.env("QS_ID") || ""
+        if (envId) {
+            Quickshell.execDetached(["rm", "-f", `/tmp/quickshell-screenshot-${envId}.done`])
+        }
     }
     
     Timer {
         id: quitTimer
         interval: 250
         onTriggered: {
-            root.cleanup()
-            Qt.quit()
+            root.exitTool()
         }
     }
 
@@ -610,8 +659,7 @@ Scope {
             Shortcut {
                 sequence: "Escape"
                 onActivated: () => {
-                    root.cleanup()
-                    Qt.quit()
+                    root.exitTool()
                 }
             }
 
@@ -792,7 +840,7 @@ Scope {
                                 width: 16
                                 height: 16
                                 sourceSize: Qt.size(64, 64)
-                                source: Quickshell.shellPath("icons/qr.svg")
+                                source: Qt.resolvedUrl("icons/qr.svg")
                                 fillMode: Image.PreserveAspectFit
                             }
                         }
@@ -1029,7 +1077,7 @@ Scope {
                                         width: 24
                                         height: 24
                                         sourceSize: Qt.size(96, 96)
-                                        source: Quickshell.shellPath(`icons/${modelData.icon}.svg`)
+                                        source: Qt.resolvedUrl(`icons/${modelData.icon}.svg`)
                                         fillMode: Image.PreserveAspectFit
                                         smooth: true
                                         antialiasing: true

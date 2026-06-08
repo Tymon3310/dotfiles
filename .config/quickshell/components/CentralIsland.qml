@@ -15,6 +15,7 @@ Item {
     property bool hovered: false
     
     readonly property string customFont: "Google Sans Code NF"
+    readonly property real targetHeight: parentWindow && parentWindow.barBackground ? parentWindow.barBackground.targetDashHeight : 404
     
     // Formatting helper
     function formatTime(us) {
@@ -34,37 +35,65 @@ Item {
     // Spotify text generator
     function getSpotifyText() {
         if (!spotify || !spotify.title || spotify.status === "Stopped") {
-            return "No Active Player 󰝛";
+            return spotify && spotify.playerName === "mpv" ? "Radio Eska Offline" : "No Active Player 󰝛";
         }
         var elapsed = root.formatTime(spotify.position);
-        var total = root.formatTime(spotify.length);
+        var timeStr = "";
+        
+        var fallbackLen = (typeof dashboardContainer !== "undefined" && dashboardContainer) ? dashboardContainer.trackDurationMs * 1000 : 0;
+        var totalLength = (spotify && spotify.length > 0) ? spotify.length : fallbackLen;
+        
+        if (totalLength > 0) {
+            var total = root.formatTime(totalLength);
+            timeStr = " [" + elapsed + "/" + total + "]";
+        } else if (spotify.playerName === "mpv") {
+            timeStr = " [LIVE: " + elapsed + "]";
+        } else {
+            timeStr = " [" + elapsed + "]";
+        }
         var vol = spotify.volume !== undefined ? spotify.volume : 0.5;
         var volIcon = root.getVolIcon(vol);
         var volPct = Math.round(vol * 100);
-        return spotify.title + " [" + elapsed + "/" + total + "] " + volIcon + " " + volPct + "%";
+        return spotify.title + timeStr + " " + volIcon + " " + volPct + "%";
     }
     
     // Main visible pill on the bar
     Rectangle {
         id: islandContainer
-        height: 24
-        width: Math.max(180, Math.min(320, scrollerText.contentWidth + 50))
+        anchors.top: parent.top
+        anchors.topMargin: root.dashboardOpen ? 0 : 3
+        anchors.horizontalCenter: parent.horizontalCenter
+        height: root.dashboardOpen ? (30 + root.targetHeight) : 24
+        width: root.dashboardOpen ? 360 : Math.max(180, Math.min(320, scrollerText.contentWidth + 50))
         radius: 12
         color: "#99000000"
         border.color: root.dashboardOpen ? "#0070D8" : "#33FFFFFF"
         border.width: 1
+        opacity: root.dashboardOpen ? 0.0 : 1.0
         
+        Behavior on anchors.topMargin { NumberAnimation { duration: 300; easing.type: root.dashboardOpen ? Easing.OutBack : Easing.OutQuad } }
+        Behavior on height { NumberAnimation { duration: 300; easing.type: root.dashboardOpen ? Easing.OutBack : Easing.OutQuad } }
+        Behavior on width { NumberAnimation { duration: 300; easing.type: root.dashboardOpen ? Easing.OutBack : Easing.OutQuad } }
         Behavior on border.color { ColorAnimation { duration: 150 } }
+        Behavior on opacity { NumberAnimation { duration: 250 } }
         
         Row {
             anchors.centerIn: parent
             spacing: 8
             
             Text {
-                text: spotify && spotify.status === "Playing" ? "󰓇" : "󰝛"
+                text: {
+                    if (spotify && spotify.playerName === "mpv") return "󰎖";
+                    return spotify && spotify.status === "Playing" ? "󰓇" : "󰝛";
+                }
                 font.family: root.customFont
                 font.pixelSize: 12
-                color: spotify && spotify.status === "Playing" ? "#1db954" : "#99FFFFFF"
+                color: {
+                    if (spotify && spotify.playerName === "mpv") {
+                        return spotify.status === "Playing" ? "#FF9900" : "#99FFFFFF";
+                    }
+                    return spotify && spotify.status === "Playing" ? "#1db954" : "#99FFFFFF";
+                }
                 anchors.verticalCenter: parent.verticalCenter
             }
             
@@ -110,16 +139,16 @@ Item {
             onContainsMouseChanged: root.hovered = containsMouse
             onClicked: (mouse) => {
                 if (mouse.button === Qt.RightButton) {
-                    Quickshell.execDetached(["playerctl", "--player=spotify", "play-pause"]);
+                    Quickshell.execDetached(["/home/tymon/dotfiles/.config/quickshell/scripts/player_control.py", "play-pause"]);
                 } else {
                     root.dashboardOpen = !root.dashboardOpen;
                 }
             }
             onWheel: (event) => {
                 if (event.angleDelta.y > 0) {
-                    Quickshell.execDetached(["playerctl", "--player=spotify", "volume", "0.05+"]);
+                    Quickshell.execDetached(["/home/tymon/dotfiles/.config/quickshell/scripts/player_control.py", "volume", "0.05+"]);
                 } else if (event.angleDelta.y < 0) {
-                    Quickshell.execDetached(["playerctl", "--player=spotify", "volume", "0.05-"]);
+                    Quickshell.execDetached(["/home/tymon/dotfiles/.config/quickshell/scripts/player_control.py", "volume", "0.05-"]);
                 }
             }
         }

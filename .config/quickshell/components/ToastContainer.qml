@@ -9,6 +9,17 @@ PanelWindow {
     property var notifServer: null
     property bool notifDnd: false
     property bool panelOpen: false
+    property bool isStartup: true
+
+    Timer {
+        id: startupTimer
+        interval: 500
+        running: true
+        repeat: false
+        onTriggered: {
+            toastWindow.isStartup = false;
+        }
+    }
 
     readonly property string customFont: "Google Sans Code NF"
 
@@ -58,8 +69,8 @@ PanelWindow {
         target: toastWindow.notifServer
 
         function onNotification(notification) {
-            // Ignore if DND is enabled or a dropdown panel is open
-            if (toastWindow.notifDnd || toastWindow.panelOpen) return;
+            // Ignore if DND is enabled, a dropdown panel is open, or during startup/reload
+            if (toastWindow.isStartup || toastWindow.notifDnd || toastWindow.panelOpen) return;
 
             // Check if already in toastModel
             var exists = false;

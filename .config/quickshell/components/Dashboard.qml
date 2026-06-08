@@ -100,6 +100,7 @@ Item {
 
     // LYRICS STATE MANAGEMENT
     property var parsedLyrics: []
+    property int trackDurationMs: 0
     property string lastLyricsTrackId: ""
     property int activeLyricIndex: -1
     property bool queueCollapsed: true
@@ -108,6 +109,16 @@ Item {
                                            parsedLyrics[0].text !== "Loading lyrics..." && 
                                            parsedLyrics[0].text !== "Lyrics not found" && 
                                            parsedLyrics[0].text !== "Instrumental / No lyrics available"
+    
+    // Check if the lyrics have actual timestamps (i.e. at least one line with time > 0)
+    readonly property bool isLyricsSynced: {
+        if (!parsedLyrics || parsedLyrics.length <= 1) return false;
+        for (var i = 0; i < parsedLyrics.length; i++) {
+            if (parsedLyrics[i].time > 0) return true;
+        }
+        return false;
+    }
+
     // Auto-collapse lyrics panel when lyrics become unavailable
     onLyricsAvailableChanged: {
         if (!lyricsAvailable && expandedMode === "lyrics") {
@@ -184,7 +195,7 @@ Item {
     }
 
     function getActiveLyricIndex(positionUs, lyricsArray) {
-        if (!lyricsArray || lyricsArray.length === 0) return -1;
+        if (!lyricsArray || lyricsArray.length === 0 || !root.isLyricsSynced) return -1;
         var positionMs = positionUs / 1000;
         var activeIdx = -1;
         for (var i = 0; i < lyricsArray.length; i++) {
@@ -246,9 +257,10 @@ Item {
 
     function processLrcResponse(res) {
         if (!res) return false;
+        var ok = false;
         if (res.syncedLyrics) {
             parsedLyrics = parseLRC(res.syncedLyrics);
-            return true;
+            ok = true;
         } else if (res.plainLyrics) {
             var lines = res.plainLyrics.split("\n");
             var flat = [];
@@ -256,12 +268,30 @@ Item {
                 flat.push({ "time": 0, "text": lines[i].trim() });
             }
             parsedLyrics = flat;
-            return true;
+            ok = true;
         } else if (res.instrumental) {
             parsedLyrics = [{"time": 0, "text": "Instrumental / No lyrics available"}];
-            return true;
+            ok = true;
         }
-        return false;
+        if (ok) {
+            var dur = 0;
+            if (res.duration) {
+                dur = res.duration * 1000;
+            } else if (parsedLyrics.length > 0) {
+                var lastTime = 0;
+                for (var j = parsedLyrics.length - 1; j >= 0; j--) {
+                    if (parsedLyrics[j].time > 0) {
+                        lastTime = parsedLyrics[j].time;
+                        break;
+                    }
+                }
+                if (lastTime > 0) {
+                    dur = lastTime + 5000;
+                }
+            }
+            root.trackDurationMs = dur;
+        }
+        return ok;
     }
 
     function fetchLyrics() {
@@ -272,10 +302,18 @@ Item {
             return;
         }
         
+        if (spotify.title === "Advertisement" || spotify.title === "Reklama" || spotify.title === "Ad Break" || spotify.title === "Ad") {
+            parsedLyrics = [{"time": 0, "text": "Ad Break / Reklama"}];
+            lastLyricsTrackId = spotify.title;
+            activeLyricIndex = 0;
+            return;
+        }
+        
         var trackId = spotify.title + " - " + spotify.artist;
         if (trackId === lastLyricsTrackId) return;
         lastLyricsTrackId = trackId;
         parsedLyrics = [{"time": 0, "text": "Loading lyrics..."}];
+        trackDurationMs = 0;
         activeLyricIndex = -1;
         
         var xhr = new XMLHttpRequest();
@@ -402,6 +440,24 @@ Item {
     // WEATHER STATE MANAGEMENT (Fetched in QML)
     property bool dashboardOpen: false
     property string expandedMode: "none"
+    readonly property real targetHeight: {
+        if (root.expandedMode === "none") return 404;
+        if (root.expandedMode === "weather") return 554;
+        if (root.expandedMode === "system") return 674;
+        // lyrics mode: dynamic height based on lyrics availability and queue
+        var base = 524;
+        if (root.parsedLyrics.length > 0) {
+            if (!root.lyricsAvailable) {
+                base -= 240; // 270px - 30px
+            }
+        } else {
+            base -= 270;
+        }
+        if (spotify && spotify.queue && spotify.queue.length > 0) {
+            base += root.queueCollapsed ? 30 : Math.min(spotify.queue.length * 22 + 50, 160);
+        }
+        return base;
+    }
     property string weatherCity: "" // Set to your city name to override (e.g. "Warsaw"), or leave empty for IP auto-detection
     property string weatherTemp: "--"
     property string weatherDesc: "Loading..."
@@ -519,16 +575,7 @@ Item {
         anchors.topMargin: 14
         spacing: 12
         
-        height: {
-            if (root.expandedMode === "none") return 404;
-            if (root.expandedMode === "weather") return 554;
-            // lyrics mode: base + queue panel
-            var base = 524;
-            if (spotify && spotify.queue && spotify.queue.length > 0) {
-                base += root.queueCollapsed ? 30 : Math.min(spotify.queue.length * 22 + 50, 160);
-            }
-            return base;
-        }
+        height: root.targetHeight
         Behavior on height { 
             enabled: root.dashboardOpen
             NumberAnimation { duration: 250; easing.type: Easing.InOutQuad } 
@@ -541,7 +588,9 @@ Item {
             Layout.preferredHeight: {
                 var h = 150;
                 if (root.expandedMode === "lyrics") {
-                    h += 270; // lyrics area
+                    if (root.parsedLyrics.length > 0) {
+                        h += root.lyricsAvailable ? 270 : 30;
+                    }
                     if (spotify && spotify.queue && spotify.queue.length > 0) {
                         h += root.queueCollapsed ? 30 : Math.min(spotify.queue.length * 22 + 50, 160);
                     }
@@ -558,24 +607,30 @@ Item {
             border.width: 1
             clip: true
             
-            // Background click area to toggle lyrics expansion mode
+            // Background click area to toggle lyrics expansion mode (excluding lyrics list)
             MouseArea {
-                anchors.fill: parent
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                height: 150
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     root.expandedMode = (root.expandedMode === "lyrics") ? "none" : "lyrics"
                 }
             }
             
-            // Allow wheel volume control anywhere on the player card
+            // Allow wheel volume control anywhere on the player card (excluding lyrics list)
             MouseArea {
-                anchors.fill: parent
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                height: 150
                 acceptedButtons: Qt.NoButton
                 onWheel: (event) => {
                     if (event.angleDelta.y > 0) {
-                        Quickshell.execDetached(["playerctl", "--player=spotify", "volume", "0.05+"]);
+                        Quickshell.execDetached(["/home/tymon/dotfiles/.config/quickshell/scripts/player_control.py", "volume", "0.05+"]);
                     } else if (event.angleDelta.y < 0) {
-                        Quickshell.execDetached(["playerctl", "--player=spotify", "volume", "0.05-"]);
+                        Quickshell.execDetached(["/home/tymon/dotfiles/.config/quickshell/scripts/player_control.py", "volume", "0.05-"]);
                     }
                 }
             }
@@ -638,12 +693,14 @@ Item {
 
                                 NumberAnimation on x {
                                     id: titleScrollAnim
-                                    running: titleText.implicitWidth > titleText.parent.width
+                                    running: root.dashboardOpen && (titleText.implicitWidth > titleText.parent.width)
                                     from: 0
                                     to: -(titleText.implicitWidth - titleText.parent.width + 12)
                                     duration: Math.max(2000, (titleText.implicitWidth - titleText.parent.width) * 18)
                                     loops: Animation.Infinite
-                                    paused: !titleText.parent.visible
+                                    onRunningChanged: {
+                                        if (!running) titleText.x = 0;
+                                    }
                                 }
                             }
                             onWidthChanged: titleScrollAnim.restart()
@@ -665,12 +722,14 @@ Item {
 
                                 NumberAnimation on x {
                                     id: artistScrollAnim
-                                    running: artistText.implicitWidth > artistText.parent.width
+                                    running: root.dashboardOpen && (artistText.implicitWidth > artistText.parent.width)
                                     from: 0
                                     to: -(artistText.implicitWidth - artistText.parent.width + 12)
                                     duration: Math.max(2000, (artistText.implicitWidth - artistText.parent.width) * 20)
                                     loops: Animation.Infinite
-                                    paused: !artistText.parent.visible
+                                    onRunningChanged: {
+                                        if (!running) artistText.x = 0;
+                                    }
                                 }
                             }
                             onWidthChanged: artistScrollAnim.restart()
@@ -694,12 +753,14 @@ Item {
 
                                 NumberAnimation on x {
                                     id: contextScrollAnim
-                                    running: contextText.implicitWidth > contextText.parent.width
+                                    running: root.dashboardOpen && (contextText.implicitWidth > contextText.parent.width)
                                     from: 0
                                     to: -(contextText.implicitWidth - contextText.parent.width + 12)
                                     duration: Math.max(2000, (contextText.implicitWidth - contextText.parent.width) * 20)
                                     loops: Animation.Infinite
-                                    paused: !contextText.parent.visible
+                                    onRunningChanged: {
+                                        if (!running) contextText.x = 0;
+                                    }
                                 }
                             }
                             onWidthChanged: contextScrollAnim.restart()
@@ -736,6 +797,7 @@ Item {
                         // Seekbar slider
                         Slider {
                             id: seekSlider
+                            visible: spotify && (spotify.length > 0 || root.trackDurationMs > 0)
                             Layout.fillWidth: true
                             Layout.preferredHeight: 14
                             leftPadding: 0
@@ -743,7 +805,7 @@ Item {
                             topPadding: 0
                             bottomPadding: 0
                             from: 0
-                            to: spotify && spotify.length ? spotify.length : 100
+                            to: (spotify && spotify.length) ? spotify.length : (root.trackDurationMs * 1000)
                             value: spotify && spotify.position ? spotify.position : 0
                             live: false
                             
@@ -784,7 +846,7 @@ Item {
                             onPressedChanged: {
                                 if (!pressed) {
                                     var posSec = value / 1000000;
-                                    Quickshell.execDetached(["playerctl", "--player=spotify", "position", posSec.toString()]);
+                                    Quickshell.execDetached(["/home/tymon/dotfiles/.config/quickshell/scripts/player_control.py", "position", posSec.toString()]);
                                 }
                             }
                         }
@@ -817,7 +879,7 @@ Item {
                             Item { Layout.fillWidth: true }
                             
                             Text {
-                                text: root.formatTime(spotify ? spotify.length : 0)
+                                text: (spotify && spotify.length > 0) ? root.formatTime(spotify.length) : (root.trackDurationMs > 0 ? root.formatTime(root.trackDurationMs * 1000) : (spotify && spotify.playerName === "mpv" ? "LIVE" : "0:00"))
                                 font.family: root.customFont
                                 font.pixelSize: 9
                                 color: "#99FFFFFF"
@@ -831,6 +893,8 @@ Item {
                             
                             Button {
                                 id: shuffleBtn
+                                enabled: spotify && spotify.playerName !== "mpv"
+                                opacity: enabled ? 1.0 : 0.35
                                 text: spotify && spotify.shuffle ? "󰒟" : "󰒞"
                                 font.family: root.customFont
                                 font.pixelSize: 12
@@ -842,7 +906,7 @@ Item {
                                 leftPadding: 0
                                 rightPadding: 0
                                 background: null
-                                onClicked: Quickshell.execDetached(["playerctl", "--player=spotify", "shuffle", "Toggle"])
+                                onClicked: Quickshell.execDetached(["/home/tymon/dotfiles/.config/quickshell/scripts/player_control.py", "shuffle", "Toggle"])
                                 contentItem: Text { 
                                     text: shuffleBtn.text
                                     font: shuffleBtn.font
@@ -871,7 +935,7 @@ Item {
                                 leftPadding: 0
                                 rightPadding: 0
                                 background: null
-                                onClicked: Quickshell.execDetached(["playerctl", "--player=spotify", "previous"])
+                                onClicked: Quickshell.execDetached(["/home/tymon/dotfiles/.config/quickshell/scripts/player_control.py", "previous"])
                                 contentItem: Text { 
                                     text: prevBtn.text
                                     font: prevBtn.font
@@ -900,7 +964,7 @@ Item {
                                 leftPadding: 0
                                 rightPadding: 0
                                 background: null
-                                onClicked: Quickshell.execDetached(["playerctl", "--player=spotify", "play-pause"])
+                                onClicked: Quickshell.execDetached(["/home/tymon/dotfiles/.config/quickshell/scripts/player_control.py", "play-pause"])
                                 contentItem: Text { 
                                     text: playBtn.text
                                     font: playBtn.font
@@ -929,7 +993,7 @@ Item {
                                 leftPadding: 0
                                 rightPadding: 0
                                 background: null
-                                onClicked: Quickshell.execDetached(["playerctl", "--player=spotify", "next"])
+                                onClicked: Quickshell.execDetached(["/home/tymon/dotfiles/.config/quickshell/scripts/player_control.py", "next"])
                                 contentItem: Text { 
                                     text: nextBtn.text
                                     font: nextBtn.font
@@ -947,6 +1011,8 @@ Item {
                             
                             Button {
                                 id: loopBtn
+                                enabled: spotify && spotify.playerName !== "mpv"
+                                opacity: enabled ? 1.0 : 0.35
                                 text: spotify && spotify.loop === "Track" ? "󰑘" : (spotify && spotify.loop === "Playlist" ? "󰑖" : "󰑗")
                                 font.family: root.customFont
                                 font.pixelSize: 12
@@ -958,11 +1024,40 @@ Item {
                                 leftPadding: 0
                                 rightPadding: 0
                                 background: null
-                                onClicked: Quickshell.execDetached(["playerctl", "--player=spotify", "loop", "Toggle"])
+                                onClicked: Quickshell.execDetached(["/home/tymon/dotfiles/.config/quickshell/scripts/player_control.py", "loop", "Toggle"])
                                 contentItem: Text { 
                                     text: loopBtn.text
                                     font: loopBtn.font
                                     color: loopBtn.hovered ? (spotify && spotify.loop !== "Off" ? "#3399FF" : "#FFFFFF") : (spotify && spotify.loop !== "Off" ? "#0070D8" : "#99FFFFFF")
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    acceptedButtons: Qt.NoButton
+                                }
+                            }
+
+                            Button {
+                                id: sourceBtn
+                                text: spotify && spotify.playerName === "mpv" ? "󰎖" : "󰓇"
+                                font.family: root.customFont
+                                font.pixelSize: 12
+                                flat: true
+                                implicitWidth: 24
+                                implicitHeight: 22
+                                topPadding: 0
+                                bottomPadding: 0
+                                leftPadding: 0
+                                rightPadding: 0
+                                background: null
+                                onClicked: Quickshell.execDetached(["/home/tymon/dotfiles/.config/quickshell/scripts/player_control.py", "toggle-source"])
+                                contentItem: Text { 
+                                    text: sourceBtn.text
+                                    font: sourceBtn.font
+                                    color: sourceBtn.hovered ? "#3399FF" : (spotify && spotify.playerName === "mpv" ? "#FF9900" : "#1DB954")
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
                                     Behavior on color { ColorAnimation { duration: 150 } }
@@ -988,7 +1083,10 @@ Item {
                     ListView {
                         id: lyricsListView
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 270
+                        Layout.preferredHeight: {
+                            if (root.parsedLyrics.length === 0) return 0;
+                            return root.lyricsAvailable ? 270 : 30;
+                        }
                         Layout.topMargin: 4
                         Layout.bottomMargin: 4
                         model: root.parsedLyrics
@@ -1030,9 +1128,9 @@ Item {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
-                                    if (modelData.time > 0) {
+                                    if (modelData.time !== undefined && modelData.time !== null && root.isLyricsSynced) {
                                         var posSec = modelData.time / 1000.0;
-                                        Quickshell.execDetached(["playerctl", "--player=spotify", "position", posSec.toString()]);
+                                        Quickshell.execDetached(["/home/tymon/dotfiles/.config/quickshell/scripts/player_control.py", "position", posSec.toString()]);
                                     }
                                 }
                             }

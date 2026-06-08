@@ -135,7 +135,11 @@ Item {
                     
                     onClicked: {
                         if (modelData.enabled) {
-                            if (typeof modelData.click === "function") {
+                            if (typeof modelData.triggered === "function") {
+                                modelData.triggered();
+                            } else if (typeof modelData.activate === "function") {
+                                modelData.activate();
+                            } else if (typeof modelData.click === "function") {
                                 modelData.click();
                             } else if (typeof modelData.trigger === "function") {
                                 modelData.trigger();

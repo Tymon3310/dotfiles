@@ -142,8 +142,6 @@ hl.window_rule {
   float = true,
   size = "540 317",
   center = true,
-  fullscreen = false,
-  suppress_event = "fullscreen maximize activate",
 }
 
 

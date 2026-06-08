@@ -66,7 +66,7 @@ Item {
             }
         }
 
-        if (!keep && !foundDefault && card.notification && card.notification.dismiss) {
+        if (!keep && card.notification && card.notification.dismiss) {
             card.notification.dismiss();
         }
     }

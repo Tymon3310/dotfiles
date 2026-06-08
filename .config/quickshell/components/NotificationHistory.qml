@@ -94,8 +94,21 @@ Item {
         return -1;
     }
 
+    function hasNotificationId(id) {
+        for (var groupKey in notificationsData) {
+            var list = notificationsData[groupKey];
+            if (list) {
+                for (var i = 0; i < list.length; i++) {
+                    if (list[i] && list[i].liveId === id) return true;
+                }
+            }
+        }
+        return false;
+    }
+
     function addNotification(notification) {
         if (!notification) return;
+        if (hasNotificationId(notification.id)) return;
 
         var entry = createEntry(notification);
         var groupIndex = findGroupIndex(entry.groupKey);
@@ -199,7 +212,7 @@ Item {
             }
         }
 
-        if (!invoked && actionIdentifier === "default" && entry.liveNotification) {
+        if (!keepInHistory && !invoked && actionIdentifier === "default" && entry.liveNotification) {
             try {
                 entry.liveNotification.dismiss();
             } catch (e2) {
