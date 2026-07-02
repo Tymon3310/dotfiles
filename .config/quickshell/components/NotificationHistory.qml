@@ -194,8 +194,11 @@ Item {
         if (entryIndex < 0 || entryIndex >= notificationsData[groupKey].length) return;
 
         var entry = notificationsData[groupKey][entryIndex];
-        var invoked = false;
 
+        // Shift-click: keep entry, don't invoke action (app would dismiss the live notification)
+        if (keepInHistory) return;
+
+        var invoked = false;
         if (entry.liveNotification) {
             var liveActions = entry.liveNotification.actions || [];
             for (var i = 0; i < liveActions.length; i++) {
@@ -212,7 +215,7 @@ Item {
             }
         }
 
-        if (!keepInHistory && !invoked && actionIdentifier === "default" && entry.liveNotification) {
+        if (!invoked && actionIdentifier === "default" && entry.liveNotification) {
             try {
                 entry.liveNotification.dismiss();
             } catch (e2) {
@@ -220,9 +223,7 @@ Item {
             }
         }
 
-        if (!keepInHistory) {
-            removeEntry(groupIndex, entryIndex, false);
-        }
+        removeEntry(groupIndex, entryIndex, false);
     }
 
     function activateEntry(groupIndex, entryIndex, keepInHistory) {

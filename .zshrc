@@ -20,6 +20,7 @@ plugins=(
 )
 autoload -Uz add-zsh-hook
 autoload -U colors && colors
+fpath=($HOME/.zfunc $fpath)
 source $ZSH/oh-my-zsh.sh
 source <(fzf --zsh)
 # _PROMPT_TRANSIENT_STATIC='%{%F{242}%}%~%{%f%} $ '

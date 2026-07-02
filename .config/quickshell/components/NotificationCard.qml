@@ -51,6 +51,9 @@ Item {
 
         if (!card.effectiveNotification) return;
 
+        // Shift-click: keep notification, don't invoke action (app would dismiss it)
+        if (keep) return;
+
         var actionsList = card.effectiveNotification.actions || [];
         var foundDefault = false;
         for (var i = 0; i < actionsList.length; i++) {
@@ -66,7 +69,7 @@ Item {
             }
         }
 
-        if (!keep && card.notification && card.notification.dismiss) {
+        if (!foundDefault && card.notification && card.notification.dismiss) {
             card.notification.dismiss();
         }
     }

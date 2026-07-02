@@ -1,12 +1,13 @@
 import QtQuick
 import Quickshell.Hyprland
+import Quickshell.Io
 
 Item {
     id: root
 
     property var monitor: Hyprland.focusedMonitor
-    property var workspace: monitor?.activeWorkspace
-    property var windows: workspace?.toplevels ?? []
+    property var windows: []
+    property int _activeWsId: -1
 
     // Screen position for coordinate conversion
     property real screenX: 0
@@ -16,7 +17,6 @@ Item {
     property var globalSelectedWindows: []
 
     signal checkHover(real mouseX, real mouseY)
-    signal windowClicked(real mouseX, real mouseY, bool ctrlHeld, bool shiftHeld)
     signal regionSelected(real x, real y, real width, real height, bool openEditor)
     signal windowToggled(var windowInfo)  // Emit when ctrl+click to toggle
     signal captureRequested(bool openEditor)  // Emit when clicking on selected window
@@ -40,6 +40,63 @@ Item {
 
 
     // Removed SpringAnimations for instant responsiveness
+
+    function refreshWindows() {
+        if (root.visible) {
+            _wsQuery.running = true
+        }
+    }
+
+    Process {
+        id: _wsQuery
+        running: false
+        command: ["hyprctl", "activeworkspace", "-j"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    root._activeWsId = JSON.parse(this.text).id
+                    _clientsQuery.running = true
+                } catch (e) {
+                    console.log("WindowSelector: failed to parse active workspace:", e)
+                }
+            }
+        }
+    }
+
+    Process {
+        id: _clientsQuery
+        running: false
+        command: ["hyprctl", "clients", "-j"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    var clients = JSON.parse(this.text)
+                    var windows = []
+                    for (var i = 0; i < clients.length; i++) {
+                        var c = clients[i]
+                        if (c.workspace && c.workspace.id === root._activeWsId) {
+                            windows.push({ lastIpcObject: c })
+                        }
+                    }
+                    root.windows = windows
+                } catch (e) {
+                    console.log("WindowSelector: failed to parse clients:", e)
+                }
+            }
+        }
+    }
+
+    Timer {
+        id: _refreshTimer
+        interval: 200
+        running: root.visible
+        repeat: true
+        onTriggered: root.refreshWindows()
+    }
+
+    onVisibleChanged: if (visible) refreshWindows()
+
+    Component.onCompleted: refreshWindows()
 
     // Check if a window (in global coords) is selected
     function isWindowSelectedGlobal(windowInfo) {
@@ -223,6 +280,8 @@ Item {
                 target: root
 
                 function onCheckHover(mouseX, mouseY) {
+                    if (!modelData || !modelData.lastIpcObject || !modelData.lastIpcObject.at || !modelData.lastIpcObject.size) return
+
                     // mouseX, mouseY are in screen-local coordinates from MouseArea
                     // Get window position in screen-local coords
                     const monitorX = root.screenX
@@ -256,63 +315,6 @@ Item {
                         }
                     }
                 }
-
-                function onWindowClicked(mouseX, mouseY, ctrlHeld, shiftHeld) {
-                    // mouseX, mouseY are in screen-local coordinates from MouseArea
-                    const monitorX = root.screenX
-                    const monitorY = root.screenY
-
-                    const windowX = modelData.lastIpcObject.at[0] - monitorX
-                    const windowY = modelData.lastIpcObject.at[1] - monitorY
-
-                    const width = modelData.lastIpcObject.size[0]
-                    const height = modelData.lastIpcObject.size[1]
-
-                    if (mouseX >= windowX && mouseX <= windowX + width && mouseY >= windowY && mouseY <= windowY + height) {
-                        // Build window info with GLOBAL coords
-                        const windowInfo = {
-                            address: modelData.lastIpcObject.address,
-                            x: modelData.lastIpcObject.at[0],
-                            y: modelData.lastIpcObject.at[1],
-                            width: width,
-                            height: height,
-                            title: modelData.lastIpcObject.title || "",
-                            class: modelData.lastIpcObject.class || ""
-                        }
-
-                        if (ctrlHeld) {
-                            // Toggle selection - emit signal to parent
-                            root.windowToggled(windowInfo)
-                        } else {
-                            // Regular click
-                            if (globalSelectedWindows.length > 0) {
-                                // Check if clicking on a selected window
-                                if (isWindowSelectedGlobal(windowInfo)) {
-                                    // Request capture of all selected windows
-                                    root.captureRequested(shiftHeld)
-                                } else {
-                                    // Clicking on non-selected window - capture just that one
-                                    root.regionSelected(
-                                        windowInfo.x,
-                                        windowInfo.y,
-                                        windowInfo.width,
-                                        windowInfo.height,
-                                        shiftHeld
-                                    )
-                                }
-                            } else {
-                                // No multi-selection, just capture the hovered window
-                                root.regionSelected(
-                                    windowInfo.x,
-                                    windowInfo.y,
-                                    windowInfo.width,
-                                    windowInfo.height,
-                                    shiftHeld
-                                )
-                            }
-                        }
-                    }
-                }
             }
         }
     }
@@ -343,7 +345,47 @@ Item {
         onClicked: (mouse) => {
             const ctrlHeld = (mouse.modifiers & Qt.ControlModifier)
             const shiftHeld = (mouse.modifiers & Qt.ShiftModifier)
-            root.windowClicked(mouse.x, mouse.y, ctrlHeld, shiftHeld)
+
+            // Find topmost window at click position (last in list = on top)
+            var bestWindow = null
+            for (var i = root.windows.length - 1; i >= 0; i--) {
+                var w = root.windows[i]
+                if (!w || !w.lastIpcObject || !w.lastIpcObject.at || !w.lastIpcObject.size) continue
+                var windowX = w.lastIpcObject.at[0] - root.screenX
+                var windowY = w.lastIpcObject.at[1] - root.screenY
+                var width = w.lastIpcObject.size[0]
+                var height = w.lastIpcObject.size[1]
+                if (mouse.x >= windowX && mouse.x <= windowX + width && mouse.y >= windowY && mouse.y <= windowY + height) {
+                    bestWindow = w
+                    break
+                }
+            }
+
+            if (!bestWindow) return
+
+            const windowInfo = {
+                address: bestWindow.lastIpcObject.address,
+                x: bestWindow.lastIpcObject.at[0],
+                y: bestWindow.lastIpcObject.at[1],
+                width: bestWindow.lastIpcObject.size[0],
+                height: bestWindow.lastIpcObject.size[1],
+                title: bestWindow.lastIpcObject.title || "",
+                class: bestWindow.lastIpcObject.class || ""
+            }
+
+            if (ctrlHeld) {
+                root.windowToggled(windowInfo)
+            } else {
+                if (globalSelectedWindows.length > 0) {
+                    if (isWindowSelectedGlobal(windowInfo)) {
+                        root.captureRequested(shiftHeld)
+                    } else {
+                        root.regionSelected(windowInfo.x, windowInfo.y, windowInfo.width, windowInfo.height, shiftHeld)
+                    }
+                } else {
+                    root.regionSelected(windowInfo.x, windowInfo.y, windowInfo.width, windowInfo.height, shiftHeld)
+                }
+            }
         }
     }
 }

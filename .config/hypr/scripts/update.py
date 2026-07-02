@@ -74,28 +74,32 @@ def parse_updates(version_map, pac_raw, aur_raw, flat_raw):
     for line in pac_raw:
         try:
             parts = line.split()
-            if len(parts) >= 4:
-                name = parts[0]
-                old_ver = parts[1]
-                new_ver = parts[-1]
-                
-                # Exact Version Match: Find which repo owns 'new_ver'
-                repo = "core" # Default fallback
-                if name in version_map and new_ver in version_map[name]:
-                    repo = version_map[name][new_ver]
-                elif name in version_map:
-                    # Fallback: use the first repo found for this package if version mismatch
-                    repo = list(version_map[name].values())[0]
+            if "->" in parts:
+                idx = parts.index("->")
+                if idx >= 2 and len(parts) > idx + 1:
+                    name = parts[0]
+                    old_ver = parts[idx-1]
+                    new_ver = parts[idx+1]
+                    
+                    # Exact Version Match: Find which repo owns 'new_ver'
+                    repo = "core" # Default fallback
+                    if name in version_map and new_ver in version_map[name]:
+                        repo = version_map[name][new_ver]
+                    elif name in version_map:
+                        # Fallback: use the first repo found for this package if version mismatch
+                        repo = list(version_map[name].values())[0]
 
-                updates.append({"name": name, "old": old_ver, "new": new_ver, "repo": repo})
+                    updates.append({"name": name, "old": old_ver, "new": new_ver, "repo": repo})
         except: continue
 
     # AUR
     for line in aur_raw:
         try:
             parts = line.split()
-            if len(parts) >= 4:
-                updates.append({"name": parts[0], "old": parts[1], "new": parts[-1], "repo": "aur"})
+            if "->" in parts:
+                idx = parts.index("->")
+                if idx >= 2 and len(parts) > idx + 1:
+                    updates.append({"name": parts[0], "old": parts[idx-1], "new": parts[idx+1], "repo": "aur"})
         except: continue
     
     # Flatpak
