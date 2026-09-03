@@ -72,19 +72,19 @@ for local_workspace = 1, layout.per_monitor do
 
     if local_workspace <= 10 then
         -- Use number keys 1-9, 0 for workspaces 1-10
-        key = local_workspace % 10
+        key = tostring(local_workspace % 10)
     else
         -- Use F1-F10 for workspaces 11-20
         key = "F" .. (local_workspace - 10)
     end
 
-    hl.bind("SUPER + " .. key, layout.focus_local_workspace(local_workspace))
-    hl.bind("SUPER + SHIFT + " .. key, layout.move_to_local_workspace(local_workspace, false))
-    hl.bind("SUPER + CTRL + SHIFT + " .. key, layout.move_to_local_workspace(local_workspace, true))
+    hl.bind("SUPER + " .. key, layout.focus_local_workspace(local_workspace), { repeating = true })
+    hl.bind("SUPER + SHIFT + " .. key, layout.move_to_local_workspace(local_workspace, false), { repeating = true })
+    hl.bind("SUPER + CTRL + SHIFT + " .. key, layout.move_to_local_workspace(local_workspace, true), { repeating = true })
 end
 
-hl.bind("SUPER + Tab", layout.cycle_local_workspace(1))
-hl.bind("SUPER + SHIFT + Tab", layout.cycle_local_workspace(-1))
+hl.bind("SUPER + Tab", layout.cycle_local_workspace(1), { repeating = true })
+hl.bind("SUPER + SHIFT + Tab", layout.cycle_local_workspace(-1), { repeating = true })
 
 hl.bind("SUPER + mouse_down", layout.cycle_local_workspace(1))
 hl.bind("SUPER + mouse_up", layout.cycle_local_workspace(-1))

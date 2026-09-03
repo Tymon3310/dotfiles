@@ -188,7 +188,7 @@ hl.window_rule {
   match = {
     class = "(spotify)",
   },
-  workspace = "13 silent",
+  workspace = "23 silent",
 }
 
 -- No screen share
@@ -197,7 +197,7 @@ hl.window_rule {
 hl.window_rule {
   name = "bitwarden",
   match = {
-    class = "(Bitwarden)",
+    class = "(bitwarden)",
   },
   float = true,
   size = "1200 700",

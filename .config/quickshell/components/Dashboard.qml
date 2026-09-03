@@ -112,7 +112,7 @@ Item {
     
     // Check if the lyrics have actual timestamps (i.e. at least one line with time > 0)
     readonly property bool isLyricsSynced: {
-        if (!parsedLyrics || parsedLyrics.length <= 1) return false;
+        if (!parsedLyrics || parsedLyrics.length === 0) return false;
         for (var i = 0; i < parsedLyrics.length; i++) {
             if (parsedLyrics[i].time > 0) return true;
         }
@@ -252,6 +252,64 @@ Item {
         return formatted;
     }
 
+    function cleanSongTitle(title) {
+        if (!title) return "";
+        return title.replace(/\s*[\(\[][fF]eat\..*?[\)\]]/g, "")
+                    .replace(/\s*[\(\[][wW]ith\..*?[\)\]]/g, "")
+                    .replace(/\s*[\(\[][oO]fficial.*?[\)\]]/g, "")
+                    .replace(/\s*[\(\[][rR]adio\s*[eE]dit.*?[\)\]]/g, "")
+                    .replace(/\s*-\s*[rR]adio\s*[eE]dit.*/gi, "")
+                    .replace(/\s*-\s*[0-9]{4}\s*Remaster.*/gi, "")
+                    .replace(/\s*-\s*Remaster.*/gi, "")
+                    .replace(/\s*[\(\[].*?Remaster.*?[\)\]]/gi, "")
+                    .trim();
+    }
+
+    function getPrimaryArtist(artist) {
+        if (!artist) return "";
+        var parts = artist.split(/[,/&]|(?:\s+feat\.?\s+)|(?:\s+ft\.?\s+)/i);
+        return parts.length > 0 ? parts[0].trim() : artist.trim();
+    }
+
+    function isSongMatch(item, rawArtist, rawTitle, durationSec) {
+        if (!item) return false;
+        var itemTrack = (item.trackName || item.name || "").toLowerCase().trim();
+        var itemArtist = (item.artistName || "").toLowerCase().trim();
+        
+        var cleanTargetTrack = root.cleanSongTitle(rawTitle).toLowerCase().trim();
+        var cleanItemTrack = root.cleanSongTitle(itemTrack).toLowerCase().trim();
+        
+        var primaryTargetArtist = root.getPrimaryArtist(rawArtist).toLowerCase().trim();
+        var primaryItemArtist = root.getPrimaryArtist(itemArtist).toLowerCase().trim();
+        var fullTargetArtist = (rawArtist || "").toLowerCase().trim();
+        var fullItemArtist = (itemArtist || "").toLowerCase().trim();
+        
+        // 1. Track Match
+        var trackMatches = (cleanItemTrack === cleanTargetTrack) ||
+                           (cleanItemTrack.indexOf(cleanTargetTrack) !== -1) ||
+                           (cleanTargetTrack.indexOf(cleanItemTrack) !== -1);
+        if (!trackMatches) return false;
+        
+        // 2. Artist Match
+        var artistMatches = (primaryItemArtist.length > 0 && fullTargetArtist.indexOf(primaryItemArtist) !== -1) ||
+                            (primaryTargetArtist.length > 0 && fullItemArtist.indexOf(primaryTargetArtist) !== -1) ||
+                            (fullItemArtist.length > 0 && fullTargetArtist.indexOf(fullItemArtist) !== -1) ||
+                            (fullTargetArtist.length > 0 && fullItemArtist.indexOf(fullTargetArtist) !== -1);
+        if (!artistMatches) return false;
+        
+        // 3. Duration match
+        var itemDur = item.duration || 0;
+        if (durationSec > 0 && itemDur > 0) {
+            var diff = Math.abs(itemDur - durationSec);
+            if (diff > 18) {
+                if (cleanItemTrack !== cleanTargetTrack || primaryItemArtist !== primaryTargetArtist) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     property string currentTrackId: spotify ? (spotify.title + " - " + spotify.artist) : ""
     onCurrentTrackIdChanged: fetchLyrics()
 
@@ -316,94 +374,108 @@ Item {
         trackDurationMs = 0;
         activeLyricIndex = -1;
         
-        var xhr = new XMLHttpRequest();
-        var url = "";
-        if (spotify.isrc && spotify.isrc !== "") {
-            url = "https://lrclib.net/api/get?isrc=" + encodeURIComponent(spotify.isrc);
-        } else {
-            var durationSec = Math.round(spotify.length / 1000000);
-            url = "https://lrclib.net/api/get?artist_name=" + encodeURIComponent(spotify.artist) + 
-                  "&track_name=" + encodeURIComponent(spotify.title);
-            if (durationSec > 0) {
-                url += "&duration=" + durationSec;
+        var currentFetchId = trackId;
+        var rawArtist = spotify.artist || "";
+        var rawTitle = spotify.title || "";
+        var cleanTitle = root.cleanSongTitle(rawTitle);
+        var primaryArtist = root.getPrimaryArtist(rawArtist);
+        var durationSec = (spotify.length && spotify.length > 0) ? Math.round(spotify.length / 1000000) : 0;
+        
+        var searchUrls = [];
+        searchUrls.push("https://lrclib.net/api/search?artist_name=" + encodeURIComponent(rawArtist) + "&track_name=" + encodeURIComponent(cleanTitle));
+        if (primaryArtist !== rawArtist) {
+            searchUrls.push("https://lrclib.net/api/search?artist_name=" + encodeURIComponent(primaryArtist) + "&track_name=" + encodeURIComponent(cleanTitle));
+        }
+        searchUrls.push("https://lrclib.net/api/search?q=" + encodeURIComponent(primaryArtist + " " + cleanTitle));
+        if (rawTitle !== cleanTitle) {
+            searchUrls.push("https://lrclib.net/api/search?q=" + encodeURIComponent(rawArtist + " " + rawTitle));
+        }
+        
+        var uniqueSearchUrls = [];
+        for (var u = 0; u < searchUrls.length; u++) {
+            if (uniqueSearchUrls.indexOf(searchUrls[u]) === -1) {
+                uniqueSearchUrls.push(searchUrls[u]);
             }
         }
-                  
-        xhr.open("GET", url, true);
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status === 200) {
-                    try {
-                        var res = JSON.parse(xhr.responseText);
-                        if (!root.processLrcResponse(res)) {
-                            root.fetchLyricsSearch();
-                        }
-                    } catch (e) {
-                        root.fetchLyricsSearch();
-                    }
+        
+        var fallbackCandidate = null;
+        
+        function trySearchStep(stepIndex) {
+            if (currentFetchId !== root.lastLyricsTrackId) return;
+            if (stepIndex >= uniqueSearchUrls.length) {
+                if (fallbackCandidate) {
+                    root.processLrcResponse(fallbackCandidate);
                 } else {
-                    root.fetchLyricsSearch();
+                    root.parsedLyrics = [{"time": 0, "text": "Lyrics not found"}];
                 }
+                return;
             }
-        }
-        xhr.send();
-    }
-
-    function fetchLyricsSearch() {
-        var xhr = new XMLHttpRequest();
-        var url = "https://lrclib.net/api/search?artist_name=" + encodeURIComponent(spotify.artist) + 
-                  "&track_name=" + encodeURIComponent(spotify.title);
-        xhr.open("GET", url, true);
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status === 200) {
-                    try {
-                        var res = JSON.parse(xhr.responseText);
-                        if (res && res.length > 0) {
-                            root.processLrcResponse(res[0]);
-                        } else {
-                            root.fetchLyricsGeneral();
-                        }
-                    } catch (e) {
-                        root.fetchLyricsGeneral();
+            
+            var sUrl = uniqueSearchUrls[stepIndex];
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", sUrl, true);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === XMLHttpRequest.DONE) {
+                    if (currentFetchId !== root.lastLyricsTrackId) return;
+                    if (xhr.status === 200) {
+                        try {
+                            var items = JSON.parse(xhr.responseText);
+                            if (items && items.length > 0) {
+                                for (var i = 0; i < items.length; i++) {
+                                    if (root.isSongMatch(items[i], rawArtist, rawTitle, durationSec)) {
+                                        if (items[i].syncedLyrics && items[i].syncedLyrics.trim().length > 0) {
+                                            root.processLrcResponse(items[i]);
+                                            return;
+                                        }
+                                    }
+                                }
+                                if (!fallbackCandidate) {
+                                    for (var j = 0; j < items.length; j++) {
+                                        if (root.isSongMatch(items[j], rawArtist, rawTitle, durationSec)) {
+                                            if (items[j].plainLyrics || items[j].instrumental) {
+                                                fallbackCandidate = items[j];
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e) {}
                     }
-                } else {
-                    root.fetchLyricsGeneral();
+                    trySearchStep(stepIndex + 1);
                 }
-            }
+            };
+            xhr.send();
         }
-        xhr.send();
-    }
-
-    function fetchLyricsGeneral() {
-        var xhr = new XMLHttpRequest();
-        // Clean title: remove "(feat. ...)", "(Official Video)", etc.
-        var cleanTitle = spotify.title.replace(/\s*[\(\[][fF]eat\..*?[\)\]]/g, "")
-                                     .replace(/\s*[\(\[][oO]fficial.*?[\)\]]/g, "")
-                                     .replace(/\s*-\s*Remastered.*/gi, "")
-                                     .trim();
-        var q = spotify.artist + " " + cleanTitle;
-        var url = "https://lrclib.net/api/search?q=" + encodeURIComponent(q);
-        xhr.open("GET", url, true);
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status === 200) {
+        
+        var getUrl = "https://lrclib.net/api/get?artist_name=" + encodeURIComponent(rawArtist) + 
+                     "&track_name=" + encodeURIComponent(rawTitle);
+        if (durationSec > 0) {
+            getUrl += "&duration=" + durationSec;
+        }
+        
+        var getXhr = new XMLHttpRequest();
+        getXhr.open("GET", getUrl, true);
+        getXhr.onreadystatechange = function() {
+            if (getXhr.readyState === XMLHttpRequest.DONE) {
+                if (currentFetchId !== root.lastLyricsTrackId) return;
+                if (getXhr.status === 200) {
                     try {
-                        var res = JSON.parse(xhr.responseText);
-                        if (res && res.length > 0) {
-                            root.processLrcResponse(res[0]);
-                        } else {
-                            parsedLyrics = [{"time": 0, "text": "Lyrics not found"}];
+                        var res = JSON.parse(getXhr.responseText);
+                        if (res && root.isSongMatch(res, rawArtist, rawTitle, durationSec)) {
+                            if (res.syncedLyrics && res.syncedLyrics.trim().length > 0) {
+                                root.processLrcResponse(res);
+                                return;
+                            } else if (res.plainLyrics || res.instrumental) {
+                                fallbackCandidate = res;
+                            }
                         }
-                    } catch (e) {
-                        parsedLyrics = [{"time": 0, "text": "Lyrics not found"}];
-                    }
-                } else {
-                    parsedLyrics = [{"time": 0, "text": "Lyrics not found"}];
+                    } catch (e) {}
                 }
+                trySearchStep(0);
             }
-        }
-        xhr.send();
+        };
+        getXhr.send();
     }
 
     onSpotifyChanged: {
@@ -413,6 +485,7 @@ Item {
                 activeLyricIndex = idx;
                 if (root.expandedMode === "lyrics" && idx !== -1) {
                     lyricsListView.currentIndex = idx;
+                    lyricsListView.positionViewAtIndex(idx, ListView.Center);
                 }
             }
         }
@@ -431,6 +504,7 @@ Item {
                 root.activeLyricIndex = idx;
                 if (root.expandedMode === "lyrics" && idx !== -1) {
                     lyricsListView.currentIndex = idx;
+                    lyricsListView.positionViewAtIndex(idx, ListView.Center);
                 }
             }
         }

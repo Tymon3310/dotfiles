@@ -52,7 +52,7 @@ zmodload zsh/parameter
 
 
 # Private exports
-#source ~/.env
+source ~/.env
 # SSH agent
 #export SSH_AUTH_SOCK=~/.bitwarden-ssh-agent.sock
 

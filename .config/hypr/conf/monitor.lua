@@ -10,7 +10,7 @@ hl.monitor({
 hl.monitor({
     output = "DP-2",
     mode = "1920x1080@144.00Hz",
-    position = "auto-right",
+    position = "0x-70",
     scale = 1,
     bitdepth = 10,
     supports_wide_color = 1,
