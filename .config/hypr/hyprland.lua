@@ -25,3 +25,5 @@ if custom_file then
     io.close(custom_file)
     require("conf.custom")
 end
+
+hl.bind("CTRL + SHIFT + 2", hl.dsp.global("com.t3tools.T3Code:capture-window"))

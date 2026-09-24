@@ -2,9 +2,9 @@ hl.config({
     general = {
         gaps_in = 4,
         gaps_out = 12,
-        border_size = 1,
+        border_size = 0,
         col = {
-            active_border = 0x0070D84f,
+            -- active_border = 0x0070D84f,
             -- inactive_border = 0xffffffff,
         },
         resize_on_border = true,
