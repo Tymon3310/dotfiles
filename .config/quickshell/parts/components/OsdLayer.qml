@@ -2,7 +2,7 @@ import QtQuick
 
 import "../theme"
 
-// Transient events: volume, mute, caps lock, num lock.
+// Transient events: volume, mute, caps lock, num lock, mic mute, battery milestones.
 // Displays icon, animated level bar (if progress >= 0), and label.
 Item {
     id: root
@@ -27,7 +27,7 @@ Item {
             text: root.icon
             font.family: Theme.fontMono
             font.pixelSize: 15
-            color: Theme.accent
+            color: (root.icon === "\udb80\udf6d" || root.icon === "\udb80\udc83") ? Theme.red : Theme.accent
         }
 
         // Progress bar (only if progress >= 0)
@@ -43,7 +43,7 @@ Item {
                 width: Math.max(parent.height, parent.width * Math.min(1, Math.max(0, root.progress)))
                 height: parent.height
                 radius: height / 2
-                color: Theme.accent
+                color: (root.progress <= 0.15 && root.progress >= 0) ? Theme.red : Theme.accent
 
                 Behavior on width {
                     NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing }

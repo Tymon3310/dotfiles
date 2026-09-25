@@ -19,6 +19,7 @@ Item {
     }
 
     readonly property bool typing: field.text !== ""
+        || field.activeFocus
         || LockService.authenticating
         || LockService.failed
 
@@ -163,7 +164,7 @@ Item {
                 }
             }
 
-            // Resting state: Name & hint
+            // Resting state: Name & hint (when not typing / unfocused)
             Column {
                 id: resting
 
@@ -210,7 +211,7 @@ Item {
                 }
             }
 
-            // Typing state: Password field
+            // Typing state: Password field (non-blocking, active concurrently with face unlock)
             TextInput {
                 id: field
 
@@ -235,6 +236,19 @@ Item {
 
                 Behavior on opacity { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
 
+                Text {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: LockService.biopassRunning
+                        ? "Enter password or use face..."
+                        : (LockService.biopassFailed ? "Face not recognized — enter password" : "Enter password...")
+                    color: Theme.textMuted
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeSmall
+                    font.letterSpacing: 0
+                    visible: field.text === "" && !LockService.authenticating
+                }
+
                 onAccepted: {
                     root.submitted(field.text)
                     field.clear()
@@ -247,6 +261,7 @@ Item {
 
                 Keys.onEscapePressed: {
                     field.clear()
+                    field.focus = false
                     LockService.rest()
                 }
 
@@ -278,28 +293,32 @@ Item {
                 Behavior on scale { NumberAnimation { duration: Theme.durationMedium; easing.type: Easing.OutBack } }
                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
+                // Arrow icon when ready to submit
                 Text {
                     anchors.centerIn: parent
-                    visible: !LockService.authenticating
-                    text: "󰁔"
-                    font.family: Theme.fontMono
-                    font.pixelSize: 18
+                    anchors.horizontalCenterOffset: 1
+                    text: "➜"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 15
+                    font.bold: true
                     color: Theme.accentText
+                    visible: !LockService.authenticating
                 }
 
+                // Spinner ring when PAM authenticating
                 RingIndicator {
-                    id: spinner
+                    id: submitSpinner
                     anchors.centerIn: parent
-                    width: 20
-                    height: 20
+                    width: 26
+                    height: 26
                     visible: LockService.authenticating
-                    thickness: 2
-                    progress: 0.28
+                    thickness: 2.5
+                    progress: 0.3
                     trackColor: "transparent"
                     fillColor: Theme.accent
 
                     RotationAnimator {
-                        target: spinner
+                        target: submitSpinner
                         running: LockService.authenticating
                         from: 0
                         to: 360
@@ -313,7 +332,7 @@ Item {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    enabled: !LockService.authenticating
+                    enabled: !LockService.authenticating && field.text !== ""
                     onClicked: {
                         root.submitted(field.text)
                         field.clear()
@@ -321,18 +340,5 @@ Item {
                 }
             }
         }
-    }
-
-    // Error message below
-    Text {
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: holder.bottom
-        anchors.topMargin: 12
-        text: LockService.message
-        visible: text !== ""
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontSizeSmall
-        font.weight: Font.DemiBold
-        color: Theme.red
     }
 }

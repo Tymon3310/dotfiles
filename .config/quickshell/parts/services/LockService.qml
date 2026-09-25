@@ -1,60 +1,61 @@
+// ╭────────────────────────────────────────────────────────────────────────────╮
+// │                                                                            │
+// │   L O C K   S E R V I C E                                                  │
+// │   session lock coordination, grim capture, PAM, biopass face auth          │
+// │                                                                            │
+// │   github.com/andreumassanet/impasto                                        │
+// │                                                                            │
+// ╰────────────────────────────────────────────────────────────────────────────╯
+
 pragma Singleton
 
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import Quickshell.Services.Pam
 
 import "../theme"
 
-// Session lock service: ext-session-lock with blurred per-monitor background,
-// animated padlock, elegant clock, biopass face authentication, PAM password fallback, and power actions.
+// Coordinates the session lock: takes a blurred screenshot with grim and
+// convert before showing the surface, runs PAM authentication, and holds the
+// surface up for `Theme.durationMorph` while the unlock animation finishes.
 Singleton {
     id: root
 
     property bool locked: false
     property bool secure: false
-    property bool authenticating: false
-    property string message: ""
-    property bool failed: false
     property bool leaving: false
-    property bool awake: false
 
-    // Which screen holds the active login input prompt (defaults to DP-1 or primary)
-    property string activeScreen: "DP-1"
-
-    readonly property int awakeFor: 30000
-
-    function rouse(): void {
-        if (!root.locked || root.leaving)
-            return
-        root.awake = true
-        root.drowse.restart()
-        if (root.biopassAvailable && !root.biopassRunning && !root.biopassVerified)
-            root.triggerBiopass()
+    property bool awake: true
+    readonly property Timer sleep: Timer {
+        interval: 10000
+        onTriggered: root.awake = false
     }
 
-    function setActiveScreen(name: string): void {
-        if (name && name !== "")
-            root.activeScreen = name
-        root.rouse()
+    function rouse(): void {
+        root.awake = true
+        root.sleep.restart()
+        if (root.locked && !root.leaving && !root.biopassRunning && !root.biopassVerified && !root.authenticating) {
+            root.triggerBiopass()
+        }
     }
 
     function rest(): void {
-        root.drowse.stop()
         root.awake = false
-        root.failed = false
-        root.message = ""
+        root.sleep.stop()
     }
 
-    readonly property Timer drowse: Timer {
-        interval: root.awakeFor
-        onTriggered: root.authenticating ? root.drowse.restart() : root.rest()
+    property string activeScreen: "DP-1"
+    function setActiveScreen(name: string): void {
+        if (name && name.length > 0)
+            root.activeScreen = name
     }
+
+    // ── SCREENSHOT ───────────────────────────────────────────────────────────
 
     readonly property string shotDirectory:
         `${Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"}/quickshell`
-
     property int shotSerial: 0
     property bool shotReady: false
 
@@ -69,7 +70,7 @@ Singleton {
     signal unlocked()
     signal prepareLock()
 
-    // ── BIOPASS (FACE AUTHENTICATION) ───────────────────────────────────────
+    // ── BIOPASS (FACE AUTHENTICATION) ────────────────────────────────────────
 
     property bool biopassAvailable: false
     property bool biopassRunning: false
@@ -104,7 +105,7 @@ Singleton {
                 root.biopassFailed = false
                 root.release()
             } else {
-                if (root.locked && !root.leaving) {
+                if (root.locked && !root.leaving && !root.authenticating) {
                     root.biopassFailed = true
                 }
             }
@@ -114,7 +115,7 @@ Singleton {
     function triggerBiopass(): void {
         if (!root.locked || root.leaving || !root.biopassAvailable)
             return
-        if (root.biopassRunning || root.biopassVerified)
+        if (root.biopassRunning || root.biopassVerified || root.authenticating)
             return
         root.biopassFailed = false
         biopassAuth.running = true
@@ -122,12 +123,12 @@ Singleton {
 
     function cancelBiopass(): void {
         if (biopassAuth.running) {
-            biopassAuth.kill()
+            biopassAuth.running = false
         }
         root.biopassRunning = false
     }
 
-    // ── LOCKING ─────────────────────────────────────────────────────────────
+    // ── LOCKING ──────────────────────────────────────────────────────────────
 
     // Wait for any open menus to finish retracting before capturing the screen
     readonly property Timer settleCaptureTimer: Timer {
@@ -138,16 +139,8 @@ Singleton {
     function lock(): void {
         if (root.locked || root.settleCaptureTimer.running)
             return
-        root.message = ""
-        root.failed = false
-        root.leaving = false
-        root.biopassVerified = false
-        root.biopassFailed = false
-        root.rest()
-        root.shotReady = false
-        root.activeScreen = "DP-1"
         root.prepareLock()
-        root.settleCaptureTimer.restart()
+        settleCaptureTimer.restart()
     }
 
     // Capture each monitor independently in parallel for crisp per-output resolution
@@ -167,13 +160,20 @@ Singleton {
     function forget(): void {
         root.shotReady = false
         root.eraser.running = true
+        root.failed = false
+        root.message = ""
     }
 
     readonly property Process eraser: Process {
         command: ["sh", "-c", `rm -f '${root.shotDirectory}'/lock*.jpg`]
     }
 
-    // ── AUTHENTICATING ──────────────────────────────────────────────────────
+    // ── PAM AUTHENTICATION ───────────────────────────────────────────────────
+
+    property bool authenticating: false
+    property bool failed: false
+    property string message: ""
+    property string pendingPassword: ""
 
     function begin(): void {
         if (pam.active)
@@ -188,12 +188,15 @@ Singleton {
         if (password === "")
             return
 
+        // Cancel background face unlock immediately when submitting password
+        root.cancelBiopass()
+
         root.failed = false
         root.message = ""
 
-        if (!pam.responseRequired) {
+        if (!pam.active || !pam.responseRequired) {
+            root.pendingPassword = password
             root.begin()
-            root.message = "Not ready — press Enter again"
             return
         }
 
@@ -204,8 +207,18 @@ Singleton {
     readonly property PamContext pam: PamContext {
         config: "login"
 
+        onResponseRequiredChanged: {
+            if (pam.responseRequired && root.pendingPassword !== "") {
+                const pass = root.pendingPassword
+                root.pendingPassword = ""
+                root.authenticating = true
+                pam.respond(pass)
+            }
+        }
+
         onCompleted: result => {
             root.authenticating = false
+            root.pendingPassword = ""
             if (result === PamResult.Success) {
                 root.release()
                 return
@@ -221,13 +234,14 @@ Singleton {
 
         onError: error => {
             root.authenticating = false
+            root.pendingPassword = ""
             root.failed = true
             root.message = "Authentication unavailable"
             console.warn("PAM error:", error)
         }
     }
 
-    // ── UNLOCKING ───────────────────────────────────────────────────────────
+    // ── UNLOCKING ────────────────────────────────────────────────────────────
 
     function release(): void {
         if (root.leaving)
@@ -249,6 +263,7 @@ Singleton {
             root.rest()
             root.forget()
             root.unlocked()
+            root.leaving = false
         }
     }
 }

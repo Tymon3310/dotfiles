@@ -1,3 +1,12 @@
+// ╭────────────────────────────────────────────────────────────────────────────╮
+// │                                                                            │
+// │   L O C K   S U R F A C E                                                  │
+// │   per-output lock visuals, blurred wallpaper, clock and login widget      │
+// │                                                                            │
+// │   github.com/andreumassanet/impasto                                        │
+// │                                                                            │
+// ╰────────────────────────────────────────────────────────────────────────────╯
+
 import QtQuick
 import QtQuick.Effects
 import Quickshell
@@ -35,11 +44,21 @@ Item {
         function onAwakeChanged(): void {
             if (!LockService.awake)
                 account.clear()
+            else if (root.isActive)
+                Qt.callLater(account.claim)
         }
         function onActiveScreenChanged(): void {
             if (root.isActive)
                 Qt.callLater(account.claim)
         }
+    }
+
+    focus: root.isActive
+    Keys.onPressed: event => {
+        if (!root.isActive) return
+        LockService.setActiveScreen(root.screenName)
+        LockService.rouse()
+        account.claim()
     }
 
     TapHandler {
@@ -50,7 +69,7 @@ Item {
         }
     }
 
-    // ── BACKGROUND ──────────────────────────────────────────────────────────
+    // ── BACKGROUND ───────────────────────────────────────────────────────────
 
     Rectangle {
         anchors.fill: parent
@@ -87,13 +106,13 @@ Item {
         opacity: 0.16 * root.held
     }
 
-    // ── TOP NOTCH ISLAND ────────────────────────────────────────────────────
+    // ── TOP NOTCH ISLAND ─────────────────────────────────────────────────────
 
     LockIsland {
         held: root.held
     }
 
-    // ── CLOCK ───────────────────────────────────────────────────────────────
+    // ── CLOCK ────────────────────────────────────────────────────────────────
 
     Item {
         id: clockContainer
@@ -129,7 +148,7 @@ Item {
         }
     }
 
-    // ── ACCOUNT & PASSWORD (Active screen only) ─────────────────────────────
+    // ── ACCOUNT & PASSWORD (Active screen only) ──────────────────────────────
 
     LockAccount {
         id: account
@@ -161,7 +180,7 @@ Item {
         Behavior on opacity { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
     }
 
-    // ── POWER ACTIONS ───────────────────────────────────────────────────────
+    // ── POWER ACTIONS ────────────────────────────────────────────────────────
 
     LockPower {
         opacity: (root.isActive ? 1 : 0) * root.awake * root.held

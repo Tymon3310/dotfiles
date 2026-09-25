@@ -12,15 +12,20 @@ Item {
 
     property real held: 1
 
-    readonly property int capsuleH: Theme.capsuleHeight
-    readonly property int barTopMargin: Theme.barTopMargin
+    readonly property int capsuleH: 30
+    readonly property int barTopMargin: 4
     readonly property int notchHeight: root.capsuleH + root.barTopMargin
 
-    // Matches the IslandBar rest width exactly
-    readonly property int notchWidth: restRow.implicitWidth + 28
+    // Locked notch is compact (72px, holding padlock)
+    readonly property int lockedWidth: 72
+    // Unlocked notch matches IslandBar rest width
+    readonly property int unlockedWidth: restRow.implicitWidth > 0 ? (restRow.implicitWidth + 28) : 260
+
+    // Morph width between locked compact padlock and full media/clock bar
+    readonly property int notchWidth: Math.round(unlockedWidth + (lockedWidth - unlockedWidth) * root.held)
 
     anchors.horizontalCenter: parent.horizontalCenter
-    y: 0
+    anchors.top: parent.top
     width: root.notchWidth
     height: root.notchHeight
 
@@ -54,6 +59,7 @@ Item {
         topRightRadius: 0
         bottomLeftRadius: Theme.radiusLarge
         bottomRightRadius: Theme.radiusLarge
+        clip: true
 
         // 1. Padlock in the notch while locked (with Biopass visual feedback)
         Padlock {
@@ -101,6 +107,7 @@ Item {
             height: root.capsuleH
             opacity: 1 - root.held
             visible: opacity > 0
+            clip: true
 
             Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
@@ -163,16 +170,43 @@ Item {
                     }
                 }
 
-                // Spectrum Visualizer
-                Spectrum {
+                // Spectrum Visualizer (Smoothly disappears after ~5m of no Spotify)
+                Item {
+                    id: visualizerContainer
                     anchors.verticalCenter: parent.verticalCenter
-                    barWidth: 2.5
-                    barSpacing: 1.5
-                    minimum: 2
+                    readonly property bool shouldShow: MediaService.visualizerActive
+
+                    width: shouldShow ? lockVisualizer.implicitWidth : 0
                     height: 14
-                    active: MediaService.playing
-                    barColor: Theme.accent
-                    visible: MediaService.available
+                    opacity: shouldShow ? 1 : 0
+                    visible: opacity > 0 || width > 0
+                    clip: true
+
+                    Behavior on width {
+                        NumberAnimation {
+                            duration: Theme.durationMorph
+                            easing.type: Theme.easing
+                        }
+                    }
+
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: Theme.durationMorph
+                            easing.type: Theme.easing
+                        }
+                    }
+
+                    Spectrum {
+                        id: lockVisualizer
+                        anchors.centerIn: parent
+                        barWidth: 2.5
+                        barSpacing: 1.5
+                        minimum: 2
+                        height: 14
+                        active: MediaService.playing
+                        barColor: Theme.accent
+                        visible: parent.visible
+                    }
                 }
 
                 // Clock Time

@@ -18,7 +18,7 @@ PanelWindow {
     property var modelData
     screen: modelData
 
-    // ── STATE ───────────────────────────────────────────────────────────────
+    // ── STATE ────────────────────────────────────────────────────────────────
 
     // "dashboard", "session", "tray" or "".
     property string openId: ""
@@ -65,7 +65,7 @@ PanelWindow {
         return Qt.size(0, 0)
     }
 
-    // ── OSD (VOLUME, CAPS LOCK, NUM LOCK) ───────────────────────────────────
+    // ── OSD (VOLUME, CAPS LOCK, NUM LOCK) ────────────────────────────────────
 
     property bool osdActive: false
     property string osdIcon: ""
@@ -91,15 +91,156 @@ PanelWindow {
         }
     }
 
+    // ── ANIMATION STATES (STARTUP, UNLOCK, LOCK & PANELS) ────────────────────
+
+    property real notchYOffset: -bar.capsuleH - bar.barTopMargin - 20
+    property real islandsEmergeProgress: 0.0
+    property bool isDemorphed: false
+
+    ParallelAnimation {
+        id: startupAnimation
+
+        SequentialAnimation {
+            PauseAnimation { duration: 60 }
+            NumberAnimation {
+                target: bar
+                property: "notchYOffset"
+                from: -bar.capsuleH - bar.barTopMargin - 20
+                to: 0
+                duration: 480
+                easing.type: Easing.OutBack
+                easing.overshoot: 1.15
+            }
+        }
+
+        SequentialAnimation {
+            PauseAnimation { duration: 340 }
+            NumberAnimation {
+                target: bar
+                property: "islandsEmergeProgress"
+                from: 0.0
+                to: 1.0
+                duration: 620
+                easing.type: Easing.OutCubic
+            }
+        }
+    }
+
+    // Side islands retraction (into notch) - relaxed and smooth
+    NumberAnimation {
+        id: sideIslandsRetractAnimation
+        target: bar
+        property: "islandsEmergeProgress"
+        to: 0.0
+        duration: 360
+        easing.type: Easing.InOutCubic
+    }
+
+    // Side islands emergence (out from notch) - fluid glide
+    NumberAnimation {
+        id: sideIslandsEmergeAnimation
+        target: bar
+        property: "islandsEmergeProgress"
+        from: 0.0
+        to: 1.0
+        duration: 620
+        easing.type: Easing.OutCubic
+    }
+
+    // Timer ensuring side islands pop out AFTER the island completes its morph/demorph back to rest
+    readonly property Timer postMorphEmergeTimer: Timer {
+        interval: Theme.durationMorph + 60
+        onTriggered: {
+            if (bar.below === "" && !LockService.locked && !bar.isDemorphed) {
+                sideIslandsEmergeAnimation.restart()
+            }
+        }
+    }
+
+    onBelowChanged: {
+        if (bar.below !== "") {
+            postMorphEmergeTimer.stop()
+            sideIslandsRetractAnimation.restart()
+        } else {
+            postMorphEmergeTimer.restart()
+        }
+    }
+
+    // LOCK: 1. Retract side islands into notch -> 2. Demorph notch down to compact 72px
+    SequentialAnimation {
+        id: lockSequence
+
+        NumberAnimation {
+            target: bar
+            property: "islandsEmergeProgress"
+            to: 0.0
+            duration: 300
+            easing.type: Easing.InOutCubic
+        }
+
+        ScriptAction {
+            script: bar.isDemorphed = true
+        }
+    }
+
+    // UNLOCK: 1. Morph notch to full width -> 2. Pop out side islands after morph finishes
+    SequentialAnimation {
+        id: unlockSequence
+
+        ScriptAction {
+            script: {
+                bar.notchYOffset = 0
+                bar.isDemorphed = false
+            }
+        }
+
+        // Wait for island morph animation to finish before popping out side islands
+        PauseAnimation {
+            duration: Theme.durationMorph + 60
+        }
+
+        NumberAnimation {
+            target: bar
+            property: "islandsEmergeProgress"
+            from: 0.0
+            to: 1.0
+            duration: 620
+            easing.type: Easing.OutCubic
+        }
+    }
+
+    Component.onCompleted: {
+        if (!LockService.locked) {
+            startupAnimation.start()
+        } else {
+            bar.notchYOffset = 0
+            bar.isDemorphed = true
+            bar.islandsEmergeProgress = 0.0
+        }
+    }
+
     Connections {
         target: LockService
 
         function onPrepareLock(): void {
             bar.close()
+            lockSequence.restart()
+        }
+
+        function onLockedChanged(): void {
+            if (LockService.locked) {
+                bar.close()
+                bar.isDemorphed = true
+                bar.islandsEmergeProgress = 0.0
+            }
+        }
+
+        function onUnlocked(): void {
+            unlockSequence.restart()
         }
     }
 
-    // ── SURFACE ─────────────────────────────────────────────────────────────
+    // ── SURFACE ──────────────────────────────────────────────────────────────
 
     anchors {
         top: true
@@ -137,18 +278,18 @@ PanelWindow {
         precision: SystemClock.Minutes
     }
 
-    // ── LEFT FLOATING ZONE ──────────────────────────────────────────────────
+    // ── LEFT FLOATING ZONE ───────────────────────────────────────────────────
 
     Row {
         id: leftZone
+        z: 1
 
-        x: island.x - width - Theme.capsuleSpacing
+        x: island.x - (width + Theme.capsuleSpacing) * bar.islandsEmergeProgress
         y: bar.barTopMargin
         spacing: Theme.capsuleSpacing
 
-        opacity: bar.below !== "" ? 0 : 1
+        opacity: Math.min(1, bar.islandsEmergeProgress * 1.5)
         visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
         // Workspaces Capsule (borderless)
         Rectangle {
@@ -167,19 +308,22 @@ PanelWindow {
         }
     }
 
-    // ── CENTER MAIN ISLAND (NOTCH) ──────────────────────────────────────────
+    // ── CENTER MAIN ISLAND (NOTCH) ───────────────────────────────────────────
 
     Rectangle {
         id: island
+        z: 2
 
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 0
+        y: bar.notchYOffset
 
         width: bar.below !== ""
             ? bar.belowSize.width + 2 * bar.pad
             : bar.osdActive
                 ? Math.max(260, osdLayerItem.implicitWidth + 36)
-                : restRow.implicitWidth + 28
+                : bar.isDemorphed
+                    ? 72
+                    : restRow.implicitWidth + 28
 
         height: bar.below !== ""
             ? bar.belowSize.height + 2 * bar.pad
@@ -206,11 +350,13 @@ PanelWindow {
             anchors.right: island.left
             anchors.top: parent.top
             mirrored: true
+            opacity: Math.max(0, 1 + bar.notchYOffset / 10)
         }
 
         NotchFillet {
             anchors.left: island.right
             anchors.top: parent.top
+            opacity: Math.max(0, 1 + bar.notchYOffset / 10)
         }
 
         focus: bar.expanded
@@ -225,7 +371,7 @@ PanelWindow {
             width: restRow.implicitWidth
             height: bar.capsuleH
 
-            opacity: (bar.below !== "" || bar.osdActive) ? 0 : 1
+            opacity: (bar.below !== "" || bar.osdActive || bar.isDemorphed) ? 0 : 1
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
@@ -317,17 +463,43 @@ PanelWindow {
                     }
                 }
 
-                // 3. Audio Visualizer Spectrum
-                Spectrum {
-                    id: islandVisualizer
+                // 3. Audio Visualizer Spectrum (Smoothly disappears after ~5m of no Spotify)
+                Item {
+                    id: visualizerContainer
                     anchors.verticalCenter: parent.verticalCenter
-                    barWidth: 2.5
-                    barSpacing: 1.5
-                    minimum: 2
+                    readonly property bool shouldShow: MediaService.visualizerActive
+
+                    width: shouldShow ? islandVisualizer.implicitWidth : 0
                     height: 14
-                    active: MediaService.playing
-                    barColor: Theme.accent
-                    visible: MediaService.available
+                    opacity: shouldShow ? 1 : 0
+                    visible: opacity > 0 || width > 0
+                    clip: true
+
+                    Behavior on width {
+                        NumberAnimation {
+                            duration: Theme.durationMorph
+                            easing.type: Theme.easing
+                        }
+                    }
+
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: Theme.durationMorph
+                            easing.type: Theme.easing
+                        }
+                    }
+
+                    Spectrum {
+                        id: islandVisualizer
+                        anchors.centerIn: parent
+                        barWidth: 2.5
+                        barSpacing: 1.5
+                        minimum: 2
+                        height: 14
+                        active: MediaService.playing
+                        barColor: Theme.accent
+                        visible: parent.visible
+                    }
 
                     MouseArea {
                         anchors.fill: parent
@@ -417,7 +589,7 @@ PanelWindow {
             }
         }
 
-        // ── MORPHING OSD LAYER (Volume, Caps Lock, Num Lock) ────────────────
+        // ── MORPHING OSD LAYER (Volume, Caps Lock, Num Lock) ───────────────
         OsdLayer {
             id: osdLayerItem
             anchors.top: parent.top
@@ -484,23 +656,25 @@ PanelWindow {
             width: bar.belowSize.width
             height: bar.belowSize.height
             active: bar.notifying
+            opacity: bar.notifying ? 1 : 0
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: Theme.durationMedium } }
             sourceComponent: NotificationLayer {}
         }
     }
 
-    // ── RIGHT FLOATING ZONE ─────────────────────────────────────────────────
+    // ── RIGHT FLOATING ZONE ──────────────────────────────────────────────────
 
     Row {
         id: rightZone
+        z: 1
 
-        x: island.x + island.width + Theme.capsuleSpacing
+        x: (island.x + island.width - width) + (width + Theme.capsuleSpacing) * bar.islandsEmergeProgress
         y: bar.barTopMargin
         spacing: Theme.capsuleSpacing
 
-        opacity: bar.below !== "" ? 0 : 1
+        opacity: Math.min(1, bar.islandsEmergeProgress * 1.5)
         visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
-
 
         // System Tray Capsule (borderless black pill)
         Rectangle {

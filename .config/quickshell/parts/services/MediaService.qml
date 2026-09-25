@@ -39,6 +39,35 @@ Singleton {
     readonly property bool available: root.active !== null
     readonly property bool playing: root.available && root.active.isPlaying
 
+    // ── VISUALIZER INACTIVITY TIMEOUT ───────────────────────────────
+    // After ~5 minutes of no Spotify playback, visualizerActive becomes false.
+    property bool visualizerTimeout: false
+
+    readonly property Timer visualizerTimeoutTimer: Timer {
+        interval: 20000 // 30 seconds
+        repeat: false
+        running: root.available && !root.playing
+        onTriggered: root.visualizerTimeout = true
+    }
+
+    onPlayingChanged: {
+        if (root.playing) {
+            root.visualizerTimeout = false
+            root.visualizerTimeoutTimer.stop()
+        }
+    }
+
+    onAvailableChanged: {
+        if (!root.available) {
+            root.visualizerTimeout = true
+            root.visualizerTimeoutTimer.stop()
+        } else if (root.playing) {
+            root.visualizerTimeout = false
+        }
+    }
+
+    readonly property bool visualizerActive: root.available && !root.visualizerTimeout
+
     readonly property string title: root.available ? (root.active.trackTitle ?? "") : ""
     readonly property string artist: root.available ? (root.active.trackArtist ?? "") : ""
     readonly property string album: root.available ? (root.active.trackAlbum ?? "") : ""
@@ -96,7 +125,7 @@ Singleton {
 
     // The next tracks, [{ title, artist, artUrl }], from the Spotify Web API.
     // MPRIS has no queue, so the host fills this in: the dotfiles' shell.qml
-    // binds it to media_status.py's `queue`.
+    // binds it to media_status.py's `queue`..
     property var queue: []
 
     function toggle(): void {
@@ -121,7 +150,7 @@ Singleton {
             root.active.previous()
     }
 
-    // ── SPOTIFY'S OWN VOLUME ────────────────────────────────────────────────
+    // ── SPOTIFY'S OWN VOLUME ────────────────────────────────────────────
     //
     // Set on Spotify's PipeWire streams rather than through MPRIS, which the
     // desktop client does not honour; the system volume is left alone.

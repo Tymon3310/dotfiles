@@ -1,11 +1,11 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
+// ╭────────────────────────────────────────────────────────────────────────────╮
+// │                                                                            │
 // │   N O T I F I C A T I O N   S E R V I C E                                │
 // │   the shell is the notification daemon                                   │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// │                                                                            │
+// │   github.com/andreumassanet/impasto                                        │
+// │                                                                            │
+// ╰────────────────────────────────────────────────────────────────────────────╯
 
 pragma Singleton
 
@@ -39,7 +39,7 @@ Singleton {
     property var live: null
     property int serial: 0
 
-    // ── PICTURE AND ICON ────────────────────────────────────────────────────
+    // ── PICTURE AND ICON ───────────────────────────────────────────────
     //
     // Quickshell folds `notify-send -i NAME` into `image` as
     // "image://icon/NAME", so an icon name and a real picture (an avatar, a
@@ -154,14 +154,20 @@ Singleton {
 
         bodySupported: true
         bodyMarkupSupported: true
+        bodyImagesSupported: true
         imageSupported: true
-
-        // Actions are drawn on the popup (NotificationLayer). Persistence is
-        // not claimed: the history is the shell's own.
+        actionIconsSupported: true
         actionsSupported: true
-        persistenceSupported: false
+        persistenceSupported: true
+        extraHints: ["image-data", "image_data", "icon-image"]
 
         onNotification: notification => {
+            console.log("===> NOTIF ARRIVED: appName=" + notification.appName + " appIcon=" + notification.appIcon + " image=" + notification.image + " summary=" + notification.summary)
+            try {
+                console.log("===> NOTIF HINTS:", JSON.stringify(notification.hints))
+            } catch (e) {
+                console.log("===> NOTIF HINTS ERR:", e)
+            }
             // Tracking keeps the object alive past this handler; without it
             // the notification is destroyed as soon as the signal returns.
             notification.tracked = true
@@ -185,6 +191,7 @@ Singleton {
 
     function present(object: var): void {
         const notification = root.snapshot(object)
+        console.log("===> SNAPSHOT RESULT: picture=" + notification.picture + " icon=" + notification.icon)
         root.history = [notification].concat(root.history).slice(0, root.historyLimit)
 
         // Critical notifications ignore do-not-disturb. One that never reaches
@@ -224,60 +231,25 @@ Singleton {
         root.arrived(notification)
     }
 
-    // Takes it off the island. The application is told it expired (not that
-    // it was acted on), which also releases a sender waiting on it.
     function dismiss(): void {
         root.expiry.stop()
-        const object = root.live
+        if (root.live) {
+            root.live.dismiss()
+            root.live = null
+        }
         root.current = null
-        root.live = null
-        if (object)
-            object.expire()
     }
 
-    // Runs one of the popup's actions ("default" for a click on it). The
-    // application decides what happens next and usually closes it; the
-    // island lets go either way.
     function invoke(identifier: string): void {
-        const object = root.live
-        if (!object)
-            return
-        const action = (object.actions ?? []).find(entry => entry.identifier === identifier)
-        if (!action)
-            return
-        root.expiry.stop()
-        root.current = null
-        root.live = null
-        action.invoke()
-    }
-
-    // The user closed it deliberately, so the application is told.
-    function close(): void {
-        const object = root.live
-        root.live = null
-        if (object)
-            object.dismiss()
+        const live = root.live
         root.dismiss()
+        if (!live)
+            return
+        const action = (live.actions ?? []).find(a => a.identifier === identifier)
+        if (action)
+            action.invoke()
     }
 
-    function clearHistory(): void {
-        root.history = []
-    }
-
-    function remove(notification: var): void {
-        root.history = root.history.filter(entry => entry.key !== notification.key)
-        if (root.current && root.current.key === notification.key)
-            root.dismiss()
-    }
-
-    // Kept in settings so it survives a restart. Notifications are still
-    // recorded while it is on; they just do not take the island.
-    readonly property bool doNotDisturb: SettingsService.doNotDisturb
-
-    function toggleDoNotDisturb(): void {
-        const silence = !root.doNotDisturb
-        SettingsService.set("doNotDisturb", silence)
-        if (silence)
-            root.dismiss()
-    }
+    // Do Not Disturb state, toggled from the notification center
+    property bool doNotDisturb: false
 }
