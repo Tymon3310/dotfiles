@@ -26,12 +26,10 @@ Singleton {
         { id: "shutdown", icon: "󰐥", label: "Shut down", destructive: true }
     ]
 
-    // The dotfiles' own commands (nwg-bar, hypridle) rather than impasto's
-    // lock screen: hypridle locks before sleeping, so suspend needs no wait.
     function run(actionId: string): void {
         switch (actionId) {
         case "lock":
-            root.exec(["sh", "-c", "pidof hyprlock || hyprlock"])
+            LockService.lock()
             break
         case "suspend":
             root.exec(["systemctl", "suspend"])
@@ -50,7 +48,7 @@ Singleton {
         }
     }
 
-    // Detached, so the lock or a reboot outlives a shell reload.
+    // Detached, so a reboot outlives a shell reload.
     function exec(command: var): void {
         Quickshell.execDetached(command)
     }

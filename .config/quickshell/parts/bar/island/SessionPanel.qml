@@ -20,6 +20,11 @@ import "../../services"
 FocusScope {
     id: root
 
+    implicitWidth: 560
+    implicitHeight: 100
+    width: root.implicitWidth
+    height: root.implicitHeight
+
     signal closed()
 
     property int selected: 0
@@ -65,90 +70,82 @@ FocusScope {
     Keys.onReturnPressed: root.activate(SessionService.actions[root.selected])
     Keys.onEnterPressed: root.activate(SessionService.actions[root.selected])
 
-    ColumnLayout {
+    RowLayout {
         anchors.fill: parent
-        spacing: 18
+        spacing: 12
 
-        // The confirmation is shown on the tile itself: red, reading
-        // "Confirm".
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            spacing: 12
+        Repeater {
+            model: SessionService.actions
 
-            Repeater {
-                model: SessionService.actions
+            Rectangle {
+                id: tile
 
-                Rectangle {
-                    id: tile
+                required property var modelData
+                required property int index
 
-                    required property var modelData
-                    required property int index
+                readonly property bool isSelected: root.selected === tile.index
+                readonly property bool isArmed: root.armed === tile.modelData.id
 
-                    readonly property bool isSelected: root.selected === tile.index
-                    readonly property bool isArmed: root.armed === tile.modelData.id
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                radius: Theme.radiusLarge
 
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    radius: Theme.radiusLarge
+                // Armed is red, selected is the accent. Only the selected
+                // tile can be armed, so they never conflict.
+                color: {
+                    if (tile.isArmed)
+                        return Theme.red
+                    return tile.isSelected ? Theme.islandSurfaceHover : Theme.islandSurface
+                }
+                border.color: {
+                    if (tile.isArmed)
+                        return Theme.red
+                    return tile.isSelected ? Theme.accent : Theme.islandBorder
+                }
+                border.width: tile.isSelected || tile.isArmed ? 2 : 1
 
-                    // Armed is red, selected is the accent. Only the selected
-                    // tile can be armed, so they never conflict.
-                    color: {
-                        if (tile.isArmed)
-                            return Theme.red
-                        return tile.isSelected ? Theme.islandSurfaceHover : Theme.islandSurface
-                    }
-                    border.color: {
-                        if (tile.isArmed)
-                            return Theme.red
-                        return tile.isSelected ? Theme.accent : Theme.islandBorder
-                    }
-                    border.width: tile.isSelected || tile.isArmed ? 2 : 1
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
-                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 10
 
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 10
-
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: tile.modelData.icon
-                            font.family: Theme.fontMono
-                            font.pixelSize: 30
-                            color: {
-                                if (tile.isArmed)
-                                    return Theme.accentText
-                                return tile.isSelected ? Theme.accent : Theme.text
-                            }
-
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: tile.modelData.icon
+                        font.family: Theme.fontMono
+                        font.pixelSize: 30
+                        color: {
+                            if (tile.isArmed)
+                                return Theme.accentText
+                            return tile.isSelected ? Theme.accent : Theme.text
                         }
 
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: tile.isArmed ? "Confirm" : tile.modelData.label
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.weight: tile.isSelected ? Font.DemiBold : Font.Normal
-                            color: tile.isArmed ? Theme.accentText : Theme.textMuted
-
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                        }
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     }
 
-                    // The pointer drives the same selection as the arrows.
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onPositionChanged: root.selected = tile.index
-                        onClicked: {
-                            root.selected = tile.index
-                            root.activate(tile.modelData)
-                        }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: tile.isArmed ? "Confirm" : tile.modelData.label
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: tile.isSelected ? Font.DemiBold : Font.Normal
+                        color: tile.isArmed ? Theme.accentText : Theme.textMuted
+
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    }
+                }
+
+                // The pointer drives the same selection as the arrows.
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onPositionChanged: root.selected = tile.index
+                    onClicked: {
+                        root.selected = tile.index
+                        root.activate(tile.modelData)
                     }
                 }
             }

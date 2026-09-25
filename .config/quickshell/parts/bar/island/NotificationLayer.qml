@@ -29,6 +29,11 @@ import "../../components"
 Item {
     id: root
 
+    width: root.wantWidth
+    height: root.wantHeight
+    implicitWidth: root.wantWidth
+    implicitHeight: root.wantHeight
+
     readonly property var notification: NotificationService.current
     readonly property bool critical: NotificationService.critical
 

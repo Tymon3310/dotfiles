@@ -5,6 +5,7 @@ import Quickshell.Services.Notifications
 import QtQuick
 import "components"
 import "parts/services"
+import "parts/lock"
 import "screenshot/src"
 
 ShellRoot {
@@ -56,7 +57,7 @@ ShellRoot {
     // Global Hyprland status data per monitor (updated by hypr_monitor.py)
     property var hyprlandData: ({})
 
-    // ── Active Window Filter ──────────────────────────────────────────────────
+    // ── Active Window Filter ─────────────────────────────────────────────
     // List of app class / title fragments to hide from the active window display.
     // Matching is case-insensitive; any partial match on class OR title hides the entry.
     // Examples: "firefox", "code", "kitty", "steam"
@@ -64,7 +65,7 @@ ShellRoot {
         "Private Browsing", "Incognito", "porn"
     ]
 
-    // ── Notification Daemon ───────────────────────────────────────────────────
+    // ── Notification Daemon ──────────────────────────────────────────────
     // Kill swaync so NotificationService can own org.freedesktop.Notifications
     Process {
         id: killSwaync
@@ -166,7 +167,17 @@ ShellRoot {
         delegate: IslandBar {}
     }
 
-    // ── Screenshot Tool Dynamic Loader ────────────────────────────────────────
+    // ── Session Lock Screen ──────────────────────────────────────────────
+    LockScreen {}
+
+    IpcHandler {
+        target: "lock"
+        function trigger(): void {
+            LockService.lock()
+        }
+    }
+
+    // ── Screenshot Tool Dynamic Loader ───────────────────────────────────
     Loader {
         id: screenshotLoader
         active: false

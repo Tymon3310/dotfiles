@@ -12,18 +12,6 @@ import "../parts/bar/widgets"
 import "../parts/bar/island"
 import "../parts/bar/island/controls"
 
-// The top bar as one island: a black notch attached to the top edge in the
-// middle of the screen, nothing at the screen edges. The row holds the
-// workspaces, the player, the time, the processor, the tray and a power
-// button, with small spacers between them.
-//
-// Clicking the player, the time or the processor grows the island down into
-// one combined dashboard (IslandDashboard.qml); the power button into the
-// session menu. Tray icons and workspace dots keep their own clicks. A tray
-// menu and a notification (impasto's NotificationLayer) also hang under the
-// row; anything opened outranks the notification.
-//
-// The old bar is still in Bar.qml; shell.qml picks which one to build.
 PanelWindow {
     id: bar
 
@@ -37,24 +25,11 @@ PanelWindow {
     readonly property bool expanded: bar.openId !== ""
     readonly property bool dashboardOpen: bar.openId === "dashboard"
 
-    // The tray item and its menu, set when its icon is right-clicked and
-    // dropped as soon as the menu closes: a menu handle kept past that goes
-    // stale when the application rebuilds its menu (as some do when a device
-    // connects), and a list still built from it crashes Quickshell.
     property var trayMenu: null
     property var trayItem: null
 
-    onOpenIdChanged: {
-        if (bar.openId !== "tray") {
-            bar.trayMenu = null
-            bar.trayItem = null
-        }
-    }
-
-    // The application left the tray while its menu was open.
     Connections {
         target: SystemTray.items
-
         function onValuesChanged(): void {
             if (bar.trayItem && SystemTray.items.values.indexOf(bar.trayItem) < 0)
                 bar.close()
@@ -71,27 +46,57 @@ PanelWindow {
         bar.openId = ""
     }
 
-    // What hangs under the row, and how large, for the island to grow to
-    // before the content is built.
     readonly property string below: bar.expanded ? bar.openId
         : bar.notifying ? "notification" : ""
 
     readonly property size belowSize: {
         switch (bar.below) {
         case "notification":
-            // Grows with the notification (NotificationLayer's own measure).
             return notificationLoader.item
-                ? Qt.size(notificationLoader.item.wantWidth, notificationLoader.item.wantHeight + 12)
+                ? Qt.size(notificationLoader.item.wantWidth, notificationLoader.item.wantHeight)
                 : Qt.size(430, 56)
         case "tray":
             return Qt.size(280, Math.min(460, trayLoader.item?.contentHeight ?? 60))
         case "session":
-            return Qt.size(560, 130)
+            return Qt.size(560, 100)
         case "dashboard":
-            // IslandDashboard's boardWidth × boardHeight.
             return Qt.size(1084, 724)
         }
         return Qt.size(0, 0)
+    }
+
+    // ── OSD (VOLUME, CAPS LOCK, NUM LOCK) ───────────────────────────────────
+
+    property bool osdActive: false
+    property string osdIcon: ""
+    property string osdLabel: ""
+    property real osdProgress: -1
+
+    readonly property Timer osdExpiryTimer: Timer {
+        interval: 1800
+        onTriggered: bar.osdActive = false
+    }
+
+    Connections {
+        target: OsdService
+
+        function onRequested(icon: string, label: string, progress: real): void {
+            if (bar.expanded)
+                return
+            bar.osdIcon = icon
+            bar.osdLabel = label
+            bar.osdProgress = progress
+            bar.osdActive = true
+            bar.osdExpiryTimer.restart()
+        }
+    }
+
+    Connections {
+        target: LockService
+
+        function onPrepareLock(): void {
+            bar.close()
+        }
     }
 
     // ── SURFACE ─────────────────────────────────────────────────────────────
@@ -102,19 +107,22 @@ PanelWindow {
         right: true
     }
 
-    // Tall enough for the largest detail and never resized: resizing a layer
-    // surface every animation frame makes it jitter. Input goes through the
-    // mask, so the empty part is click-through.
+    readonly property int capsuleH: Theme.capsuleHeight
+    readonly property int barTopMargin: 4
+    readonly property int pad: 14
+    readonly property int openRadius: Theme.radiusLarge + 4
+
     implicitHeight: 780
-    exclusiveZone: Theme.capsuleHeight
+    // Reduced exclusiveZone to reduce the gap between the bar and tiled windows
+    exclusiveZone: bar.capsuleH + bar.barTopMargin - 8
     color: "transparent"
 
     mask: Region {
         item: island
+        Region { item: leftZone }
+        Region { item: rightZone }
     }
 
-    // Keyboard and a Hyprland focus grab only while a detail is open: the grab
-    // closes it on a click anywhere else.
     WlrLayershell.keyboardFocus: bar.expanded
         ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
@@ -124,10 +132,42 @@ PanelWindow {
         onCleared: bar.close()
     }
 
-    // ── ISLAND ──────────────────────────────────────────────────────────────
+    SystemClock {
+        id: clockTime
+        precision: SystemClock.Minutes
+    }
 
-    readonly property int pad: 14
-    readonly property int openRadius: Theme.radiusLarge + 4
+    // ── LEFT FLOATING ZONE ──────────────────────────────────────────────────
+
+    Row {
+        id: leftZone
+
+        x: island.x - width - Theme.capsuleSpacing
+        y: bar.barTopMargin
+        spacing: Theme.capsuleSpacing
+
+        opacity: bar.below !== "" ? 0 : 1
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+
+        // Workspaces Capsule (borderless)
+        Rectangle {
+            height: bar.capsuleH
+            width: wsWidget.implicitWidth + 12
+            radius: height / 2
+            color: Theme.island
+            border.width: 0
+
+            WorkspacesWidget {
+                id: wsWidget
+                anchors.centerIn: parent
+                monitor: bar.screen ? bar.screen.name : ""
+                chromeless: true
+            }
+        }
+    }
+
+    // ── CENTER MAIN ISLAND (NOTCH) ──────────────────────────────────────────
 
     Rectangle {
         id: island
@@ -135,226 +175,375 @@ PanelWindow {
         anchors.horizontalCenter: parent.horizontalCenter
         y: 0
 
-        width: Math.max(row.width + 2 * bar.pad,
-            bar.below !== "" ? bar.belowSize.width + 2 * bar.pad : 0)
-        height: Theme.capsuleHeight
-            + (bar.below !== "" ? bar.belowSize.height + bar.pad : 0)
+        width: bar.below !== ""
+            ? bar.belowSize.width + 2 * bar.pad
+            : bar.osdActive
+                ? Math.max(260, osdLayerItem.implicitWidth + 36)
+                : restRow.implicitWidth + 28
+
+        height: bar.below !== ""
+            ? bar.belowSize.height + 2 * bar.pad
+            : bar.capsuleH + bar.barTopMargin
 
         color: Theme.island
+        border.width: 0
+        clip: true
+
         topLeftRadius: 0
         topRightRadius: 0
-        bottomLeftRadius: bar.below !== "" ? bar.openRadius : Theme.capsuleHeight / 2
-        bottomRightRadius: bottomLeftRadius
+        bottomLeftRadius: bar.below !== "" ? bar.openRadius : Theme.radiusLarge
+        bottomRightRadius: bar.below !== "" ? bar.openRadius : Theme.radiusLarge
 
-        Behavior on width { NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing } }
-        Behavior on height { NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing } }
-        Behavior on bottomLeftRadius { NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing } }
+        Behavior on width {
+            NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing }
+        }
+        Behavior on height {
+            NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing }
+        }
+
+        // Notch fillets seamlessly attaching to screen edge
+        NotchFillet {
+            anchors.right: island.left
+            anchors.top: parent.top
+            mirrored: true
+        }
+
+        NotchFillet {
+            anchors.left: island.right
+            anchors.top: parent.top
+        }
 
         focus: bar.expanded
         Keys.onEscapePressed: bar.close()
 
-        // The row of parts, always on top.
-        Row {
-            id: row
-
+        // Rest row content
+        Item {
+            id: restRowContainer
+            anchors.top: parent.top
+            anchors.topMargin: bar.barTopMargin
             anchors.horizontalCenter: parent.horizontalCenter
-            y: 0
-            height: Theme.capsuleHeight
+            width: restRow.implicitWidth
+            height: bar.capsuleH
 
-            // Grey pill while this screen's monitor is not the focused one.
-            WorkspacesWidget {
-                anchors.verticalCenter: parent.verticalCenter
-                monitor: bar.screen?.name ?? ""
+            opacity: (bar.below !== "" || bar.osdActive) ? 0 : 1
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+
+            Row {
+                id: restRow
+                anchors.centerIn: parent
+                spacing: 10
+
+                // 1. Media Album Art Thumbnail
+                Item {
+                    id: mediaThumb
+                    width: 20
+                    height: 20
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 4
+                        color: Theme.islandSurfaceHover
+                        clip: true
+
+                        Image {
+                            anchors.fill: parent
+                            source: MediaService.artUrl
+                            visible: source !== "" && status === Image.Ready
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                        }
+
+                        Text {
+                            anchors.centerIn: parent
+                            visible: !MediaService.available || MediaService.artUrl === ""
+                            text: "󰝚"
+                            font.family: Theme.fontMono
+                            font.pixelSize: 11
+                            color: Theme.accent
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        onClicked: mouse => {
+                            if (mouse.button === Qt.RightButton)
+                                MediaService.toggle()
+                            else
+                                bar.toggle("dashboard")
+                        }
+                        onWheel: event => MediaService.nudgeVolume(event.angleDelta.y > 0 ? 0.05 : -0.05)
+                    }
+                }
+
+                // 2. Song Name (Title and Artist)
+                Item {
+                    id: songItem
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: MediaService.available && (MediaService.title !== "")
+                    width: visible ? Math.min(280, songText.implicitWidth) : 0
+                    height: bar.capsuleH
+                    clip: true
+
+                    Text {
+                        id: songText
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width
+                        text: MediaService.artist !== ""
+                            ? `${MediaService.title}  •  ${MediaService.artist}`
+                            : MediaService.title
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: Font.Medium
+                        color: Theme.text
+                        elide: Text.ElideRight
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        onClicked: mouse => {
+                            if (mouse.button === Qt.RightButton)
+                                MediaService.toggle()
+                            else
+                                bar.toggle("dashboard")
+                        }
+                    }
+                }
+
+                // 3. Audio Visualizer Spectrum
+                Spectrum {
+                    id: islandVisualizer
+                    anchors.verticalCenter: parent.verticalCenter
+                    barWidth: 2.5
+                    barSpacing: 1.5
+                    minimum: 2
+                    height: 14
+                    active: MediaService.playing
+                    barColor: Theme.accent
+                    visible: MediaService.available
+
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        onClicked: mouse => {
+                            if (mouse.button === Qt.RightButton)
+                                MediaService.toggle()
+                            else
+                                bar.toggle("dashboard")
+                        }
+                    }
+                }
+
+                // 4. Clock Time
+                Item {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: clockText.implicitWidth
+                    height: bar.capsuleH
+
+                    Text {
+                        id: clockText
+                        anchors.centerIn: parent
+                        text: Qt.formatDateTime(clockTime.date, SettingsService.clockFormat || "HH:mm")
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall + 1
+                        font.weight: Font.DemiBold
+                        font.features: { "tnum": 1 }
+                        color: Theme.text
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        onClicked: mouse => {
+                            if (mouse.button === Qt.RightButton)
+                                MediaService.toggle()
+                            else
+                                bar.toggle("dashboard")
+                        }
+                    }
+                }
+
+                // Divider
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "|"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeSmall
+                    font.weight: Font.Light
+                    color: Theme.textMuted
+                    opacity: 0.25
+                }
+
+                // 4. Clock Date
+                Item {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: dateText.implicitWidth
+                    height: bar.capsuleH
+
+                    Text {
+                        id: dateText
+                        anchors.centerIn: parent
+                        text: Qt.formatDateTime(clockTime.date, "dddd, d MMM")
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall - 1
+                        font.weight: Font.Medium
+                        color: Theme.textMuted
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        onClicked: mouse => {
+                            if (mouse.button === Qt.RightButton)
+                                MediaService.toggle()
+                            else
+                                bar.toggle("dashboard")
+                        }
+                    }
+                }
             }
+        }
 
-            IslandSpacer {}
+        // ── MORPHING OSD LAYER (Volume, Caps Lock, Num Lock) ────────────────
+        OsdLayer {
+            id: osdLayerItem
+            anchors.top: parent.top
+            anchors.topMargin: bar.barTopMargin
+            anchors.horizontalCenter: parent.horizontalCenter
+            height: bar.capsuleH
 
-            // Right click plays or pauses; the wheel sets Spotify's own
-            // volume, not the system's.
-            Chip {
-                module: "media"
-                visible: MediaService.available
-                onRightClicked: MediaService.toggle()
-                onWheel: delta => MediaService.nudgeVolume(delta > 0 ? 0.05 : -0.05)
+            icon: bar.osdIcon
+            label: bar.osdLabel
+            progress: bar.osdProgress
+            opacity: (bar.osdActive && bar.below === "") ? 1 : 0
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+        }
+
+        // ── EXPANDED DETAILS (Dashboard, Session, Tray, Notification) ───────
+        Loader {
+            id: detailLoader
+            anchors.top: parent.top
+            anchors.topMargin: bar.pad
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: bar.belowSize.width
+            height: bar.belowSize.height
+            active: bar.expanded && bar.openId !== "notification"
+
+            sourceComponent: {
+                switch (bar.openId) {
+                case "dashboard": return dashboardComponent
+                case "session":   return sessionComponent
+                case "tray":      return trayComponent
+                default:          return null
+                }
             }
+        }
 
-            IslandSpacer { visible: MediaService.available }
-
-            Pressable {
-                implicitWidth: clock.implicitWidth + 12
-                ClockModule { id: clock; anchors.centerIn: parent }
+        Component {
+            id: dashboardComponent
+            IslandDashboard {
+                onClosed: bar.close()
             }
+        }
 
-            IslandSpacer {}
+        Component {
+            id: sessionComponent
+            SessionPanel {
+                onClosed: bar.close()
+            }
+        }
 
-            Chip { module: "stats" }
+        Component {
+            id: trayComponent
+            TrayMenuList {
+                menu: bar.trayMenu
+                item: bar.trayItem
+                onItemTriggered: bar.close()
+            }
+        }
 
-            IslandSpacer { visible: tray.visible }
+        Loader {
+            id: notificationLoader
+            anchors.top: parent.top
+            anchors.topMargin: bar.pad
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: bar.belowSize.width
+            height: bar.belowSize.height
+            active: bar.notifying
+            sourceComponent: NotificationLayer {}
+        }
+    }
+
+    // ── RIGHT FLOATING ZONE ─────────────────────────────────────────────────
+
+    Row {
+        id: rightZone
+
+        x: island.x + island.width + Theme.capsuleSpacing
+        y: bar.barTopMargin
+        spacing: Theme.capsuleSpacing
+
+        opacity: bar.below !== "" ? 0 : 1
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+
+
+        // System Tray Capsule (borderless black pill)
+        Rectangle {
+            height: bar.capsuleH
+            width: trayWidget.implicitWidth + 16
+            radius: height / 2
+            color: Theme.island
+            border.width: 0
+            visible: !trayWidget.empty
 
             TrayWidget {
-                id: tray
-                anchors.verticalCenter: parent.verticalCenter
+                id: trayWidget
+                anchors.centerIn: parent
                 onMenuRequested: (menu, centerX, item) => {
-                    if (bar.openId === "tray" && bar.trayMenu === menu) {
-                        bar.close()
-                        return
-                    }
                     bar.trayItem = item
                     bar.trayMenu = menu
                     bar.openId = "tray"
                 }
             }
-
-            IslandSpacer {}
-
-            Glyph {
-                opens: "session"
-                glyph: "󰐥"
-                hot: Theme.red
-            }
         }
 
-        // ── BELOW THE ROW ───────────────────────────────────────────────────
-
-        Item {
-            id: detail
-
-            x: (island.width - width) / 2
-            y: Theme.capsuleHeight
-            width: bar.belowSize.width
-            height: bar.belowSize.height
-            clip: true
-
-            opacity: bar.below !== "" ? 1 : 0
-            visible: opacity > 0
-            Behavior on opacity { NumberAnimation { duration: Theme.durationMedium } }
-
-            // Built only while a menu is open (see `trayMenu`); the island
-            // grows to its height once it has laid out.
-            Loader {
-                id: trayLoader
-                anchors.fill: parent
-                active: bar.below === "tray" && bar.trayMenu !== null
-                sourceComponent: TrayMenuList {
-                    menu: bar.trayMenu
-                    item: bar.trayItem
-                    onItemTriggered: bar.close()
-                }
-            }
-
-            Loader {
-                id: notificationLoader
-                anchors.fill: parent
-                active: bar.below === "notification"
-                sourceComponent: NotificationLayer {}
-            }
-
-            Loader {
-                anchors.fill: parent
-                active: bar.below === "session"
-                sourceComponent: SessionPanel {
-                    onClosed: bar.close()
-                }
-            }
-
-            Loader {
-                anchors.fill: parent
-                active: bar.below === "dashboard"
-                sourceComponent: IslandDashboard {
-                    onClosed: bar.close()
-                }
-            }
-        }
-    }
-
-    // Concave curves where the island meets the screen edge.
-    NotchFillet {
-        x: island.x - width
-        y: 0
-        mirrored: true
-    }
-
-    NotchFillet {
-        x: island.x + island.width
-        y: 0
-    }
-
-    // ── PIECES ──────────────────────────────────────────────────────────────
-
-    // A clickable slot in the row: a click opens `opens`. Lit under the
-    // pointer only, not while what it opened is showing.
-    component Pressable: Item {
-        id: pressable
-
-        property string opens: "dashboard"
-        readonly property bool hovered: mouse.containsMouse
-
-        signal rightClicked()
-        signal wheel(int delta)
-
-        implicitHeight: Theme.capsuleHeight
-        anchors.verticalCenter: parent ? parent.verticalCenter : undefined
-
+        // Power Session Action Capsule
         Rectangle {
-            anchors.fill: parent
-            anchors.topMargin: 4
-            anchors.bottomMargin: 4
+            height: bar.capsuleH
+            width: bar.capsuleH
             radius: height / 2
-            color: pressable.hovered ? Theme.islandSurface : "transparent"
+            color: bar.openId === "session" ? Theme.islandSurfaceHover : Theme.island
+            border.width: 0
 
-            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-        }
-
-        MouseArea {
-            id: mouse
-
-            anchors.fill: parent
-            z: 1
-            hoverEnabled: true
-            acceptedButtons: Qt.LeftButton | Qt.RightButton
-            cursorShape: Qt.PointingHandCursor
-            onClicked: event => {
-                if (event.button === Qt.RightButton)
-                    pressable.rightClicked()
-                else
-                    bar.toggle(pressable.opens)
+            Text {
+                anchors.centerIn: parent
+                text: "󰐥"
+                font.family: Theme.fontMono
+                font.pixelSize: 13
+                color: Theme.text
             }
-            onWheel: event => pressable.wheel(event.angleDelta.y)
-        }
-    }
 
-    // A module's chip: its glyph and figure.
-    component Chip: Pressable {
-        id: chip
-
-        property string module: ""
-
-        implicitWidth: face.implicitWidth
-
-        ChipFace {
-            id: face
-            anchors.verticalCenter: parent.verticalCenter
-            moduleId: chip.module
-        }
-    }
-
-    // A lone glyph; `hot` is its colour under the pointer.
-    component Glyph: Pressable {
-        id: glyphButton
-
-        property string glyph: ""
-        property color hot: Theme.text
-
-        implicitWidth: Theme.capsuleHeight
-
-        Text {
-            anchors.centerIn: parent
-            text: glyphButton.glyph
-            font.family: Theme.fontMono
-            font.pixelSize: Math.round(Theme.capsuleHeight * 0.44)
-            color: glyphButton.hovered ? glyphButton.hot : Theme.textMuted
-
-            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: bar.toggle("session")
+            }
         }
     }
 }

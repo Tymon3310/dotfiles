@@ -3,6 +3,10 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 
+import "../parts/theme"
+import "../parts/services"
+import "../parts/components"
+
 Item {
     id: root
     
@@ -750,34 +754,50 @@ Item {
                         Layout.fillWidth: true
                         spacing: 3
                         
-                        // Scrolling song title
-                        Item {
+                        // Scrolling song title & visualizer
+                        RowLayout {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 16
-                            clip: true
+                            spacing: 8
 
-                            Text {
-                                id: titleText
-                                text: spotify && spotify.title ? spotify.title : "Not Playing"
-                                font.family: root.customFont
-                                font.pixelSize: 12
-                                font.bold: true
-                                color: "#FFFFFF"
-                                width: implicitWidth
+                            Item {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 16
+                                clip: true
 
-                                NumberAnimation on x {
-                                    id: titleScrollAnim
-                                    running: root.dashboardOpen && (titleText.implicitWidth > titleText.parent.width)
-                                    from: 0
-                                    to: -(titleText.implicitWidth - titleText.parent.width + 12)
-                                    duration: Math.max(2000, (titleText.implicitWidth - titleText.parent.width) * 18)
-                                    loops: Animation.Infinite
-                                    onRunningChanged: {
-                                        if (!running) titleText.x = 0;
+                                Text {
+                                    id: titleText
+                                    text: spotify && spotify.title ? spotify.title : "Not Playing"
+                                    font.family: root.customFont
+                                    font.pixelSize: 12
+                                    font.bold: true
+                                    color: "#FFFFFF"
+                                    width: implicitWidth
+
+                                    NumberAnimation on x {
+                                        id: titleScrollAnim
+                                        running: root.dashboardOpen && (titleText.implicitWidth > titleText.parent.width)
+                                        from: 0
+                                        to: -(titleText.implicitWidth - titleText.parent.width + 12)
+                                        duration: Math.max(2000, (titleText.implicitWidth - titleText.parent.width) * 18)
+                                        loops: Animation.Infinite
+                                        onRunningChanged: {
+                                            if (!running) titleText.x = 0;
+                                        }
                                     }
                                 }
+                                onWidthChanged: titleScrollAnim.restart()
                             }
-                            onWidthChanged: titleScrollAnim.restart()
+
+                            Spectrum {
+                                Layout.preferredHeight: 14
+                                Layout.alignment: Qt.AlignVCenter
+                                barWidth: 3
+                                barSpacing: 2
+                                minimum: 2
+                                active: (spotify && spotify.status === "Playing") || MediaService.playing
+                                barColor: "#0070D8"
+                                visible: (spotify && spotify.status === "Playing") || MediaService.playing
+                            }
                         }
 
                         // Scrolling artist name

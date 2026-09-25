@@ -59,6 +59,7 @@ hl.bind("SUPER + SHIFT + S", function() trigger_screenshot("region", "0") end)
 hl.bind("SUPER + CTRL + Q", hl.dsp.exec_cmd("nwg-bar"))
 hl.bind("SUPER + SHIFT + B", restart_waybar)
 hl.bind("SUPER + V", hl.dsp.exec_cmd(pref.CLIP))
+hl.bind("SUPER + L", hl.dsp.exec_cmd("quickshell ipc call lock trigger"))
 
 -- Per monitor Workspaces
 layout.setup_events()

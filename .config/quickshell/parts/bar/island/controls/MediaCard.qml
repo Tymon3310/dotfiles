@@ -27,8 +27,14 @@ import "../../../components"
 Card {
     id: root
 
-    Component.onCompleted: LyricsService.subscribe()
-    Component.onDestruction: LyricsService.release()
+    Component.onCompleted: {
+        LyricsService.subscribe()
+        CavaService.subscribe()
+    }
+    Component.onDestruction: {
+        LyricsService.release()
+        CavaService.release()
+    }
 
     Text {
         anchors.centerIn: parent
@@ -82,14 +88,30 @@ Card {
                 Layout.alignment: Qt.AlignVCenter
                 spacing: 1
 
-                Text {
+                RowLayout {
                     Layout.fillWidth: true
-                    text: MediaService.title
-                    elide: Text.ElideRight
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeMedium
-                    font.weight: Font.DemiBold
-                    color: Theme.text
+                    spacing: 8
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: MediaService.title
+                        elide: Text.ElideRight
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeMedium
+                        font.weight: Font.DemiBold
+                        color: Theme.text
+                    }
+
+                    Spectrum {
+                        Layout.preferredHeight: 16
+                        Layout.alignment: Qt.AlignVCenter
+                        barWidth: 3
+                        barSpacing: 2
+                        minimum: 2
+                        active: MediaService.playing
+                        barColor: Theme.accent
+                        visible: MediaService.available
+                    }
                 }
 
                 Text {
