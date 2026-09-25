@@ -503,7 +503,7 @@ Scope {
                     } else {
                         cmd += `-define png:compression-level=1 "${outputPath}" && ` +
                                `wl-copy < "${outputPath}" && ` +
-                               `( if [ "$(notify-send "Screenshot Saved" "Path: ${outputPath}" -a "Quickshell Screenshot" -i camera-photo --action=default=Open --wait)" = "default" ]; then xdg-open "${outputPath}"; fi ) & ` +
+                               `( if [ "$(notify-send "Screenshot saved" "$(basename "${outputPath}") · copied" -a "Screenshot" -h "string:image-path:${outputPath}" --action=default=Open --wait)" = "default" ]; then xdg-open "${outputPath}"; fi ) & ` +
                                `paplay /usr/share/sounds/freedesktop/stereo/camera-shutter.oga && ` +
                                `rm "${tempPath}"`
                     }
@@ -612,7 +612,7 @@ Scope {
 
             const cmd = `magick "${tempPath}" -define png:compression-level=1 -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} "${outputPath}" && ` +
                 `wl-copy < "${outputPath}" && ` +
-                `( if [ "$(notify-send "Screenshot Saved" "Path: ${outputPath}" -a "Quickshell Screenshot" -i camera-photo --action=default=Open --wait)" = "default" ]; then xdg-open "${outputPath}"; fi ) & ` +
+                `( if [ "$(notify-send "Screenshot saved" "$(basename "${outputPath}") · copied" -a "Screenshot" -h "string:image-path:${outputPath}" --action=default=Open --wait)" = "default" ]; then xdg-open "${outputPath}"; fi ) & ` +
                 `paplay /usr/share/sounds/freedesktop/stereo/camera-shutter.oga && ` +
                 `rm "${tempPath}"`
             

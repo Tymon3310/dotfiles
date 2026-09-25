@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Services.Notifications
 import QtQuick
 import "components"
+import "parts/services"
 import "screenshot/src"
 
 ShellRoot {
@@ -63,32 +64,25 @@ ShellRoot {
         "Private Browsing", "Incognito", "porn"
     ]
 
-    // ── Native Notification Daemon ────────────────────────────────────────────
-    // Kill swaync so we can own the org.freedesktop.Notifications D-Bus name
+    // ── Notification Daemon ───────────────────────────────────────────────────
+    // Kill swaync so NotificationService can own org.freedesktop.Notifications
     Process {
         id: killSwaync
         command: ["pkill", "-x", "swaync"]
         running: true
     }
 
-    NotificationServer {
-        id: globalNotifServer
-        keepOnReload: true
-        actionsSupported: true
-        bodySupported: true
-        imageSupported: true
-        bodyMarkupSupported: true
-        persistenceSupported: true
+    // The notification daemon is impasto's NotificationService (parts/),
+    // shown in the island by IslandBar. Singletons are built on first use, so
+    // it is touched here to own the name from startup.
+    Component.onCompleted: void NotificationService.server
 
-        onNotification: (notification) => {
-            console.log("[NotificationServer] received notification: ID=" + notification.id + ", appName=" + notification.appName + ", summary=" + notification.summary);
-            notification.tracked = true;
-        }
-    }
-
-    NotificationHistory {
-        id: globalNotifHistory
-        notifServer: globalNotifServer
+    // "Up next" in the island's player, from media_status.py's Spotify Web
+    // API queue (MPRIS has none).
+    Binding {
+        target: MediaService
+        property: "queue"
+        value: shellRoot.spotifyData.queue ?? []
     }
 
     // Process to run system stats daemon
@@ -163,18 +157,13 @@ ShellRoot {
         }
     }
 
-    // Render the panel on all connected monitors dynamically
+    // Render the panel on all connected monitors dynamically.
+    // One island in the middle (IslandBar.qml). The old bar is still in
+    // Bar.qml, but it needs the NotificationServer and NotificationHistory
+    // this file used to have (see git history).
     Variants {
         model: Quickshell.screens
-        delegate: Bar {
-            // Pass global state explicitly to the delegate
-            sysData: shellRoot.sysData
-            spotifyData: shellRoot.spotifyData
-            hyprlandData: shellRoot.hyprlandData
-            windowTitleBlocklist: shellRoot.windowTitleBlocklist
-            notifServer: globalNotifServer
-            notifHistory: globalNotifHistory
-        }
+        delegate: IslandBar {}
     }
 
     // ── Screenshot Tool Dynamic Loader ────────────────────────────────────────
