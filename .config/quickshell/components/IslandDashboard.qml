@@ -11,7 +11,7 @@ import "../parts/bar/island/controls"
 //
 //   calendar      player and lyrics    weather / notifications
 //   volume        speed and pings      bluetooth
-//   system                             session
+//   system (cpu, memory, gpu, vram)    session
 //
 // Fixed size, so the island can grow to it before it is built.
 GridLayout {
@@ -75,8 +75,8 @@ GridLayout {
 
     // ── THIRD ROW ───────────────────────────────────────────────────────────
 
-    Tile {
-        moduleId: "stats"
+    // Processor, memory, graphics and video memory, with temperatures.
+    SystemCard {
         Layout.columnSpan: 2
         Layout.preferredWidth: root.leftWidth + root.gap + root.middleWidth
         Layout.preferredHeight: root.thirdHeight

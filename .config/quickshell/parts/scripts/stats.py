@@ -30,9 +30,9 @@ import time
 
 SAMPLE_WINDOW = 0.25
 
-# While watching, disks and sensors are re-read only every SLOW_EVERY
-# intervals: they cost about 16 ms and 4 ms, against 0.1 ms for all the rates
-# together, and they barely change.
+# While watching, disks are re-read only every SLOW_EVERY
+# intervals: they cost about 16 ms, against 0.1 ms for all the rates and
+# sensors together, and they barely change.
 SLOW_EVERY = 10
 
 
@@ -131,22 +131,117 @@ def disks():
     return entries[:4]
 
 
+# ── SENSORS ──────────────────────────────────────────────────────────────────
+#
+# Found once, then read every tick: a read is one small sysfs file.
+
+# CPU drivers and the label of their package reading, best first.
+CPU_SENSORS = [("zenpower", ("Tctl", "Tdie")), ("k10temp", ("Tctl", "Tdie")),
+               ("coretemp", ("Package id 0",)), ("cpu_thermal", ("",))]
+# Never the CPU, however hot: the fallback skips these.
+NOT_CPU = ("amdgpu", "nouveau", "nvme", "iwlwifi", "r8169", "acpitz", "ucsi")
+
+_sensors = None
+
+
+def hwmon_temps():
+    """(driver, label, path) for every temperature input."""
+    found = []
+    for path in sorted(glob.glob("/sys/class/hwmon/hwmon*/temp*_input")):
+        folder = os.path.dirname(path)
+        name = read(os.path.join(folder, "name")).strip()
+        label = read(path.replace("_input", "_label")).strip()
+        found.append((name, label, path))
+    return found
+
+
+def find_sensors():
+    temps = hwmon_temps()
+
+    cpu = None
+    for driver, labels in CPU_SENSORS:
+        for name, label, path in temps:
+            if name == driver and (label in labels or labels == ("",)):
+                cpu = {"path": path, "label": label or name}
+                break
+        if cpu:
+            break
+    if cpu is None:
+        # Hottest plausible sensor that is not a known other device.
+        best = None
+        for name, label, path in temps:
+            if name.startswith(NOT_CPU):
+                continue
+            value = celsius_at(path)
+            if value is not None and (best is None or value > best[0]):
+                best = (value, {"path": path, "label": label or name})
+        cpu = best[1] if best else None
+
+    # The first GPU that reports its load (amdgpu does; others would need a
+    # vendor tool).
+    gpu = None
+    for card in sorted(glob.glob("/sys/class/drm/card[0-9]*/device")):
+        busy = os.path.join(card, "gpu_busy_percent")
+        if not os.path.exists(busy):
+            continue
+        gpu = {
+            "busy": busy,
+            "vramUsed": os.path.join(card, "mem_info_vram_used"),
+            "vramTotal": os.path.join(card, "mem_info_vram_total"),
+            "temps": {},
+        }
+        for path in glob.glob(os.path.join(card, "hwmon", "hwmon*", "temp*_input")):
+            label = read(path.replace("_input", "_label")).strip() or "edge"
+            gpu["temps"][label] = path
+        break
+
+    return {"cpu": cpu, "gpu": gpu}
+
+
+def celsius_at(path):
+    raw = read(path).strip()
+    if not raw.lstrip("-").isdigit():
+        return None
+    value = int(raw) / 1000
+    return round(value, 1) if 5 < value < 125 else None
+
+
+def sensors():
+    global _sensors
+    if _sensors is None:
+        _sensors = find_sensors()
+    return _sensors
+
+
 def temperature():
-    """The hottest sensor that reports a plausible CPU temperature."""
-    best = None
-    for path in glob.glob("/sys/class/hwmon/hwmon*/temp*_input"):
-        raw = read(path).strip()
-        if not raw.isdigit():
-            continue
-        celsius = int(raw) / 1000
-        if not 5 < celsius < 125:
-            continue
-        label = read(os.path.join(os.path.dirname(path),
-                                  os.path.basename(path).replace("_input", "_label"))).strip()
-        name = read(os.path.join(os.path.dirname(path), "name")).strip()
-        if best is None or celsius > best["celsius"]:
-            best = {"celsius": round(celsius, 1), "label": label or name}
-    return best
+    """The CPU package temperature, from the CPU's own driver when present."""
+    cpu = sensors()["cpu"]
+    if not cpu:
+        return None
+    value = celsius_at(cpu["path"])
+    return {"celsius": value, "label": cpu["label"]} if value is not None else None
+
+
+def integer_at(path):
+    raw = read(path).strip()
+    return int(raw) if raw.isdigit() else None
+
+
+def gpu():
+    """Load, video memory and temperatures of the first GPU that reports them."""
+    found = sensors()["gpu"]
+    if not found:
+        return None
+    temps = {label: celsius_at(path) for label, path in found["temps"].items()}
+    return {
+        "usage": integer_at(found["busy"]) or 0,
+        "vramUsed": integer_at(found["vramUsed"]) or 0,
+        "vramTotal": integer_at(found["vramTotal"]) or 0,
+        # "edge" is the die as vendors quote it; junction is its hottest spot.
+        "temperature": temps.get("edge"),
+        "junction": temps.get("junction"),
+        "memoryTemperature": temps.get("mem"),
+    }
 
 
 def counters():
@@ -155,8 +250,8 @@ def counters():
 
 
 def slow_readings():
-    """The parts worth re-reading rarely: what is mounted and how hot it is."""
-    return {"disks": disks(), "temperature": temperature()}
+    """The part worth re-reading rarely: what is mounted."""
+    return {"disks": disks()}
 
 
 def report(before, after, slow=None):
@@ -193,7 +288,8 @@ def report(before, after, slow=None):
             "down": max(0, int((second_net[0] - first_net[0]) / span)),
             "up": max(0, int((second_net[1] - first_net[1]) / span)),
         },
-        "temperature": slow["temperature"],
+        "temperature": temperature(),
+        "gpu": gpu(),
         "uptime": int(float(uptime[0])) if uptime else 0,
     }
 

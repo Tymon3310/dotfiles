@@ -40,11 +40,11 @@ Singleton {
     readonly property bool playing: root.available && root.active.isPlaying
 
     // ── VISUALIZER INACTIVITY TIMEOUT ───────────────────────────────
-    // After ~5 minutes of no Spotify playback, visualizerActive becomes false.
+    // After 20 seconds without Spotify playing, visualizerActive becomes false.
     property bool visualizerTimeout: false
 
     readonly property Timer visualizerTimeoutTimer: Timer {
-        interval: 20000 // 30 seconds
+        interval: 20000
         repeat: false
         running: root.available && !root.playing
         onTriggered: root.visualizerTimeout = true
@@ -125,7 +125,7 @@ Singleton {
 
     // The next tracks, [{ title, artist, artUrl }], from the Spotify Web API.
     // MPRIS has no queue, so the host fills this in: the dotfiles' shell.qml
-    // binds it to media_status.py's `queue`..
+    // binds it to media_status.py's `queue`.
     property var queue: []
 
     function toggle(): void {

@@ -8,6 +8,20 @@ import subprocess
 import sys
 import time
 
+
+def die_with_parent():
+    """Exit when the shell that started us does, instead of lingering as an
+    orphan after a crash or restart (Linux: PR_SET_PDEATHSIG)."""
+    try:
+        import ctypes
+        import signal
+        libc = ctypes.CDLL("libc.so.6", use_errno=True)
+        libc.prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
+        if os.getppid() == 1:  # the parent was already gone
+            sys.exit(0)
+    except Exception:
+        pass
+
 def read_hypr_locks():
     try:
         out = subprocess.check_output(['hyprctl', 'devices', '-j'], timeout=0.5).decode('utf-8')
@@ -52,7 +66,10 @@ def read_sysfs_locks():
 
     return caps, num
 
-def query_state(devices):
+def query_state(devices, ask_hyprland=False):
+    """Caps and Num Lock from the keyboards' LEDs and sysfs. Hyprland is only
+    asked when asked to (after a lock key, with no LED to read): every
+    `hyprctl` call is a process, and this runs ten times a second."""
     # 1. Check evdev leds()
     evdev_caps = False
     evdev_num = False
@@ -69,8 +86,8 @@ def query_state(devices):
     # 2. Check sysfs
     sys_caps, sys_num = read_sysfs_locks()
 
-    # 3. Check hyprctl
-    hypr_caps, hypr_num = read_hypr_locks()
+    # 3. Check hyprctl, only as a fallback
+    hypr_caps, hypr_num = read_hypr_locks() if ask_hyprland else (None, None)
 
     final_caps = evdev_caps or sys_caps or (hypr_caps is True)
     final_num = evdev_num or sys_num or (hypr_num is True)
@@ -101,9 +118,18 @@ def close_devices(devices):
         except Exception:
             pass
 
+def has_leds(devices):
+    """Whether evdev or sysfs can report the lock LEDs at all."""
+    if glob.glob('/sys/class/leds/*::capslock/brightness'):
+        return True
+    return any(evdev.ecodes.EV_LED in dev.capabilities() for dev in devices)
+
+
 def main():
+    die_with_parent()
     devices = open_keyboards()
-    last_caps, last_num = query_state(devices)
+    leds = has_leds(devices)
+    last_caps, last_num = query_state(devices, ask_hyprland=not leds)
 
     print(json.dumps({"type": "init", "caps": last_caps, "num": last_num}), flush=True)
 
@@ -116,6 +142,7 @@ def main():
             if now - last_scan_time > 15.0 or not devices:
                 close_devices(devices)
                 devices = open_keyboards()
+                leds = has_leds(devices)
                 last_scan_time = now
 
             # Select on devices with a 100ms timeout
@@ -141,11 +168,14 @@ def main():
             if key_triggered:
                 for _ in range(4):
                     time.sleep(0.03)
-                    cur_caps, cur_num = query_state(devices)
+                    cur_caps, cur_num = query_state(devices, ask_hyprland=not leds)
                     if cur_caps != last_caps or cur_num != last_num:
                         break
-            else:
+            elif leds:
                 cur_caps, cur_num = query_state(devices)
+            else:
+                # Nothing to poll without LEDs; Hyprland is asked on a key.
+                cur_caps, cur_num = last_caps, last_num
 
             if cur_caps != last_caps:
                 last_caps = cur_caps

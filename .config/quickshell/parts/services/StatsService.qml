@@ -50,6 +50,21 @@ Singleton {
     property var upHistory: []
     property var temperatureHistory: []
 
+    // The first GPU that reports its load (amdgpu), else `gpuAvailable` is
+    // false. Temperatures in °C, video memory in bytes.
+    property bool gpuAvailable: false
+    property real gpu: 0
+    property real vramUsed: 0
+    property real vramTotal: 0
+    property var gpuTemperature: null
+    property var gpuJunction: null
+
+    property var gpuHistory: []
+    property var vramHistory: []
+
+    readonly property real vramFraction:
+        root.vramTotal > 0 ? root.vramUsed / root.vramTotal : 0
+
     readonly property real memoryFraction:
         root.memoryTotal > 0 ? root.memoryUsed / root.memoryTotal : 0
     readonly property string window: `last ${Math.round(root.historyLength * root.pollInterval / 1000 / 60)} min`
@@ -125,6 +140,18 @@ Singleton {
         root.networkUp = data.network.up
         root.temperature = data.temperature
         root.uptime = data.uptime
+
+        const card = data.gpu
+        root.gpuAvailable = !!card
+        if (card) {
+            root.gpu = card.usage
+            root.vramUsed = card.vramUsed
+            root.vramTotal = card.vramTotal
+            root.gpuTemperature = card.temperature
+            root.gpuJunction = card.junction
+            root.gpuHistory = root.push(root.gpuHistory, card.usage / 100)
+            root.vramHistory = root.push(root.vramHistory, root.vramFraction)
+        }
 
         root.cpuHistory = root.push(root.cpuHistory, root.cpu / 100)
         root.memoryHistory = root.push(root.memoryHistory, root.memoryFraction)

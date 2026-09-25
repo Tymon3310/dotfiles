@@ -26,13 +26,49 @@ Singleton {
         { id: "shutdown", icon: "󰐥", label: "Shut down", destructive: true }
     ]
 
+    // Suspend waits for the compositor to confirm the lock covers the screen,
+    // so the machine never wakes showing the desktop. Asking hypridle's
+    // before_sleep hook to lock instead races the suspend: the lock first
+    // retracts the island and takes a screenshot. No confirmation within
+    // eight seconds means no suspend.
+    property bool suspendWhenLocked: false
+
+    readonly property Timer suspendGiveUp: Timer {
+        interval: 8000
+        onTriggered: {
+            if (!root.suspendWhenLocked)
+                return
+            root.suspendWhenLocked = false
+            console.warn("The session did not lock; not suspending.")
+        }
+    }
+
+    readonly property Connections lockWatch: Connections {
+        target: LockService
+
+        function onSecureChanged(): void {
+            if (!LockService.secure || !root.suspendWhenLocked)
+                return
+            root.suspendWhenLocked = false
+            root.suspendGiveUp.stop()
+            root.exec(["systemctl", "suspend"])
+        }
+    }
+
     function run(actionId: string): void {
         switch (actionId) {
         case "lock":
             LockService.lock()
             break
         case "suspend":
-            root.exec(["systemctl", "suspend"])
+            // Already covered (locked by hand or by idle): straight to sleep.
+            if (LockService.secure) {
+                root.exec(["systemctl", "suspend"])
+                break
+            }
+            root.suspendWhenLocked = true
+            root.suspendGiveUp.restart()
+            LockService.lock()
             break
         case "logout":
             Hyprland.dispatch("hl.dsp.exit()")

@@ -10,6 +10,20 @@ import os
 import sys
 import time
 
+
+def die_with_parent():
+    """Exit when the shell that started us does, instead of lingering as an
+    orphan after a crash or restart (Linux: PR_SET_PDEATHSIG)."""
+    try:
+        import ctypes
+        import signal
+        libc = ctypes.CDLL("libc.so.6", use_errno=True)
+        libc.prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
+        if os.getppid() == 1:  # the parent was already gone
+            sys.exit(0)
+    except Exception:
+        pass
+
 UID = os.getuid()
 JBL_DIR = f"/run/user/{UID}/jbl_quantum"
 
@@ -26,6 +40,7 @@ def read_file(filename: str, default: str = "") -> str:
 
 
 def main() -> None:
+    die_with_parent()
     last_connected = None
     last_mic_muted = None
     last_battery = None

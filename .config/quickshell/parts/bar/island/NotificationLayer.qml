@@ -1,7 +1,7 @@
 // ╭──────────────────────────────────────────────────────────────────────────╮
 // │                                                                          │
 // │   N O T I F I C A T I O N   L A Y E R                                    │
-// │   the island while a notification is shown                               │
+// │   the island while notifications are shown                               │
 // │                                                                          │
 // │   github.com/andreumassanet/impasto                                      │
 // │                                                                          │
@@ -9,159 +9,136 @@
 
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Widgets
-
-import Quickshell.Services.Notifications
 
 import "../../theme"
 import "../../services"
-import "../../components"
 
-// The island while a notification is shown. It sizes itself to its content:
-// the body wraps (up to `maxBodyLines`), a long title widens it, and a
-// picture is shown at its own shape (a screenshot comes out landscape, an
-// avatar square). A host reads `wantWidth` × `wantHeight` and grows the island
-// to fit.
+// Every notification on the island (NotificationService.shown), stacked
+// newest first with a hairline between them; the older ones dimmed a little.
+// Beyond `maxShown` they wait in a queue, counted in a footer, and move up as
+// room frees.
 //
-// Interactions: a click anywhere runs the notification's default action when
-// it has one; its other actions are pills under the body; the cross closes it
-// and tells the application.
+// While the pointer is over the stack nothing on it times out
+// (NotificationService.held). With more than one shown, each body is held to
+// fewer lines so the stack stays a sensible height.
+//
+// A host reads `wantWidth` × `wantHeight` and grows the island to fit, as it
+// did for a single notification.
 Item {
     id: root
 
-    width: root.wantWidth
-    height: root.wantHeight
+    readonly property var entries: NotificationService.shown
+    readonly property int queued: NotificationService.waiting.length
+    readonly property bool stacked: root.entries.length > 1
+
+    readonly property int gap: 9
+
+    // Keys already drawn once. The list is a plain array, so every change
+    // rebuilds all its rows; only a newcomer should slide in.
+    property var seen: ({})
+    readonly property int footerHeight: root.queued > 0 ? 20 : 0
+
+    // The widest entry decides the width; the island is one shape.
+    readonly property real wantWidth: {
+        let widest = 430
+        for (let i = 0; i < column.children.length; i++) {
+            const child = column.children[i]
+            if (child.wantWidth !== undefined)
+                widest = Math.max(widest, child.wantWidth)
+        }
+        return widest
+    }
+    readonly property real wantHeight: column.implicitHeight + root.footerHeight
+
     implicitWidth: root.wantWidth
     implicitHeight: root.wantHeight
 
-    readonly property var notification: NotificationService.current
-    readonly property bool critical: NotificationService.critical
-
-    readonly property var actions: root.notification ? (root.notification.actions ?? []) : []
-    readonly property bool hasDefault: root.actions.some(action => action.identifier === "default")
-    // Every action with a label gets a pill, the default one included, so
-    // "Open" is visible and not only a click on the whole thing.
-    readonly property var buttons: root.actions.filter(action => action.text !== "")
-
-    readonly property int minWidth: 430
-    readonly property int maxWidth: 600
-    readonly property int maxBodyLines: 8
-
-    // The picture: 38 px square for icons and avatars, up to `pictureWide`
-    // across for a landscape image.
-    readonly property int pictureHeight: picture.landscape ? 56 : 38
-    readonly property int pictureWide: 100
-    readonly property real pictureWidth: picture.landscape
-        ? Math.min(root.pictureWide, root.pictureHeight * picture.aspect) : root.pictureHeight
-
-    // Room the title row asks for: picture, gaps, title, app name, close.
-    readonly property real wantWidth: Math.max(root.minWidth, Math.min(root.maxWidth,
-        root.pictureWidth + 11 + summary.implicitWidth + 6 + app.implicitWidth + 11 + 24))
-    readonly property real wantHeight: Math.max(root.pictureHeight + 6, content.implicitHeight)
-
-    // Behind the row: the click that runs the default action. The pills and
-    // the cross sit above it and take their own clicks.
-    MouseArea {
-        anchors.fill: parent
-        enabled: root.hasDefault
-        cursorShape: root.hasDefault ? Qt.PointingHandCursor : Qt.ArrowCursor
-        onClicked: NotificationService.invoke("default")
+    HoverHandler {
+        onHoveredChanged: NotificationService.held = hovered
     }
 
-    RowLayout {
-        anchors.fill: parent
-        spacing: 11
+    Component.onDestruction: NotificationService.held = false
 
-        // The picture with the app's icon as a badge, the icon alone, or a
-        // bell. Saved to the cache once shown, for the history.
-        NotificationPicture {
-            id: picture
+    Column {
+        id: column
 
-            Layout.preferredWidth: root.pictureWidth
-            Layout.preferredHeight: root.pictureHeight
-            Layout.alignment: Qt.AlignVCenter
-            notification: root.notification
-            critical: root.critical
-            keep: true
-        }
+        width: parent.width
+        spacing: 0
 
-        ColumnLayout {
-            id: content
+        Repeater {
+            model: root.entries
 
-            Layout.fillWidth: true
-            Layout.alignment: Qt.AlignVCenter
-            spacing: 1
+            Column {
+                id: slot
 
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 6
+                required property var modelData
+                required property int index
 
-                Text {
-                    id: summary
+                // Forwarded so the layer can find the widest.
+                readonly property real wantWidth: entry.wantWidth
 
-                    Layout.fillWidth: true
-                    text: root.notification ? root.notification.summary : ""
-                    elide: Text.ElideRight
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeSmall
-                    font.weight: Font.DemiBold
-                    color: Theme.text
+                width: column.width
+                spacing: 0
+
+                // A hairline between entries, not above the first.
+                Item {
+                    width: parent.width
+                    height: slot.index > 0 ? root.gap * 2 + 1 : 0
+                    visible: slot.index > 0
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: parent.width
+                        height: 1
+                        color: Theme.hairline
+                    }
                 }
 
-                Text {
-                    id: app
+                NotificationEntry {
+                    id: entry
 
-                    text: root.notification ? root.notification.appName : ""
-                    elide: Text.ElideRight
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 9
-                    color: root.critical ? Theme.red : Theme.textMuted
-                }
-            }
+                    width: parent.width
+                    notification: slot.modelData
+                    maxBodyLines: root.stacked ? 4 : 8
+                    // The newest in full, the rest a step back.
+                    opacity: slot.index === 0 ? 1 : 0.82
 
-            Text {
-                Layout.fillWidth: true
-                visible: text !== ""
-                text: root.notification ? (root.notification.body ?? "") : ""
-                // Applications send Pango markup and the server advertises support
-                // for it, so it has to be rendered rather than shown as tags.
-                textFormat: Text.StyledText
-                wrapMode: Text.Wrap
-                elide: Text.ElideRight
-                maximumLineCount: root.maxBodyLines
-                font.family: Theme.fontFamily
-                font.pixelSize: 10
-                color: Theme.textMuted
-            }
+                    // Slides in from above when it first arrives.
+                    transform: Translate { id: arrive; y: 0 }
+                    Component.onCompleted: {
+                        if (root.seen[slot.modelData.key])
+                            return
+                        root.seen[slot.modelData.key] = true
+                        arrival.start()
+                    }
 
-            // The actions, as pills.
-            Flow {
-                Layout.fillWidth: true
-                Layout.topMargin: 6
-                visible: root.buttons.length > 0
-                spacing: 6
-
-                Repeater {
-                    model: root.buttons
-
-                    PillButton {
-                        required property var modelData
-
-                        text: modelData.text
-                        active: modelData.identifier === "default"
-                        implicitHeight: 24
-                        horizontalPadding: 11
-                        onClicked: NotificationService.invoke(modelData.identifier)
+                    ParallelAnimation {
+                        id: arrival
+                        NumberAnimation {
+                            target: arrive; property: "y"
+                            from: -8; to: 0
+                            duration: Theme.durationMedium; easing.type: Theme.easing
+                        }
+                        NumberAnimation {
+                            target: entry; property: "opacity"
+                            from: 0; to: slot.index === 0 ? 1 : 0.82
+                            duration: Theme.durationMedium; easing.type: Theme.easing
+                        }
                     }
                 }
             }
         }
+    }
 
-        IconButton {
-            Layout.alignment: Qt.AlignVCenter
-            icon: "󰅖"
-            iconSize: 12
-            onClicked: NotificationService.close()
-        }
+    // How many are waiting for a slot.
+    Text {
+        anchors.bottom: parent.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+        visible: root.queued > 0
+        text: `+${root.queued} more`
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeLabel
+        font.weight: Font.DemiBold
+        color: Theme.textMuted
     }
 }

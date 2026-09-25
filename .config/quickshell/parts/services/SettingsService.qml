@@ -37,7 +37,7 @@ Singleton {
 
     // Dots always shown; the ones past it appear while occupied.
     property int workspaceCount: 5
-    property int workspaceMax: 10
+    property int workspaceMax: 20
 
     // Workspaces each monitor owns, in order: 1–20 on the first monitor,
     // 21–40 on the second. The bar on each screen shows its own block.
@@ -61,7 +61,7 @@ Singleton {
     // ── LOOK ────────────────────────────────────────────────────────────
 
     property string fontFamily: "Google Sans"
-    property string fontMono: "JetBrainsMono Nerd Font"
+    property string fontMono: "Google Sans Code NF"
     property int motionScale: 100
     property string motionCurve: "OutCubic"
 

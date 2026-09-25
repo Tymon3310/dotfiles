@@ -27,14 +27,10 @@ import "../../../components"
 Card {
     id: root
 
-    Component.onCompleted: {
-        LyricsService.subscribe()
-        CavaService.subscribe()
-    }
-    Component.onDestruction: {
-        LyricsService.release()
-        CavaService.release()
-    }
+    // The Spectrum in the title row subscribes to cava itself, only while
+    // it is shown and playing.
+    Component.onCompleted: LyricsService.subscribe()
+    Component.onDestruction: LyricsService.release()
 
     Text {
         anchors.centerIn: parent

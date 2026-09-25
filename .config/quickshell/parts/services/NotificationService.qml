@@ -26,18 +26,36 @@ Singleton {
     // For notifications that do not set their own timeout.
     readonly property int defaultTimeout: SettingsService.notificationTimeout
 
-    // `current` and `history` hold plain copies, never the Notification
-    // objects: the server deletes an object as soon as its application closes
-    // or replaces it, and a list still built from the deleted object crashes
-    // Quickshell (a segfault while creating the row). `live` is the one handle
-    // kept, to tell the application when the user closes it; it is dropped
-    // when the object goes away.
-    property var current: null
+    // `shown`, `waiting` and `history` hold plain copies, never the
+    // Notification objects: the server deletes an object as soon as its
+    // application closes or replaces it, and a list still built from the
+    // deleted object crashes Quickshell (a segfault while creating the row).
+    // The objects themselves sit in `liveObjects`, a lookup by key that no
+    // list is ever built from, to tell each application what happened to its
+    // notification; an entry goes when its object does.
+    //
+    //   shown     on the island, newest first, at most `maxShown`
+    //   waiting   the rest, oldest first; each moves up when a slot frees,
+    //             and its time starts only then
+    property var shown: []
+    property var waiting: []
+    readonly property int maxShown: 3
+
     property var history: []
     readonly property int historyLimit: 50
 
-    property var live: null
+    property var liveObjects: ({})
     property int serial: 0
+
+    // The newest on the island, for anything that shows one.
+    readonly property var current: root.shown.length > 0 ? root.shown[0] : null
+
+    // When each shown one times out, by key (absent: never). Kept apart from
+    // the entries so extending one does not rebuild the list.
+    property var deadlines: ({})
+
+    // True while the pointer is over the stack: nothing times out under it.
+    property bool held: false
 
     // ── PICTURE AND ICON ───────────────────────────────────────────────
     //
@@ -116,8 +134,10 @@ Singleton {
     function keepPicture(key: int, url: string): void {
         root.history = root.history.map(entry =>
             entry.key === key ? Object.assign({}, entry, { picture: url }) : entry)
-        if (root.current && root.current.key === key)
-            root.current = Object.assign({}, root.current, { picture: url })
+        const update = list => list.map(entry =>
+            entry.key === key ? Object.assign({}, entry, { picture: url }) : entry)
+        root.shown = update(root.shown)
+        root.waiting = update(root.waiting)
     }
 
     function snapshot(notification: var): var {
@@ -141,9 +161,12 @@ Singleton {
         }
     }
 
-    readonly property bool active: root.current !== null
-    readonly property bool critical: root.active
-        && root.current.urgency === NotificationUrgency.Critical
+    readonly property bool active: root.shown.length > 0
+    readonly property bool critical: root.shown.some(entry => root.isCritical(entry))
+
+    function isCritical(entry: var): bool {
+        return entry.urgency === NotificationUrgency.Critical
+    }
 
     readonly property NotificationServer server: NotificationServer {
         id: server
@@ -158,16 +181,12 @@ Singleton {
         imageSupported: true
         actionIconsSupported: true
         actionsSupported: true
-        persistenceSupported: true
+        // The history is the shell's own and does not survive a restart, so
+        // persistence is not claimed.
+        persistenceSupported: false
         extraHints: ["image-data", "image_data", "icon-image"]
 
         onNotification: notification => {
-            console.log("===> NOTIF ARRIVED: appName=" + notification.appName + " appIcon=" + notification.appIcon + " image=" + notification.image + " summary=" + notification.summary)
-            try {
-                console.log("===> NOTIF HINTS:", JSON.stringify(notification.hints))
-            } catch (e) {
-                console.log("===> NOTIF HINTS ERR:", e)
-            }
             // Tracking keeps the object alive past this handler; without it
             // the notification is destroyed as soon as the signal returns.
             notification.tracked = true
@@ -175,14 +194,38 @@ Singleton {
         }
     }
 
-    readonly property Timer expiry: Timer {
-        onTriggered: root.dismiss()
+    // One clock for every shown notification, against `deadlines`.
+    readonly property Timer tick: Timer {
+        interval: 250
+        repeat: true
+        running: root.shown.length > 0
+        onTriggered: {
+            if (root.held)
+                return
+            const now = Date.now()
+            for (const entry of root.shown) {
+                const deadline = root.deadlines[entry.key]
+                if (deadline !== undefined && deadline <= now)
+                    root.dismissKey(entry.key)
+            }
+        }
+    }
+
+    // Letting go of the stack gives everything on it a moment more.
+    onHeldChanged: {
+        if (root.held)
+            return
+        const soon = Date.now() + 2000
+        const deadlines = Object.assign({}, root.deadlines)
+        for (const key in deadlines)
+            deadlines[key] = Math.max(deadlines[key], soon)
+        root.deadlines = deadlines
     }
 
     function timeoutFor(notification: var): int {
         // Critical urgency waits for the user. Anything else that asks to stay
         // forever is capped, or a misbehaving application owns the island.
-        if (notification.urgency === NotificationUrgency.Critical)
+        if (root.isCritical(notification))
             return 0
         if (notification.expireTimeout > 0)
             return Math.min(notification.expireTimeout, 15000)
@@ -191,65 +234,138 @@ Singleton {
 
     function present(object: var): void {
         const notification = root.snapshot(object)
-        console.log("===> SNAPSHOT RESULT: picture=" + notification.picture + " icon=" + notification.icon)
         root.history = [notification].concat(root.history).slice(0, root.historyLimit)
 
         // Critical notifications ignore do-not-disturb. One that never reaches
         // the island is expired at once, so a sender waiting on it
         // (`notify-send --wait`) is not left hanging.
-        const isCritical = notification.urgency === NotificationUrgency.Critical
-        if (root.doNotDisturb && !isCritical) {
+        if (root.doNotDisturb && !root.isCritical(notification)) {
             object.expire()
             return
         }
 
-        // Newest wins, except over a critical one. The newcomer is still
-        // recorded.
-        if (root.critical && !isCritical) {
-            object.expire()
-            return
-        }
+        const key = notification.key
+        const live = Object.assign({}, root.liveObjects)
+        live[key] = object
+        root.liveObjects = live
+        // The application closed it, or it was expired or dismissed here.
+        object.closed.connect(() => root.forget(key))
 
-        // The one it replaces is expired rather than left open.
-        if (root.live && root.live !== object)
-            root.live.expire()
-
-        root.current = notification
-        root.live = object
-        object.closed.connect(() => {
-            if (root.live === object)
-                root.live = null
-        })
-
-        const timeout = root.timeoutFor(notification)
-        root.expiry.stop()
-        if (timeout > 0) {
-            root.expiry.interval = timeout
-            root.expiry.start()
+        if (root.shown.length < root.maxShown) {
+            root.show(notification)
+        } else if (root.isCritical(notification)) {
+            // A critical one never waits: the oldest ordinary one steps back
+            // to the front of the queue, its time reset.
+            const bumped = root.shown.slice().reverse().find(entry => !root.isCritical(entry))
+            if (bumped) {
+                root.shown = root.shown.filter(entry => entry.key !== bumped.key)
+                const deadlines = Object.assign({}, root.deadlines)
+                delete deadlines[bumped.key]
+                root.deadlines = deadlines
+                root.waiting = [bumped].concat(root.waiting)
+            }
+            root.show(notification)
+        } else {
+            root.waiting = root.waiting.concat([notification])
         }
 
         root.arrived(notification)
     }
 
-    function dismiss(): void {
-        root.expiry.stop()
-        if (root.live) {
-            root.live.dismiss()
-            root.live = null
+    function show(notification: var): void {
+        const timeout = root.timeoutFor(notification)
+        if (timeout > 0) {
+            const deadlines = Object.assign({}, root.deadlines)
+            deadlines[notification.key] = Date.now() + timeout
+            root.deadlines = deadlines
         }
-        root.current = null
+        root.shown = [notification].concat(root.shown)
     }
 
-    function invoke(identifier: string): void {
-        const live = root.live
-        root.dismiss()
-        if (!live)
+    // Off the island and out of the queue, without telling anyone; the next
+    // waiting one moves up.
+    function forget(key: int): void {
+        if (!(key in root.liveObjects))
             return
-        const action = (live.actions ?? []).find(a => a.identifier === identifier)
+        const live = Object.assign({}, root.liveObjects)
+        delete live[key]
+        root.liveObjects = live
+        const deadlines = Object.assign({}, root.deadlines)
+        delete deadlines[key]
+        root.deadlines = deadlines
+        root.shown = root.shown.filter(entry => entry.key !== key)
+        root.waiting = root.waiting.filter(entry => entry.key !== key)
+        while (root.shown.length < root.maxShown && root.waiting.length > 0) {
+            const next = root.waiting[0]
+            root.waiting = root.waiting.slice(1)
+            root.show(next)
+        }
+    }
+
+    // Timed out or hidden: the application is told it expired, which also
+    // releases a sender waiting on it (`notify-send --wait`).
+    function dismissKey(key: int): void {
+        const object = root.liveObjects[key]
+        root.forget(key)
+        if (object)
+            object.expire()
+    }
+
+    // The user closed it (its cross): the application is told it was
+    // dismissed.
+    function closeKey(key: int): void {
+        const object = root.liveObjects[key]
+        root.forget(key)
+        if (object)
+            object.dismiss()
+    }
+
+    // Runs one of its actions ("default" for a click on it). Let go of
+    // without expiring it first: an expired notification's actions no longer
+    // reach the application.
+    function invokeKey(key: int, identifier: string): void {
+        const object = root.liveObjects[key]
+        root.forget(key)
+        if (!object)
+            return
+        const action = (object.actions ?? []).find(a => a.identifier === identifier)
         if (action)
             action.invoke()
     }
 
-    // Do Not Disturb state, toggled from the notification center
+    // Everything off the island and out of the queue.
+    function dismiss(): void {
+        for (const entry of root.shown.concat(root.waiting))
+            root.dismissKey(entry.key)
+    }
+
+    // The newest one, for callers that show only that.
+    function close(): void {
+        if (root.current)
+            root.closeKey(root.current.key)
+    }
+
+    function invoke(identifier: string): void {
+        if (root.current)
+            root.invokeKey(root.current.key, identifier)
+    }
+
+    function clearHistory(): void {
+        root.history = []
+    }
+
+    function remove(notification: var): void {
+        root.history = root.history.filter(entry => entry.key !== notification.key)
+        root.dismissKey(notification.key)
+    }
+
+    // Do Not Disturb state, toggled from the notification center. Not kept
+    // across restarts.
     property bool doNotDisturb: false
+
+    function toggleDoNotDisturb(): void {
+        root.doNotDisturb = !root.doNotDisturb
+        if (root.doNotDisturb)
+            root.dismiss()
+    }
 }

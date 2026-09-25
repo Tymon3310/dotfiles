@@ -25,8 +25,18 @@ PanelWindow {
     readonly property bool expanded: bar.openId !== ""
     readonly property bool dashboardOpen: bar.openId === "dashboard"
 
+    // Dropped as soon as the menu closes: a menu handle kept past that goes
+    // stale when the application rebuilds its menu (some do when a device
+    // connects), and a list later built from it crashes Quickshell.
     property var trayMenu: null
     property var trayItem: null
+
+    onOpenIdChanged: {
+        if (bar.openId !== "tray") {
+            bar.trayMenu = null
+            bar.trayItem = null
+        }
+    }
 
     Connections {
         target: SystemTray.items
@@ -345,20 +355,6 @@ PanelWindow {
             NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing }
         }
 
-        // Notch fillets seamlessly attaching to screen edge
-        NotchFillet {
-            anchors.right: island.left
-            anchors.top: parent.top
-            mirrored: true
-            opacity: Math.max(0, 1 + bar.notchYOffset / 10)
-        }
-
-        NotchFillet {
-            anchors.left: island.right
-            anchors.top: parent.top
-            opacity: Math.max(0, 1 + bar.notchYOffset / 10)
-        }
-
         focus: bar.expanded
         Keys.onEscapePressed: bar.close()
 
@@ -374,6 +370,23 @@ PanelWindow {
             opacity: (bar.below !== "" || bar.osdActive || bar.isDemorphed) ? 0 : 1
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+
+            // One area for the whole row: a click opens the dashboard, a right
+            // click plays or pauses, the wheel sets Spotify's own volume.
+            MouseArea {
+                anchors.fill: parent
+                z: 1
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                onClicked: mouse => {
+                    if (mouse.button === Qt.RightButton)
+                        MediaService.toggle()
+                    else
+                        bar.toggle("dashboard")
+                }
+                onWheel: event => MediaService.nudgeVolume(event.angleDelta.y > 0 ? 0.05 : -0.05)
+            }
 
             Row {
                 id: restRow
@@ -410,20 +423,6 @@ PanelWindow {
                             color: Theme.accent
                         }
                     }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
-                        onClicked: mouse => {
-                            if (mouse.button === Qt.RightButton)
-                                MediaService.toggle()
-                            else
-                                bar.toggle("dashboard")
-                        }
-                        onWheel: event => MediaService.nudgeVolume(event.angleDelta.y > 0 ? 0.05 : -0.05)
-                    }
                 }
 
                 // 2. Song Name (Title and Artist)
@@ -448,22 +447,9 @@ PanelWindow {
                         color: Theme.text
                         elide: Text.ElideRight
                     }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
-                        onClicked: mouse => {
-                            if (mouse.button === Qt.RightButton)
-                                MediaService.toggle()
-                            else
-                                bar.toggle("dashboard")
-                        }
-                    }
                 }
 
-                // 3. Audio Visualizer Spectrum (Smoothly disappears after ~5m of no Spotify)
+                // 3. Audio Visualizer Spectrum (fades out 20 s after Spotify stops)
                 Item {
                     id: visualizerContainer
                     anchors.verticalCenter: parent.verticalCenter
@@ -500,19 +486,6 @@ PanelWindow {
                         barColor: Theme.accent
                         visible: parent.visible
                     }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
-                        onClicked: mouse => {
-                            if (mouse.button === Qt.RightButton)
-                                MediaService.toggle()
-                            else
-                                bar.toggle("dashboard")
-                        }
-                    }
                 }
 
                 // 4. Clock Time
@@ -530,19 +503,6 @@ PanelWindow {
                         font.weight: Font.DemiBold
                         font.features: { "tnum": 1 }
                         color: Theme.text
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
-                        onClicked: mouse => {
-                            if (mouse.button === Qt.RightButton)
-                                MediaService.toggle()
-                            else
-                                bar.toggle("dashboard")
-                        }
                     }
                 }
 
@@ -571,19 +531,6 @@ PanelWindow {
                         font.pixelSize: Theme.fontSizeSmall - 1
                         font.weight: Font.Medium
                         color: Theme.textMuted
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
-                        onClicked: mouse => {
-                            if (mouse.button === Qt.RightButton)
-                                MediaService.toggle()
-                            else
-                                bar.toggle("dashboard")
-                        }
                     }
                 }
             }
@@ -661,6 +608,23 @@ PanelWindow {
             Behavior on opacity { NumberAnimation { duration: Theme.durationMedium } }
             sourceComponent: NotificationLayer {}
         }
+    }
+
+    // Notch fillets where the island meets the screen edge. Siblings of the
+    // island, not children: it clips, and they sit just outside it.
+    NotchFillet {
+        z: 2
+        x: island.x - width
+        y: island.y
+        mirrored: true
+        opacity: Math.max(0, 1 + bar.notchYOffset / 10)
+    }
+
+    NotchFillet {
+        z: 2
+        x: island.x + island.width
+        y: island.y
+        opacity: Math.max(0, 1 + bar.notchYOffset / 10)
     }
 
     // ── RIGHT FLOATING ZONE ──────────────────────────────────────────────────
