@@ -2,11 +2,7 @@
 set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -d "/sddm/themes/impasto" ]; then
-    THEME_SRC="/sddm/themes/impasto"
-else
-    THEME_SRC="/home/tymon/impasto/system/usr/share/sddm/themes/impasto"
-fi
+THEME_SRC="$DOTFILES_DIR/sddm/themes/impasto"
 THEME_DST="/usr/share/sddm/themes/impasto"
 
 echo "=== Applying Impasto SDDM Theme & Face Unlock ==="
@@ -24,6 +20,8 @@ if [ ! -d "$DOTFILES_DIR/system_backups/sddm_pam_backup" ]; then
     [ -f /etc/sddm.conf ] && cp -pv /etc/sddm.conf "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
     [ -d /etc/sddm.conf.d ] && cp -rpv /etc/sddm.conf.d "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
     cp -pv /etc/pam.d/sddm* "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
+    [ -f /usr/share/sddm/scripts/Xsetup ] && cp -pv /usr/share/sddm/scripts/Xsetup "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
+    [ -f /usr/share/sddm/scripts/Xstop ] && cp -pv /usr/share/sddm/scripts/Xstop "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
 fi
 
 # 2. Install theme
@@ -36,7 +34,37 @@ chmod -R 755 "$THEME_DST"
 mkdir -p /var/lib/impasto/faces
 chmod 755 /var/lib/impasto/faces
 
-# 4. Install SDDM config override & clean up competing overrides
+# 4. Install UEFI helper script and integrate into SDDM Xsetup / Xstop
+echo "Installing SDDM UEFI reboot helper..."
+mkdir -p /usr/share/sddm/scripts
+if [ -f "$DOTFILES_DIR/sddm/scripts/sddm-uefi-helper.py" ]; then
+    cp -pv "$DOTFILES_DIR/sddm/scripts/sddm-uefi-helper.py" /usr/share/sddm/scripts/sddm-uefi-helper.py
+    chmod 755 /usr/share/sddm/scripts/sddm-uefi-helper.py
+fi
+
+if [ -f /usr/share/sddm/scripts/Xsetup ]; then
+    if ! grep -q "sddm-uefi-helper" /usr/share/sddm/scripts/Xsetup; then
+        cat << 'XSETUP' >> /usr/share/sddm/scripts/Xsetup
+
+# Reset any stale UEFI reboot state and start SDDM helper daemon
+busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager SetRebootToFirmwareSetup b false 2>/dev/null || true
+pkill -f sddm-uefi-helper 2>/dev/null || true
+python3 /usr/share/sddm/scripts/sddm-uefi-helper.py &
+XSETUP
+    fi
+fi
+
+if [ -f /usr/share/sddm/scripts/Xstop ]; then
+    if ! grep -q "sddm-uefi-helper" /usr/share/sddm/scripts/Xstop; then
+        cat << 'XSTOP' >> /usr/share/sddm/scripts/Xstop
+
+# Stop SDDM helper daemon
+pkill -f sddm-uefi-helper 2>/dev/null || true
+XSTOP
+    fi
+fi
+
+# 5. Install SDDM config override & clean up competing overrides
 echo "Configuring SDDM theme..."
 mkdir -p /etc/sddm.conf.d
 
@@ -76,13 +104,13 @@ EOF_THEME
     fi
 fi
 
-# 5. Handle autologin (disable so login screen is displayed)
+# 6. Handle autologin (disable so login screen is displayed)
 if [ -f /etc/sddm.conf.d/99-autologin.conf ]; then
     echo "Disabling 99-autologin.conf (renaming to 99-autologin.conf.bak) so SDDM greeter displays..."
     mv /etc/sddm.conf.d/99-autologin.conf /etc/sddm.conf.d/99-autologin.conf.bak
 fi
 
-# 6. Configure PAM for SDDM Face Unlock
+# 7. Configure PAM for SDDM Face Unlock
 echo "Configuring PAM (/etc/pam.d/sddm) with biopass face unlock..."
 if ! grep -q "libbiopass_pam.so" /etc/pam.d/sddm; then
     cat << 'PAM' > /etc/pam.d/sddm
@@ -102,7 +130,7 @@ PAM
     chmod 644 /etc/pam.d/sddm
 fi
 
-# 7. Add sddm user to video group
+# 8. Add sddm user to video group
 if id sddm >/dev/null 2>&1; then
     echo "Ensuring sddm user has access to camera (video group)..."
     usermod -aG video sddm || true

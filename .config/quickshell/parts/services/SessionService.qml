@@ -26,6 +26,18 @@ Singleton {
         { id: "shutdown", icon: "󰐥", label: "Shut down", destructive: true }
     ]
 
+    property bool fadingOut: false
+    property string pendingAction: ""
+    readonly property int fadeDuration: 600
+
+    readonly property Timer commitActionTimer: Timer {
+        interval: root.fadeDuration
+        repeat: false
+        onTriggered: {
+            root.commitPendingAction()
+        }
+    }
+
     // Suspend waits for the compositor to confirm the lock covers the screen,
     // so the machine never wakes showing the desktop. Asking hypridle's
     // before_sleep hook to lock instead races the suspend: the lock first
@@ -71,16 +83,36 @@ Singleton {
             LockService.lock()
             break
         case "logout":
-            Hyprland.dispatch("hl.dsp.exit()")
-            break
         case "reboot":
-            root.exec(["systemctl", "reboot"])
-            break
+        case "reboot-uefi":
         case "shutdown":
-            root.exec(["systemctl", "--ignore-inhibitors", "poweroff"])
+            root.pendingAction = actionId
+            root.fadingOut = true
+            root.commitActionTimer.restart()
             break
         default:
             console.warn("Unknown session action:", actionId)
+        }
+    }
+
+    function commitPendingAction(): void {
+        const action = root.pendingAction
+        root.pendingAction = ""
+        switch (action) {
+        case "logout":
+            Hyprland.dispatch("hl.dsp.exit()")
+            break
+        case "reboot":
+            root.exec(["sh", "-c", "busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager SetRebootToFirmwareSetup b false 2>/dev/null; systemctl reboot"])
+            break
+        case "reboot-uefi":
+            root.exec(["systemctl", "reboot", "--firmware-setup"])
+            break
+        case "shutdown":
+            root.exec(["sh", "-c", "busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager SetRebootToFirmwareSetup b false 2>/dev/null; systemctl --ignore-inhibitors poweroff"])
+            break
+        default:
+            break
         }
     }
 

@@ -57,7 +57,7 @@ ShellRoot {
     // Global Hyprland status data per monitor (updated by hypr_monitor.py)
     property var hyprlandData: ({})
 
-    // ── Active Window Filter ─────────────────────────────────────────────
+    // ── Active Window Filter ─────────────────────────────────────────
     // List of app class / title fragments to hide from the active window display.
     // Matching is case-insensitive; any partial match on class OR title hides the entry.
     // Examples: "firefox", "code", "kitty", "steam"
@@ -65,7 +65,7 @@ ShellRoot {
         "Private Browsing", "Incognito", "porn"
     ]
 
-    // ── Notification Daemon ──────────────────────────────────────────────
+    // ── Notification Daemon ──────────────────────────────────────────
     // Kill swaync so NotificationService can own org.freedesktop.Notifications
     Process {
         id: killSwaync
@@ -167,7 +167,13 @@ ShellRoot {
         delegate: IslandBar {}
     }
 
-    // ── Session Lock Screen ──────────────────────────────────────────────
+    // Fullscreen cinematic fade-to-black on all monitors during logout / reboot / shutdown
+    Variants {
+        model: Quickshell.screens
+        delegate: SessionFadeWindow {}
+    }
+
+    // ── Session Lock Screen ──────────────────────────────────────────
     LockScreen {}
 
     IpcHandler {
@@ -177,7 +183,22 @@ ShellRoot {
         }
     }
 
-    // ── Screenshot Tool Dynamic Loader ───────────────────────────────────
+    IpcHandler {
+        target: "fade"
+        function test(): void {
+            SessionService.fadingOut = true
+            testFadeTimer.restart()
+        }
+    }
+
+    Timer {
+        id: testFadeTimer
+        interval: 1500
+        repeat: false
+        onTriggered: SessionService.fadingOut = false
+    }
+
+    // ── Screenshot Tool Dynamic Loader ───────────────────────────────
     Loader {
         id: screenshotLoader
         active: false
@@ -204,13 +225,13 @@ ShellRoot {
         }
     }
 
+    // Connect screenshot finished signal
     Connections {
         target: screenshotLoader.item
         ignoreUnknownSignals: true
         function onFinished() {
-            console.log("[MainShell] Screenshot tool finished, unloading component")
+            console.log("[MainShell] Screenshot finished signal received, unloading")
             screenshotLoader.active = false
-            // Clear properties
             screenshotLoader.envId = ""
             screenshotLoader.modeOverride = ""
             screenshotLoader.instantOverride = ""
@@ -221,12 +242,99 @@ ShellRoot {
         target: "screenshot"
 
         function trigger(envId: string, mode: string, instant: string): void {
-            console.log("[MainShell] IPC call received: screenshot trigger")
-            // Set properties first, then activate the loader
+            console.log("[MainShell] Screenshot IPC triggered:", envId, mode, instant)
             screenshotLoader.envId = envId
             screenshotLoader.modeOverride = mode
             screenshotLoader.instantOverride = instant
-            screenshotLoader.active = true
+            if (!screenshotLoader.active) {
+                screenshotLoader.active = true
+            } else if (screenshotLoader.item) {
+                if (envId) screenshotLoader.item.externalTimestamp = envId
+                if (mode) screenshotLoader.item.mode = mode
+                screenshotLoader.item.instantCapture = (instant === "1")
+                screenshotLoader.item.initializeCapture()
+            }
+        }
+
+        function open(): void {
+            trigger("", "region", "0")
+        }
+
+        function instant(geomStr: string): void {
+            console.log("[MainShell] Instant Screenshot IPC triggered with geom:", geomStr)
+            screenshotLoader.modeOverride = "region"
+            screenshotLoader.instantOverride = "1"
+            if (!screenshotLoader.active) {
+                screenshotLoader.active = true
+            } else if (screenshotLoader.item) {
+                screenshotLoader.item.instantCapture = true
+                screenshotLoader.item.initializeCapture()
+            }
+        }
+
+        function window(): void {
+            console.log("[MainShell] Window Screenshot IPC triggered")
+            screenshotLoader.modeOverride = "window"
+            screenshotLoader.instantOverride = "0"
+            if (!screenshotLoader.active) {
+                screenshotLoader.active = true
+            } else if (screenshotLoader.item) {
+                screenshotLoader.item.mode = "window"
+                screenshotLoader.item.instantCapture = false
+                screenshotLoader.item.initializeCapture()
+            }
+        }
+
+        function screen(): void {
+            console.log("[MainShell] Screen Screenshot IPC triggered")
+            screenshotLoader.modeOverride = "screen"
+            screenshotLoader.instantOverride = "0"
+            if (!screenshotLoader.active) {
+                screenshotLoader.active = true
+            } else if (screenshotLoader.item) {
+                screenshotLoader.item.mode = "screen"
+                screenshotLoader.item.instantCapture = false
+                screenshotLoader.item.initializeCapture()
+            }
+        }
+
+        function ocr(): void {
+            console.log("[MainShell] OCR Screenshot IPC triggered")
+            screenshotLoader.modeOverride = "ocr"
+            screenshotLoader.instantOverride = "0"
+            if (!screenshotLoader.active) {
+                screenshotLoader.active = true
+            } else if (screenshotLoader.item) {
+                screenshotLoader.item.mode = "ocr"
+                screenshotLoader.item.instantCapture = false
+                screenshotLoader.item.initializeCapture()
+            }
+        }
+
+        function lens(): void {
+            console.log("[MainShell] Lens Screenshot IPC triggered")
+            screenshotLoader.modeOverride = "lens"
+            screenshotLoader.instantOverride = "0"
+            if (!screenshotLoader.active) {
+                screenshotLoader.active = true
+            } else if (screenshotLoader.item) {
+                screenshotLoader.item.mode = "lens"
+                screenshotLoader.item.instantCapture = false
+                screenshotLoader.item.initializeCapture()
+            }
+        }
+
+        function ai(): void {
+            console.log("[MainShell] AI Screenshot IPC triggered")
+            screenshotLoader.modeOverride = "ai"
+            screenshotLoader.instantOverride = "0"
+            if (!screenshotLoader.active) {
+                screenshotLoader.active = true
+            } else if (screenshotLoader.item) {
+                screenshotLoader.item.mode = "ai"
+                screenshotLoader.item.instantCapture = false
+                screenshotLoader.item.initializeCapture()
+            }
         }
     }
 }

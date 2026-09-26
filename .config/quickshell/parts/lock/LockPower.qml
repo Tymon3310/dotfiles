@@ -4,15 +4,20 @@ import "../theme"
 import "../services"
 
 // Clean power actions on the lock screen (Restart, Shut down).
+// Shift-clicking restart boots to UEFI setup.
 Row {
     id: root
 
     property string armed: ""
+    property bool armedUefi: false
     spacing: 8
 
     readonly property Timer disarm: Timer {
         interval: 3000
-        onTriggered: root.armed = ""
+        onTriggered: {
+            root.armed = ""
+            root.armedUefi = false
+        }
     }
 
     component Chip: Rectangle {
@@ -58,7 +63,7 @@ Row {
                 id: name
                 anchors.verticalCenter: parent.verticalCenter
                 visible: chip.isArmed
-                text: chip.caption
+                text: chip.action === "reboot" && root.armedUefi ? "UEFI" : chip.caption
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSmall
                 font.weight: Font.DemiBold
@@ -71,14 +76,18 @@ Row {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: {
+            onClicked: (event) => {
+                const shiftPressed = Boolean(event.modifiers & Qt.ShiftModifier)
                 if (chip.isArmed) {
+                    const isUefi = (chip.action === "reboot" && (root.armedUefi || shiftPressed))
                     root.armed = ""
+                    root.armedUefi = false
                     root.disarm.stop()
-                    SessionService.run(chip.action)
+                    SessionService.run(isUefi ? "reboot-uefi" : chip.action)
                     return
                 }
                 root.armed = chip.action
+                root.armedUefi = (chip.action === "reboot" && shiftPressed)
                 root.disarm.restart()
             }
         }

@@ -16,11 +16,12 @@ import "../../../components"
 
 // Built from SessionService's list, so an action is a row of data.
 // Actions that end the session arm on the first click (red, labelled) and run
-// on the second. Lock and suspend run at once.
+// on the second. Lock and suspend run at once. Shift-clicking restart boots to UEFI.
 RowLayout {
     id: root
 
     property string armed: ""
+    property bool armedUefi: false
 
     // The panel closes on any action. Lock in particular captures the screen,
     // which would otherwise include the panel.
@@ -30,7 +31,10 @@ RowLayout {
 
     readonly property Timer disarm: Timer {
         interval: 3000
-        onTriggered: root.armed = ""
+        onTriggered: {
+            root.armed = ""
+            root.armedUefi = false
+        }
     }
 
     Repeater {
@@ -78,7 +82,7 @@ RowLayout {
                 Text {
                     id: label
                     visible: button.isArmed
-                    text: button.modelData.label
+                    text: button.modelData.id === "reboot" && root.armedUefi ? "UEFI" : button.modelData.label
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSizeSmall
                     font.weight: Font.DemiBold
@@ -91,15 +95,20 @@ RowLayout {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: {
+                onClicked: (event) => {
+                    const shiftPressed = Boolean(event.modifiers & Qt.ShiftModifier)
                     if (!button.modelData.destructive || button.isArmed) {
+                        const isUefi = (button.modelData.id === "reboot" && (root.armedUefi || shiftPressed))
+                        const actionToRun = isUefi ? "reboot-uefi" : button.modelData.id
                         root.armed = ""
+                        root.armedUefi = false
                         root.disarm.stop()
-                        SessionService.run(button.modelData.id)
-                        root.ran(button.modelData.id)
+                        SessionService.run(actionToRun)
+                        root.ran(actionToRun)
                         return
                     }
                     root.armed = button.modelData.id
+                    root.armedUefi = (button.modelData.id === "reboot" && shiftPressed)
                     root.disarm.restart()
                 }
             }

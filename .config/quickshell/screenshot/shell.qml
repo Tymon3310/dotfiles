@@ -175,7 +175,7 @@ Scope {
             // Under wrapper script: grim is already running/finished in background.
             // Wait for the done file touched by the wrapper script.
             const doneFile = `/tmp/quickshell-screenshot-${timestamp}.done`
-            captureProcess.command = ["sh", "-c", `while [ ! -f "${doneFile}" ]; do sleep 0.005; done && rm -f "${doneFile}"`]
+            captureProcess.command = ["timeout", "4", "sh", "-c", `while [ ! -f "${doneFile}" ]; do sleep 0.005; done && rm -f "${doneFile}"`]
         } else {
             // Fallback: run grim capture itself if launched directly.
             let grabCmd = "pkill -9 -x grim 2>/dev/null; "

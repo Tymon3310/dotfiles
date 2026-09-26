@@ -1,7 +1,7 @@
 // ╭──────────────────────────────────────────────────────────────────────────╮
 // │                                                                          │
 // │   P O W E R   R O W                                                      │
-// │   reboot and shut down buttons                                           │
+// │   bottom-left reboot / power off capsule buttons                         │
 // │                                                                          │
 // │   github.com/andreumassanet/impasto                                      │
 // │                                                                          │
@@ -14,8 +14,7 @@ import "."
 // Restart and shut down; no suspend, since there is no session yet.
 //
 // The first click arms a button and the second confirms, as in the shell;
-// it disarms after 3 s. Buttons logind does not allow are hidden, so under
-// --test-mode, where both report false, the row is empty.
+// it disarms after 3 s. Shift-click on Restart reboots to UEFI setup.
 Row {
     id: root
 
@@ -23,45 +22,53 @@ Row {
     property bool canPowerOff: false
 
     property string armed: ""
+    property bool armedUefi: false
 
-    signal rebootRequested()
+    signal rebootRequested(bool toUefi)
     signal powerOffRequested()
 
     spacing: 8
 
     readonly property Timer disarm: Timer {
         interval: 3000
-        onTriggered: root.armed = ""
+        onTriggered: {
+            root.armed = ""
+            root.armedUefi = false
+        }
     }
 
     component Chip: Capsule {
         id: chip
 
-        property string action: ""
-        property string glyph: ""
-        property string caption: ""
+        required property string action
+        required property string glyph
+        required property string caption
 
         readonly property bool isArmed: root.armed === chip.action
 
-        signal confirmed()
+        signal confirmed(bool toUefi)
 
         width: chip.isArmed ? name.implicitWidth + Theme.capsuleHeight + 16
                             : Theme.capsuleHeight
-        height: Theme.capsuleHeight
-        radius: Theme.radiusPill
         hovered: area.containsMouse
 
-        color: {
-            if (chip.isArmed)
-                return Theme.indicatorBad
-            return area.containsMouse ? Theme.islandSurfaceHover : Theme.island
-        }
-        border.color: chip.isArmed ? Theme.indicatorBad : Theme.islandBorder
-
         Behavior on width {
-            NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing }
+            NumberAnimation {
+                duration: Theme.durationFast
+                easing.type: Easing.OutCubic
+            }
         }
-        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+        // Tint when armed: red for shutdown, warm amber for reboot
+        color: chip.isArmed
+            ? (chip.action === "shutdown"
+                ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.45)
+                : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.45))
+            : (chip.hovered ? Theme.islandSurfaceHover : Theme.island)
+
+        border.color: chip.isArmed
+            ? (chip.action === "shutdown" ? Theme.danger : Theme.accent)
+            : Theme.islandBorder
 
         Row {
             anchors.centerIn: parent
@@ -83,7 +90,7 @@ Row {
 
                 anchors.verticalCenter: parent.verticalCenter
                 visible: chip.isArmed
-                text: chip.caption
+                text: chip.action === "reboot" && root.armedUefi ? qsTr("UEFI Setup") : chip.caption
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSmall
                 font.weight: Font.DemiBold
@@ -96,15 +103,21 @@ Row {
 
             anchors.fill: parent
             hoverEnabled: true
+            preventStealing: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: {
+            onClicked: (event) => {
+                event.accepted = true
+                const shiftPressed = Boolean(event.modifiers & Qt.ShiftModifier)
                 if (chip.isArmed) {
+                    const toUefi = (chip.action === "reboot" && (root.armedUefi || shiftPressed))
                     root.armed = ""
+                    root.armedUefi = false
                     root.disarm.stop()
-                    chip.confirmed()
+                    chip.confirmed(toUefi)
                     return
                 }
                 root.armed = chip.action
+                root.armedUefi = (chip.action === "reboot" && shiftPressed)
                 root.disarm.restart()
             }
         }
@@ -115,7 +128,7 @@ Row {
         glyph: "󰜉"
         caption: qsTr("Restart")
         visible: root.canReboot
-        onConfirmed: root.rebootRequested()
+        onConfirmed: (toUefi) => root.rebootRequested(toUefi)
     }
 
     Chip {
@@ -123,6 +136,6 @@ Row {
         glyph: "󰐥"
         caption: qsTr("Shut down")
         visible: root.canPowerOff
-        onConfirmed: root.powerOffRequested()
+        onConfirmed: () => root.powerOffRequested()
     }
 }

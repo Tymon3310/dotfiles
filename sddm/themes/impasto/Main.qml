@@ -19,9 +19,10 @@ Rectangle {
     color: "#000000"
 
     // ── BACKGROUND ──────────────────────────────────────────────────────────
-    // Unscaled 1:1 raw screenshot without blur, mipmap downsampling or heavy scrims
+    // Full 5K native resolution image (5120x3200) loaded uncompressed without blur or downsampling
 
     Image {
+        id: bgImage
         anchors.fill: parent
         source: "background.png"
         fillMode: Image.PreserveAspectCrop
@@ -134,7 +135,121 @@ Rectangle {
         }
     }
 
+    // ── POWER FADEOUT STATE & EXECUTION ─────────────────────────────────────
+    property bool fadingOut: false
+    property string pendingPowerAction: ""
+
+    Timer {
+        id: sddmCommitTimer
+        interval: 600
+        repeat: false
+        onTriggered: {
+            if (root.pendingPowerAction === "reboot" || root.pendingPowerAction === "reboot-uefi") {
+                sddm.reboot()
+            } else if (root.pendingPowerAction === "shutdown") {
+                sddm.powerOff()
+            }
+        }
+    }
+
+    function triggerPowerFade(action: string): void {
+        faceTimeout.stop()
+        root.faceScanning = false
+        root.pendingPowerAction = action
+
+        // Notify local helper daemon of power intent & firmware-setup state
+        try {
+            let req = new XMLHttpRequest()
+            let endpoint = (action === "reboot-uefi") ? "reboot-uefi"
+                         : (action === "shutdown") ? "shutdown" : "reboot-normal"
+            req.open("GET", "http://127.0.0.1:18293/" + endpoint, true)
+            req.send()
+        } catch (e) {}
+
+        root.fadingOut = true
+        sddmCommitTimer.start()
+    }
+
+    // ── EXPANDING WAVE FADEOUT OVERLAY ───────────────────────────────────────
+    Item {
+        id: sddmFadeOverlay
+        anchors.fill: parent
+        z: 9999
+        visible: root.fadingOut || sddmBaseFade.opacity > 0
+
+        readonly property real centerX: root.width / 2
+        readonly property real centerY: 20
+        readonly property real targetRadius: Math.ceil(Math.hypot(root.width / 2, root.height)) + 100
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.BlankCursor
+            acceptedButtons: Qt.AllButtons
+            onPressed: (mouse) => mouse.accepted = true
+        }
+
+        Rectangle {
+            id: sddmBaseFade
+            anchors.fill: parent
+            color: "#000000"
+            opacity: 0.0
+        }
+
+        Rectangle {
+            id: sddmMainWave
+            width: 0
+            height: width
+            radius: width / 2
+            x: sddmFadeOverlay.centerX - width / 2
+            y: sddmFadeOverlay.centerY - height / 2
+            color: "#000000"
+        }
+
+        ParallelAnimation {
+            id: sddmWaveAnim
+
+            NumberAnimation {
+                target: sddmMainWave
+                property: "width"
+                from: 60
+                to: sddmFadeOverlay.targetRadius * 2.2
+                duration: 600
+                easing.type: Easing.OutQuad
+            }
+
+            SequentialAnimation {
+                PauseAnimation { duration: 270 }
+                NumberAnimation {
+                    target: sddmBaseFade
+                    property: "opacity"
+                    from: 0.0
+                    to: 1.0
+                    duration: 330
+                    easing.type: Easing.InQuad
+                }
+            }
+        }
+
+        Connections {
+            target: root
+            function onFadingOutChanged(): void {
+                if (root.fadingOut) {
+                    sddmMainWave.width = 60
+                    sddmBaseFade.opacity = 0.0
+                    sddmWaveAnim.restart()
+                } else {
+                    sddmWaveAnim.stop()
+                    sddmBaseFade.opacity = 0.0
+                    sddmMainWave.width = 0
+                }
+            }
+        }
+    }
+
     // ── WAKE-UP FULLSCREEN TAP AREA ─────────────────────────────────────────
+    // At z: 50, but PowerRow and SessionPicker are at z: 60, allowing power actions
+    // to be clicked directly without waking up or triggering the camera!
 
     MouseArea {
         id: sleepTapArea
@@ -299,31 +414,33 @@ Rectangle {
         }
     }
 
-    // ── POWER AND SESSION ───────────────────────────────────────────────────
+    // ── POWER AND SESSION (z: 60 to sit above sleepTapArea) ──────────────────
 
     PowerRow {
+        z: 60
         anchors.left: parent.left
         anchors.leftMargin: 20
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 20
-        opacity: root.awake ? 1 : 0.4
+        opacity: root.awake ? 1.0 : 0.6
         Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
         canReboot: sddm.canReboot
         canPowerOff: sddm.canPowerOff
 
-        onRebootRequested: sddm.reboot()
-        onPowerOffRequested: sddm.powerOff()
+        onRebootRequested: (toUefi) => root.triggerPowerFade(toUefi ? "reboot-uefi" : "reboot")
+        onPowerOffRequested: () => root.triggerPowerFade("shutdown")
     }
 
     SessionPicker {
         id: session
+        z: 60
 
         anchors.right: parent.right
         anchors.rightMargin: 20
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 20
-        opacity: root.awake ? 1 : 0.4
+        opacity: root.awake ? 1.0 : 0.6
         Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
         sessions: sessionModel
