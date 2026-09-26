@@ -72,9 +72,10 @@ mkdir -p /etc/sddm.conf.d
 rm -f /etc/sddm.conf.d/90-impasto.conf
 
 # Use zz-impasto.conf so it sorts after all other .conf files alphabetically
+# AMD_DEBUG=nodcc prevents Delta Color Compression (DCC) tile corruption (red blocks/snow) on AMD Radeon GPUs under X11
 cat << 'CONF' > /etc/sddm.conf.d/zz-impasto.conf
 [General]
-GreeterEnvironment=QML_XHR_ALLOW_FILE_READ=1
+GreeterEnvironment=QML_XHR_ALLOW_FILE_READ=1,AMD_DEBUG=nodcc
 
 [Theme]
 Current=impasto
