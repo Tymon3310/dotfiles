@@ -1,11 +1,11 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
+// ╭────────────────────────────────────────────────────────────────────────────╮
+// │                                                                            │
 // │   H Y P R L A N D   S E R V I C E                                        │
 // │   workspace state · read from hyprctl, refreshed on events               │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// │                                                                            │
+// │   github.com/andreumassanet/impasto                                        │
+// │                                                                            │
+// ╰────────────────────────────────────────────────────────────────────────────╯
 
 pragma Singleton
 
@@ -245,10 +245,14 @@ QtObject {
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
-                const both = root.parseJson(`[${text.replace(/\}\]\s*\[\{/, "}],[{")}]`)
-                if (!Array.isArray(both) || both.length !== 2)
+                const firstEnd = text.indexOf("]")
+                const secondStart = text.indexOf("[", firstEnd)
+                if (firstEnd < 0 || secondStart < 0)
                     return
-                const [workspaces, monitors] = both
+                const workspaces = root.parseJson(text.slice(0, firstEnd + 1))
+                const monitors = root.parseJson(text.slice(secondStart))
+                if (!Array.isArray(workspaces) || !Array.isArray(monitors))
+                    return
                 root.occupiedIds = workspaces
                     .filter(workspace => workspace.windows > 0)
                     .map(workspace => workspace.id)
@@ -284,6 +288,25 @@ QtObject {
             case "movewindowv2":
             case "focusedmon":
             case "focusedmonv2":
+                if (event.name === "focusedmon" || event.name === "focusedmonv2") {
+                    const parts = `${event.data}`.split(",")
+                    if (parts[0] && parts[0] !== "") {
+                        root.focusedMonitor = parts[0]
+                        if (parts[1]) {
+                            const wsId = parseInt(parts[1])
+                            if (!isNaN(wsId)) {
+                                root.activeId = wsId
+                                const copy = Object.assign({}, root.activeByMonitor)
+                                copy[parts[0]] = wsId
+                                root.activeByMonitor = copy
+                            }
+                        }
+                    }
+                }
+                root.refresh()
+                if (root.watchClients || root.clients.length > 0)
+                    root.loadClients()
+                break
             case "moveworkspace":
             case "moveworkspacev2":
             case "monitoradded":

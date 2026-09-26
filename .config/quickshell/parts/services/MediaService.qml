@@ -39,7 +39,7 @@ Singleton {
     readonly property bool available: root.active !== null
     readonly property bool playing: root.available && root.active.isPlaying
 
-    // ── VISUALIZER INACTIVITY TIMEOUT ───────────────────────────────
+    // ── VISUALIZER INACTIVITY TIMEOUT ─────────────────────────────
     // After 20 seconds without Spotify playing, visualizerActive becomes false.
     property bool visualizerTimeout: false
 
@@ -92,11 +92,11 @@ Singleton {
     property int watchers: 0
 
     // Holders that need the position to the frame, not the second (synced
-    // lyrics): the poll runs at 150 ms while any is held.
+    // lyrics): the poll runs at 30 ms while any is held.
     property int preciseWatchers: 0
 
     readonly property Timer positionTimer: Timer {
-        interval: root.preciseWatchers > 0 ? 150 : 1000
+        interval: root.preciseWatchers > 0 ? 30 : 1000
         repeat: true
         running: root.watchers > 0 && root.playing && root.seekable
         onTriggered: {
@@ -125,7 +125,7 @@ Singleton {
 
     // The next tracks, [{ title, artist, artUrl }], from the Spotify Web API.
     // MPRIS has no queue, so the host fills this in: the dotfiles' shell.qml
-    // binds it to media_status.py's `queue`.
+    // binds it to media_status.py's `queue` logic.
     property var queue: []
 
     function toggle(): void {
@@ -150,12 +150,9 @@ Singleton {
             root.active.previous()
     }
 
-    // ── SPOTIFY'S OWN VOLUME ────────────────────────────────────────────
+    // ── SPOTIFY'S OWN VOLUME ──────────────────────────────────────────────
     //
-    // Set on Spotify's PipeWire streams rather than through MPRIS, which the
-    // desktop client does not honour; the system volume is left alone.
-    // Spotify opens more than one stream, so every one of them is set.
-
+    // Set on Spotify's PipeWire streams and MPRIS interface.
     // Quickshell connects to PipeWire lazily, on the first read of a default
     // device; reading the node list alone leaves it empty.
     readonly property var pipewireWake: Pipewire.defaultAudioSink
@@ -169,15 +166,21 @@ Singleton {
         objects: root.spotifyStreams
     }
 
-    readonly property bool volumeAvailable: root.spotifyStreams.some(node => node.audio)
+    readonly property bool volumeAvailable: root.spotifyStreams.some(node => node.audio) || root.available
 
-    // 0–1, from the first stream.
+    // Volume level 0.0 – 1.0
     readonly property real volume: {
         const node = root.spotifyStreams.find(node => node.audio)
-        return node ? node.audio.volume : 0
+        if (node && node.audio && node.audio.volume !== undefined)
+            return node.audio.volume
+        if (root.available && root.active.volume !== undefined && root.active.volume >= 0)
+            return root.active.volume
+        return 1.0
     }
 
-    // True for a moment after a change, so the bar can show the level.
+    readonly property bool muted: root.spotifyStreams.some(node => node.audio?.muted ?? false)
+
+    // True for a moment after a change, so the bar / osd can show the level.
     property bool volumeShown: false
 
     readonly property Timer volumeFlash: Timer {
@@ -186,17 +189,39 @@ Singleton {
     }
 
     function setVolume(value: real): void {
-        const level = Math.max(0, Math.min(1, value))
+        const norm = value > 1.0 ? value / 100.0 : value
+        const level = Math.max(0, Math.min(1, norm))
+
         for (const node of root.spotifyStreams) {
             if (node.audio)
                 node.audio.volume = level
         }
+        if (root.available && root.active.volume !== undefined) {
+            root.active.volume = level
+        }
+        Quickshell.execDetached(["playerctl", "-p", "spotify", "volume", level.toFixed(2)])
+
         root.volumeShown = true
         root.volumeFlash.restart()
+
+        const icon = (level <= 0 || root.muted) ? "󰝟" : (level < 0.33 ? "󰕿" : (level < 0.66 ? "󰖀" : "󰕾"))
+        OsdService.requested(
+            icon,
+            `Spotify ${Math.round(level * 100)}%`,
+            level
+        )
     }
 
     function nudgeVolume(delta: real): void {
-        if (root.volumeAvailable)
-            root.setVolume(Math.round((root.volume + delta) * 100) / 100)
+        const current = root.volume
+        root.setVolume(Math.round((current + delta) * 100) / 100)
+    }
+
+    function toggleMute(): void {
+        const target = !root.muted
+        for (const node of root.spotifyStreams) {
+            if (node.audio)
+                node.audio.muted = target
+        }
     }
 }

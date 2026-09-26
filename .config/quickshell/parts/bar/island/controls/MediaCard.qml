@@ -32,6 +32,10 @@ Card {
     Component.onCompleted: LyricsService.subscribe()
     Component.onDestruction: LyricsService.release()
 
+    WheelHandler {
+        onWheel: event => MediaService.nudgeVolume(event.angleDelta.y > 0 ? 0.05 : -0.05)
+    }
+
     Text {
         anchors.centerIn: parent
         visible: !MediaService.available
@@ -46,7 +50,7 @@ Card {
         visible: MediaService.available
         spacing: 10
 
-        // ── TRACK ───────────────────────────────────────────────────────────
+        // ── TRACK ─────────────────────────────────────────────────────────
 
         RowLayout {
             Layout.fillWidth: true
@@ -62,7 +66,7 @@ Card {
                     id: art
                     anchors.fill: parent
                     source: MediaService.artUrl
-                    visible: source != "" && status === Image.Ready
+                    visible: source !== "" && status === Image.Ready
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     sourceSize.width: 112
@@ -81,8 +85,7 @@ Card {
 
             ColumnLayout {
                 Layout.fillWidth: true
-                Layout.alignment: Qt.AlignVCenter
-                spacing: 1
+                spacing: 2
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -90,7 +93,7 @@ Card {
 
                     Text {
                         Layout.fillWidth: true
-                        text: MediaService.title
+                        text: MediaService.title || "Unknown"
                         elide: Text.ElideRight
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeMedium
@@ -99,20 +102,17 @@ Card {
                     }
 
                     Spectrum {
-                        Layout.preferredHeight: 16
                         Layout.alignment: Qt.AlignVCenter
-                        barWidth: 3
-                        barSpacing: 2
-                        minimum: 2
-                        active: MediaService.playing
+                        Layout.preferredWidth: 28
+                        Layout.preferredHeight: 14
+                        visible: MediaService.playing
                         barColor: Theme.accent
-                        visible: MediaService.available
                     }
                 }
 
                 Text {
                     Layout.fillWidth: true
-                    text: MediaService.artist
+                    text: MediaService.artist || "Unknown artist"
                     elide: Text.ElideRight
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSizeSmall
@@ -121,8 +121,8 @@ Card {
 
                 Text {
                     Layout.fillWidth: true
+                    text: MediaService.album || ""
                     visible: text !== ""
-                    text: MediaService.album
                     elide: Text.ElideRight
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSizeLabel
@@ -131,36 +131,115 @@ Card {
                 }
             }
 
-            // What the middle is showing, as a small tag.
-            Rectangle {
+            // What the middle is showing, as a small tag with optional timing calibration.
+            RowLayout {
                 Layout.alignment: Qt.AlignTop
-                implicitWidth: tag.implicitWidth + 14
-                implicitHeight: 18
-                radius: height / 2
-                color: Theme.islandSurfaceHover
+                spacing: 4
 
-                Text {
-                    id: tag
-                    anchors.centerIn: parent
-                    text: {
-                        if (LyricsService.synced)
-                            return "LYRICS"
-                        if (LyricsService.shown)
-                            return "TEXT"
-                        if (LyricsService.loading)
-                            return "…"
-                        return LyricsService.kind === "instrumental" ? "INSTRUMENTAL" : "UP NEXT"
+                // Minus button (shifts lyrics later / delays them by 100ms)
+                Rectangle {
+                    visible: LyricsService.synced
+                    implicitWidth: 18
+                    implicitHeight: 18
+                    radius: 9
+                    color: minusMouse.containsMouse ? Theme.islandSurfaceHover : "transparent"
+                    border.width: 1
+                    border.color: minusMouse.containsMouse ? Theme.islandBorder : "transparent"
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "−"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
+                        font.weight: Font.Bold
+                        color: minusMouse.containsMouse ? Theme.accent : Theme.textMuted
                     }
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 9
-                    font.weight: Font.DemiBold
-                    font.letterSpacing: 0.6
-                    color: LyricsService.synced ? Theme.accent : Theme.textMuted
+
+                    MouseArea {
+                        id: minusMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: SettingsService.lyricsOffset -= 100
+                    }
+                }
+
+                Rectangle {
+                    implicitWidth: tag.implicitWidth + 14
+                    implicitHeight: 18
+                    radius: height / 2
+                    color: tagMouse.containsMouse && LyricsService.synced && SettingsService.lyricsOffset !== 0
+                        ? Theme.accent : Theme.islandSurfaceHover
+                    border.width: 1
+                    border.color: tagMouse.containsMouse && LyricsService.synced && SettingsService.lyricsOffset !== 0
+                        ? Theme.accentHover : "transparent"
+
+                    Text {
+                        id: tag
+                        anchors.centerIn: parent
+                        text: {
+                            if (LyricsService.synced) {
+                                if (SettingsService.lyricsOffset !== 0)
+                                    return `LYRICS ${(SettingsService.lyricsOffset > 0 ? "+" : "") + (SettingsService.lyricsOffset / 1000).toFixed(1)}s`
+                                return "LYRICS"
+                            }
+                            if (LyricsService.shown)
+                                return "TEXT"
+                            if (LyricsService.loading)
+                                return "…"
+                            return LyricsService.kind === "instrumental" ? "INSTRUMENTAL" : "UP NEXT"
+                        }
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 9
+                        font.weight: Font.DemiBold
+                        font.letterSpacing: 0.6
+                        color: (tagMouse.containsMouse && LyricsService.synced && SettingsService.lyricsOffset !== 0)
+                            ? Theme.accentText : (LyricsService.synced ? Theme.accent : Theme.textMuted)
+                    }
+
+                    MouseArea {
+                        id: tagMouse
+                        anchors.fill: parent
+                        hoverEnabled: LyricsService.synced && SettingsService.lyricsOffset !== 0
+                        cursorShape: hoverEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: {
+                            if (LyricsService.synced)
+                                SettingsService.lyricsOffset = 0
+                        }
+                    }
+                }
+
+                // Plus button (shifts lyrics earlier / advances them by 100ms)
+                Rectangle {
+                    visible: LyricsService.synced
+                    implicitWidth: 18
+                    implicitHeight: 18
+                    radius: 9
+                    color: plusMouse.containsMouse ? Theme.islandSurfaceHover : "transparent"
+                    border.width: 1
+                    border.color: plusMouse.containsMouse ? Theme.islandBorder : "transparent"
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "+"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
+                        font.weight: Font.Bold
+                        color: plusMouse.containsMouse ? Theme.accent : Theme.textMuted
+                    }
+
+                    MouseArea {
+                        id: plusMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: SettingsService.lyricsOffset += 100
+                    }
                 }
             }
         }
 
-        // ── MIDDLE ──────────────────────────────────────────────────────────
+        // ── MIDDLE ────────────────────────────────────────────────────────
 
         Item {
             Layout.fillWidth: true
@@ -182,9 +261,9 @@ Card {
                 highlightRangeMode: LyricsService.synced ? ListView.StrictlyEnforceRange : ListView.NoHighlightRange
                 preferredHighlightBegin: lyrics.height / 2 - 14
                 preferredHighlightEnd: lyrics.height / 2 + 14
-                highlightMoveDuration: 420
+                highlightMoveDuration: 220
                 highlightMoveVelocity: -1
-                highlightResizeDuration: 200
+                highlightResizeDuration: 180
                 highlightResizeVelocity: -1
                 highlightFollowsCurrentItem: true
 
@@ -276,7 +355,7 @@ Card {
                 }
             }
 
-            // ── UP NEXT ─────────────────────────────────────────────────────
+            // ── UP NEXT ───────────────────────────────────────────────────
 
             ColumnLayout {
                 anchors.fill: parent
@@ -365,7 +444,7 @@ Card {
             }
         }
 
-        // ── PROGRESS AND CONTROLS ───────────────────────────────────────────
+        // ── PROGRESS AND CONTROLS ─────────────────────────────────────────
 
         // Click or drag to seek.
         Item {

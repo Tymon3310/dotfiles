@@ -358,6 +358,28 @@ PanelWindow {
         focus: bar.expanded
         Keys.onEscapePressed: bar.close()
 
+        // Click and wheel interaction for the top capsule
+        MouseArea {
+            id: islandCapsuleMouse
+            anchors.top: parent.top
+            anchors.topMargin: bar.barTopMargin
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: parent.width
+            height: bar.capsuleH
+            enabled: bar.below === ""
+            z: 10
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onClicked: mouse => {
+                if (mouse.button === Qt.RightButton)
+                    MediaService.toggle()
+                else
+                    bar.toggle("dashboard")
+            }
+            onWheel: event => MediaService.nudgeVolume(event.angleDelta.y > 0 ? 0.05 : -0.05)
+        }
+
         // Rest row content
         Item {
             id: restRowContainer
@@ -370,23 +392,6 @@ PanelWindow {
             opacity: (bar.below !== "" || bar.osdActive || bar.isDemorphed) ? 0 : 1
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
-
-            // One area for the whole row: a click opens the dashboard, a right
-            // click plays or pauses, the wheel sets Spotify's own volume.
-            MouseArea {
-                anchors.fill: parent
-                z: 1
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                onClicked: mouse => {
-                    if (mouse.button === Qt.RightButton)
-                        MediaService.toggle()
-                    else
-                        bar.toggle("dashboard")
-                }
-                onWheel: event => MediaService.nudgeVolume(event.angleDelta.y > 0 ? 0.05 : -0.05)
-            }
 
             Row {
                 id: restRow

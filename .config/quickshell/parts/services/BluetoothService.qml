@@ -89,11 +89,12 @@ Singleton {
         switch (device.icon) {
         case "audio-headset":
         case "audio-headphones": return "󰋋"
-        case "audio-card": return "󰓃"
+        case "audio-card": return "󱌃"
+        case "input-gaming": return "󰊴"
         case "input-mouse": return "󰍽"
         case "input-keyboard": return "󰌌"
         case "phone": return "󰄜"
-        case "computer": return "󰟀"
+        case "computer": return "󱿀"
         default: return "󰂯"
         }
     }
@@ -112,5 +113,9 @@ Singleton {
     function toggle(): void {
         if (root.available)
             root.adapter.enabled = !root.adapter.enabled
+    }
+
+    function openManager(): void {
+        Quickshell.execDetached(["blueman-manager"])
     }
 }

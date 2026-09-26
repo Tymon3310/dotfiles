@@ -40,7 +40,7 @@ Singleton {
         MediaService.releasePrecise()
     }
 
-    // ── TRACK ───────────────────────────────────────────────────────────────
+    // ── TRACK ─────────────────────────────────────────────────────────────
 
     readonly property string track: MediaService.available
         ? `${MediaService.artist}\n${MediaService.title}\n${Math.round(MediaService.length)}` : ""
@@ -96,11 +96,10 @@ Singleton {
         }
     }
 
-    // ── POSITION ────────────────────────────────────────────────────────────
+    // ── POSITION ──────────────────────────────────────────────────────────
 
-    // Milliseconds, nudged a little early so a line lights as it is sung,
-    // not after.
-    readonly property real now: MediaService.position * 1000 + 150
+    // Milliseconds with user offset from SettingsService (+ shifts earlier, - shifts later).
+    readonly property real now: MediaService.position * 1000 + SettingsService.lyricsOffset
 
     readonly property int index: {
         if (!root.synced)

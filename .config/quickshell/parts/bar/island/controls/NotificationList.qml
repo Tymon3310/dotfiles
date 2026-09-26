@@ -135,9 +135,17 @@ Card {
                 width: ListView.view.width - 8
                 height: row.implicitHeight + 16
                 radius: Theme.radiusSmall
-                color: entryHover.hovered ? Theme.islandSurfaceHover : "transparent"
+                color: (entryMouse.containsMouse || entryHover.hovered) ? Theme.islandSurfaceHover : "transparent"
 
                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+                MouseArea {
+                    id: entryMouse
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    hoverEnabled: true
+                    onClicked: NotificationService.activate(entry.modelData)
+                }
 
                 RowLayout {
                     id: row
@@ -183,6 +191,9 @@ Card {
                             font.pixelSize: Theme.fontSizeLabel
                             color: Theme.textMuted
                             linkColor: Theme.accent
+                            onLinkActivated: link => {
+                                Qt.openUrlExternally(link)
+                            }
                         }
 
                         Text {
@@ -204,15 +215,14 @@ Card {
 
                     IconButton {
                         Layout.alignment: Qt.AlignTop
-                        opacity: entryHover.hovered ? 1 : 0
+                        z: 2
+                        opacity: (entryMouse.containsMouse || entryHover.hovered) ? 1 : 0
                         icon: "󰅖"
                         iconSize: 11
                         onClicked: NotificationService.remove(entry.modelData)
                     }
                 }
 
-                // Hover only, so the close button keeps its own clicks. No
-                // click action: the server doesn't advertise actions.
                 HoverHandler {
                     id: entryHover
                 }

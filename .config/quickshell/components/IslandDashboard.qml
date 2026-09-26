@@ -34,7 +34,7 @@ GridLayout {
     rowSpacing: root.gap
     columnSpacing: root.gap
 
-    // ── FIRST ROW ───────────────────────────────────────────────────────────
+    // ── FIRST ROW ──────────────────────────────────────────────────────────
 
     CalendarCard {
         Layout.preferredWidth: root.leftWidth
@@ -63,7 +63,7 @@ GridLayout {
         }
     }
 
-    // ── SECOND ROW ──────────────────────────────────────────────────────────
+    // ── SECOND ROW ─────────────────────────────────────────────────────────
 
     Tile { moduleId: "volume"; Layout.preferredWidth: root.leftWidth }
     // Wired only: throughput and pings instead of the Wi-Fi detail.
@@ -73,7 +73,7 @@ GridLayout {
     }
     Tile { moduleId: "bluetooth"; Layout.preferredWidth: root.rightWidth }
 
-    // ── THIRD ROW ───────────────────────────────────────────────────────────
+    // ── THIRD ROW ──────────────────────────────────────────────────────────
 
     // Processor, memory, graphics and video memory, with temperatures.
     SystemCard {

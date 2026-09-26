@@ -1,16 +1,17 @@
-// ╭────────────────────────────────────────────────────────────────────────────╮
-// │                                                                            │
+// ╭──────────────────────────────────────────────────────────────────────────╮
+// │                                                                          │
 // │   N O T I F I C A T I O N   S E R V I C E                                │
 // │   the shell is the notification daemon                                   │
-// │                                                                            │
-// │   github.com/andreumassanet/impasto                                        │
-// │                                                                            │
-// ╰────────────────────────────────────────────────────────────────────────────╯
+// │                                                                          │
+// │   github.com/andreumassanet/impasto                                      │
+// │                                                                          │
+// ╰──────────────────────────────────────────────────────────────────────────╯
 
 pragma Singleton
 
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Services.Notifications
 
 // Owns org.freedesktop.Notifications. If another daemon holds the name, the
@@ -57,7 +58,7 @@ Singleton {
     // True while the pointer is over the stack: nothing times out under it.
     property bool held: false
 
-    // ── PICTURE AND ICON ───────────────────────────────────────────────
+    // ── PICTURE AND ICON ───────────────────────────────────────────────────
     //
     // Quickshell folds `notify-send -i NAME` into `image` as
     // "image://icon/NAME", so an icon name and a real picture (an avatar, a
@@ -151,6 +152,7 @@ Singleton {
             body: notification.body ?? "",
             appName: notification.appName ?? "",
             appIcon: notification.appIcon ?? "",
+            desktopEntry: notification.desktopEntry ?? "",
             image: notification.image ?? "",
             urgency: notification.urgency,
             expireTimeout: notification.expireTimeout,
@@ -206,7 +208,7 @@ Singleton {
             for (const entry of root.shown) {
                 const deadline = root.deadlines[entry.key]
                 if (deadline !== undefined && deadline <= now)
-                    root.dismissKey(entry.key)
+                    root.hideKey(entry.key)
             }
         }
     }
@@ -234,7 +236,18 @@ Singleton {
 
     function present(object: var): void {
         const notification = root.snapshot(object)
+        const oldHistory = root.history
         root.history = [notification].concat(root.history).slice(0, root.historyLimit)
+
+        // Drop oldest entries beyond limit from liveObjects
+        if (oldHistory.length >= root.historyLimit) {
+            const dropped = oldHistory.slice(root.historyLimit - 1)
+            for (const item of dropped) {
+                if (!root.shown.some(e => e.key === item.key) && !root.waiting.some(e => e.key === item.key)) {
+                    root.dismissKey(item.key)
+                }
+            }
+        }
 
         // Critical notifications ignore do-not-disturb. One that never reaches
         // the island is expired at once, so a sender waiting on it
@@ -302,8 +315,21 @@ Singleton {
         }
     }
 
-    // Timed out or hidden: the application is told it expired, which also
-    // releases a sender waiting on it (`notify-send --wait`).
+    // Timed out on the island: slides off the screen, but remains alive in history.
+    function hideKey(key: int): void {
+        root.shown = root.shown.filter(entry => entry.key !== key)
+        const deadlines = Object.assign({}, root.deadlines)
+        delete deadlines[key]
+        root.deadlines = deadlines
+
+        while (root.shown.length < root.maxShown && root.waiting.length > 0) {
+            const next = root.waiting[0]
+            root.waiting = root.waiting.slice(1)
+            root.show(next)
+        }
+    }
+
+    // Explicitly dismissed or removed: the application is told it expired.
     function dismissKey(key: int): void {
         const object = root.liveObjects[key]
         root.forget(key)
@@ -311,8 +337,7 @@ Singleton {
             object.expire()
     }
 
-    // The user closed it (its cross): the application is told it was
-    // dismissed.
+    // The user closed it (its cross): the application is told it was dismissed.
     function closeKey(key: int): void {
         const object = root.liveObjects[key]
         root.forget(key)
@@ -320,9 +345,7 @@ Singleton {
             object.dismiss()
     }
 
-    // Runs one of its actions ("default" for a click on it). Let go of
-    // without expiring it first: an expired notification's actions no longer
-    // reach the application.
+    // Runs one of its actions ("default" for a click on it).
     function invokeKey(key: int, identifier: string): void {
         const object = root.liveObjects[key]
         root.forget(key)
@@ -331,6 +354,68 @@ Singleton {
         const action = (object.actions ?? []).find(a => a.identifier === identifier)
         if (action)
             action.invoke()
+    }
+
+    // User clicked the notification (in popup or in dashboard history):
+    // 1. Invokes the notification's action (default/first).
+    // 2. Focuses the app's window in Hyprland or launches it.
+    // 3. Opens URLs if present.
+    // Keeps notification in history; only dismisses banner if currently on island.
+    function activate(notification: var): void {
+        if (!notification)
+            return
+
+        const key = notification.key
+        const object = root.liveObjects[key]
+        let invoked = false
+
+        if (object) {
+            const actions = object.actions ?? []
+            const defaultAction = actions.find(a => a.identifier === "default")
+                ?? (actions.length > 0 ? actions[0] : null)
+            if (defaultAction && typeof defaultAction.invoke === "function") {
+                try {
+                    defaultAction.invoke()
+                    invoked = true
+                } catch (e) {
+                    console.warn("[NotificationService] Error invoking action:", e)
+                }
+            }
+        }
+
+        const appName = notification.appName ?? ""
+        const desktopEntry = notification.desktopEntry ?? ""
+
+        const text = `${notification.summary ?? ""} ${notification.body ?? ""}`
+        const urlMatch = text.match(/https?:\/\/[^\s<>"']+/)
+
+        if (urlMatch) {
+            Qt.openUrlExternally(urlMatch[0])
+        } else {
+            root.focusOrLaunchApp(appName, desktopEntry, invoked)
+        }
+
+        // Hide it from the banner if currently shown on the island, but keep it in history!
+        root.hideKey(key)
+    }
+
+    function focusOrLaunchApp(appName: string, desktopEntry: string, alreadyInvoked: bool): void {
+        const id = desktopEntry || appName
+        if (id) {
+            Hyprland.dispatch(`hl.dsp.focus({ window = "class:${id.toLowerCase()}" })`)
+        }
+
+        if (!alreadyInvoked) {
+            const entry = (desktopEntry ? DesktopEntries.byId(desktopEntry) : null)
+                ?? DesktopEntries.heuristicLookup(appName)
+            if (entry && typeof entry.execute === "function") {
+                try {
+                    entry.execute()
+                } catch (e) {
+                    console.warn("[NotificationService] Error executing desktop entry:", e)
+                }
+            }
+        }
     }
 
     // Everything off the island and out of the queue.
@@ -351,6 +436,11 @@ Singleton {
     }
 
     function clearHistory(): void {
+        for (const entry of root.history) {
+            if (!root.shown.some(e => e.key === entry.key) && !root.waiting.some(e => e.key === entry.key)) {
+                root.dismissKey(entry.key)
+            }
+        }
         root.history = []
     }
 

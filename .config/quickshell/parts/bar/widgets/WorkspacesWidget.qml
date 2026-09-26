@@ -1,11 +1,11 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
+// ╭────────────────────────────────────────────────────────────────────────────╮
+// │                                                                            │
 // │   W O R K S P A C E S   W I D G E T                                      │
 // │   dots that stretch into a pill for the one you are on                   │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// │                                                                            │
+// │   github.com/andreumassanet/impasto                                        │
+// │                                                                            │
+// ╰────────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 import QtQuick.Layouts
@@ -43,18 +43,32 @@ Rectangle {
 
     // ── SWITCH FLASH ────────────────────────────────────────────────────────
     //
-    // On a switch the pill grows tall enough to carry the workspace's number
-    // (its place in this monitor's block), then shrinks back and the number
-    // is destroyed. Not on the first reading, so a reload does not flash.
+    // On a switch or when the monitor regains focus, the pill grows tall
+    // enough to carry the workspace's number (its place in this monitor's block),
+    // then shrinks back and the number is destroyed.
+    // Not on the first reading, so a reload does not flash.
     readonly property int flashHeight: 15
     property bool flashing: false
     property bool settled: false
 
-    onActiveIdChanged: {
+    function triggerFlash(): void {
         if (!root.settled)
             return
         root.flashing = true
         flashTimer.restart()
+    }
+
+    onActiveIdChanged: root.triggerFlash()
+
+    onMonitorFocusedChanged: {
+        if (!root.settled)
+            return
+        if (root.monitorFocused) {
+            root.triggerFlash()
+        } else {
+            root.flashing = false
+            flashTimer.stop()
+        }
     }
 
     Component.onCompleted: settleTimer.start()
@@ -70,6 +84,7 @@ Rectangle {
         interval: 1400
         onTriggered: root.flashing = false
     }
+
     readonly property int base: root.monitor !== ""
         ? Math.floor(Math.max(0, root.activeId - 1) / root.perMonitor) * root.perMonitor
         : 0
@@ -182,7 +197,11 @@ Rectangle {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: HyprlandService.focus(slot.workspaceId)
+                    onClicked: {
+                        HyprlandService.focus(slot.workspaceId)
+                        if (slot.focused)
+                            root.triggerFlash()
+                    }
                 }
             }
         }

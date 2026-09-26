@@ -60,13 +60,13 @@ Item {
         root.pictureWidth + 11 + summary.implicitWidth + 6 + app.implicitWidth + 11 + 24))
     readonly property real wantHeight: Math.max(root.pictureHeight + 6, content.implicitHeight)
 
-    // Behind the row: the click that runs the default action. The pills and
-    // the cross sit above it and take their own clicks.
+    // Behind the row: the click that runs the default action or opens the app.
+    // The pills and the cross sit above it and take their own clicks.
     MouseArea {
         anchors.fill: parent
-        enabled: root.hasDefault
-        cursorShape: root.hasDefault ? Qt.PointingHandCursor : Qt.ArrowCursor
-        onClicked: NotificationService.invokeKey(root.key, "default")
+        enabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: NotificationService.activate(root.notification)
     }
 
     RowLayout {
@@ -133,6 +133,11 @@ Item {
                 font.family: Theme.fontFamily
                 font.pixelSize: 10
                 color: Theme.textMuted
+                linkColor: Theme.accent
+                onLinkActivated: link => {
+                    Qt.openUrlExternally(link)
+                    NotificationService.remove(root.notification)
+                }
             }
 
             // The actions, as pills.

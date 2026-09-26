@@ -21,19 +21,19 @@ Singleton {
     readonly property string stateDirectory:
         `${Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state"}/quickshell`
 
-    // ── BAR ─────────────────────────────────────────────────────────────
+    // ── BAR ───────────────────────────────────────────────────────────────
 
     // Matches the dotfiles bar (30 px, attached to the top edge).
     property int barHeight: 30
     property int barMargin: 0
 
-    // ── CLOCK ───────────────────────────────────────────────────────────
+    // ── CLOCK ─────────────────────────────────────────────────────────────
 
     property string clockFormat: "HH:mm"
     property bool clockShowsDate: false
     property bool clockShowsSeconds: false
 
-    // ── WORKSPACES ──────────────────────────────────────────────────────
+    // ── WORKSPACES ────────────────────────────────────────────────────────
 
     // Dots always shown; the ones past it appear while occupied.
     property int workspaceCount: 5
@@ -43,22 +43,22 @@ Singleton {
     // 21–40 on the second. The bar on each screen shows its own block.
     property int workspacesPerMonitor: 20
 
-    // ── NOTIFICATIONS ───────────────────────────────────────────────────
+    // ── NOTIFICATIONS ─────────────────────────────────────────────────────
 
     property bool doNotDisturb: false
     property int notificationTimeout: 5000
 
-    // ── WEATHER ─────────────────────────────────────────────────────────
+    // ── WEATHER ───────────────────────────────────────────────────────────
 
     // Empty: wttr.in guesses from the IP address.
     property string weatherPlace: ""
 
-    // ── CHIPS ───────────────────────────────────────────────────────────
+    // ── CHIPS ─────────────────────────────────────────────────────────────
 
     // "icon" (glyph and figure) or "ring" (the module's gauge); see ChipFace.
     property string chipShape: "icon"
 
-    // ── LOOK ────────────────────────────────────────────────────────────
+    // ── LOOK ──────────────────────────────────────────────────────────────
 
     property string fontFamily: "Google Sans"
     property string fontMono: "Google Sans Code NF"
@@ -69,12 +69,17 @@ Singleton {
     property bool notesHandwriting: false
     property int dockIconSize: 44
 
-    // ── LOCK SCREEN ─────────────────────────────────────────────────────
+    // ── LOCK SCREEN ───────────────────────────────────────────────────────
 
     property string lockClock: "inline" // "inline" or "stacked"
     property real lockBlur: 48.0
     property string userName: ""
     property string userAvatar: ""
+
+    // ── LYRICS ────────────────────────────────────────────────────────────
+
+    // Global lyrics offset in milliseconds (+ shifts lyrics earlier, - shifts lyrics later).
+    property int lyricsOffset: 0
 
     function set(key: string, value: var): void {
         if (key in root)
