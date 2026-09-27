@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Widgets
 
 import "../theme"
 import "../services"
@@ -16,7 +17,8 @@ Item {
     readonly property int barTopMargin: 4
     readonly property int notchHeight: root.capsuleH + root.barTopMargin
 
-    // Locked notch is compact (72px, holding padlock)
+    // The locked notch stays compact; media appears only as the lock surface
+    // gives way to the desktop island.
     readonly property int lockedWidth: 72
     // Unlocked notch matches IslandBar rest width
     readonly property int unlockedWidth: restRow.implicitWidth > 0 ? (restRow.implicitWidth + 28) : 260
@@ -105,11 +107,12 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             width: restRow.implicitWidth
             height: root.capsuleH
-            opacity: 1 - root.held
-            visible: opacity > 0
+            // Keep the lock island padlock-only. The desktop island is already
+            // underneath during unlock, so revealing this duplicate row made
+            // the two players overlap at the handoff.
+            opacity: 0
+            visible: false
             clip: true
-
-            Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
             Row {
                 id: restRow
@@ -122,11 +125,10 @@ Item {
                     height: 20
                     anchors.verticalCenter: parent.verticalCenter
 
-                    Rectangle {
+                    ClippingRectangle {
                         anchors.fill: parent
-                        radius: 4
+                        radius: 5
                         color: Theme.islandSurfaceHover
-                        clip: true
 
                         Image {
                             anchors.fill: parent
@@ -134,6 +136,8 @@ Item {
                             visible: source !== "" && status === Image.Ready
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
+                            sourceSize.width: 40
+                            sourceSize.height: 40
                         }
 
                         Text {
@@ -151,7 +155,7 @@ Item {
                 Item {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: MediaService.available && (MediaService.title !== "")
-                    width: visible ? Math.min(280, songText.implicitWidth) : 0
+                    width: visible ? Math.min(280, songMetrics.width) : 0
                     height: root.capsuleH
                     clip: true
 
@@ -167,6 +171,12 @@ Item {
                         font.weight: Font.Medium
                         color: Theme.text
                         elide: Text.ElideRight
+                    }
+
+                    TextMetrics {
+                        id: songMetrics
+                        font: songText.font
+                        text: songText.text
                     }
                 }
 
@@ -256,5 +266,6 @@ Item {
                 }
             }
         }
+
     }
 }

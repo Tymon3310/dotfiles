@@ -27,7 +27,8 @@ Singleton {
 
     readonly property var players: Mpris.players.values.filter(player =>
         !player.dbusName.includes("playerctld")
-        && `${player.dbusName} ${player.identity} ${player.desktopEntry}`.toLowerCase().includes("spotify"))
+        && (`${player.dbusName} ${player.identity} ${player.desktopEntry}`.toLowerCase().includes("spotify")
+            || player.dbusName.toLowerCase().includes("mpv")))
 
     readonly property MprisPlayer active: {
         const playing = root.players.find(player => player.isPlaying)
@@ -199,15 +200,18 @@ Singleton {
         if (root.available && root.active.volume !== undefined) {
             root.active.volume = level
         }
-        Quickshell.execDetached(["playerctl", "-p", "spotify", "volume", level.toFixed(2)])
+        if (root.available && root.active.dbusName) {
+            Quickshell.execDetached(["playerctl", "-p", root.active.dbusName, "volume", level.toFixed(2)])
+        }
 
         root.volumeShown = true
         root.volumeFlash.restart()
 
         const icon = (level <= 0 || root.muted) ? "󰝟" : (level < 0.33 ? "󰕿" : (level < 0.66 ? "󰖀" : "󰕾"))
+        const playerName = root.active ? (root.active.identity || "Media") : "Media"
         OsdService.requested(
             icon,
-            `Spotify ${Math.round(level * 100)}%`,
+            `${playerName} ${Math.round(level * 100)}%`,
             level
         )
     }

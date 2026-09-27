@@ -16,7 +16,7 @@ import "../../../components"
 
 // Built from SessionService's list, so an action is a row of data.
 // Actions that end the session arm on the first click (red, labelled) and run
-// on the second. Lock and suspend run at once. Shift-clicking restart boots to UEFI.
+// on the second. Lock runs at once. Shift-clicking restart boots to UEFI.
 RowLayout {
     id: root
 

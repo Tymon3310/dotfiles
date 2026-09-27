@@ -30,6 +30,7 @@ QtObject {
 
     readonly property color green: "#30d158"
     readonly property color red: "#ff453a"
+    readonly property color danger: red
     readonly property color indicator: "#ffffff"
     readonly property color indicatorWarn: "#ffd60a"
     readonly property color indicatorBad: "#ff453a"

@@ -25,7 +25,13 @@ Item {
         Image {
             id: picture
             anchors.fill: parent
-            source: root.source !== "" ? `file://${root.source}` : ""
+            source: {
+                if (!root.source || root.source === "")
+                    return ""
+                if (root.source.startsWith("file://") || root.source.startsWith("http://") || root.source.startsWith("https://") || root.source.startsWith("image://"))
+                    return root.source
+                return `file://${root.source}`
+            }
             visible: root.source !== "" && status === Image.Ready
             fillMode: Image.PreserveAspectCrop
             asynchronous: true

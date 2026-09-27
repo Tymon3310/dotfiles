@@ -8,7 +8,8 @@ import urllib.parse
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-CONFIG_DIR = "/home/tymon/dotfiles/.config/quickshell"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_DIR = os.path.dirname(SCRIPT_DIR)
 CONFIG_PATH = os.path.join(CONFIG_DIR, "spotify_config.json")
 TOKENS_PATH = os.path.join(CONFIG_DIR, "spotify_tokens.json")
 KEY_PATH = os.path.join(CONFIG_DIR, "key.pem")
@@ -99,7 +100,11 @@ def main():
             
         with open(CONFIG_PATH, "w") as f:
             json.dump({"client_id": client_id, "client_secret": client_secret}, f, indent=4)
-            print(f"Credentials saved to: {CONFIG_PATH}")
+        try:
+            os.chmod(CONFIG_PATH, 0o600)
+        except Exception:
+            pass
+        print(f"Credentials saved to: {CONFIG_PATH}")
 
     # Set up auth parameters
     redirect_uri = "https://127.0.0.1:8888/callback"
@@ -174,6 +179,10 @@ def main():
         # Save tokens
         with open(TOKENS_PATH, "w") as f:
             json.dump(tokens, f, indent=4)
+        try:
+            os.chmod(TOKENS_PATH, 0o600)
+        except Exception:
+            pass
         print(f"Tokens saved successfully to: {TOKENS_PATH}")
         print("Authorization complete!")
 

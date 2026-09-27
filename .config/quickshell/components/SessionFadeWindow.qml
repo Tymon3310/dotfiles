@@ -40,6 +40,8 @@ PanelWindow {
         cursorShape: Qt.BlankCursor
         acceptedButtons: Qt.AllButtons
         onPressed: (mouse) => mouse.accepted = true
+        focus: root.visible
+        Keys.onEscapePressed: SessionService.cancel()
     }
 
     // ── 1. BASE FADE (Catches display corners at the end of the wave) ───────

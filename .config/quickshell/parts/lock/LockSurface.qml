@@ -29,6 +29,49 @@ Item {
 
     property real held: LockService.leaving ? 0 : 1
 
+    // On entry, spread the frozen/blurred desktop out from the top island.
+    // The source screenshot is already locked and immutable underneath it.
+    property real lockReveal: 0
+    property real clockReveal: 0
+    ParallelAnimation {
+        id: lockEntry
+        running: false
+
+        NumberAnimation {
+            target: root
+            property: "lockReveal"
+            from: 0
+            to: 1
+            duration: 680
+            easing.type: Easing.OutCubic
+        }
+
+        SequentialAnimation {
+            PauseAnimation { duration: 150 }
+            NumberAnimation {
+                target: root
+                property: "clockReveal"
+                from: 0
+                to: 1
+                duration: 440
+                easing.type: Easing.OutBack
+            }
+        }
+    }
+
+    Component.onCompleted: lockEntry.start()
+
+    Connections {
+        target: LockService
+        function onLockedChanged(): void {
+            if (!LockService.locked)
+                return
+            root.lockReveal = 0
+            root.clockReveal = 0
+            lockEntry.restart()
+        }
+    }
+
     Behavior on held {
         NumberAnimation { duration: Theme.durationMorph; easing.type: Easing.InOutCubic }
     }
@@ -64,6 +107,7 @@ Item {
     TapHandler {
         onTapped: {
             LockService.setActiveScreen(root.screenName)
+            LockService.rouse()
             if (root.isActive)
                 account.claim()
         }
@@ -80,20 +124,23 @@ Item {
         id: shot
         anchors.fill: parent
         source: LockService.shotSourceFor(root.screenName)
-        visible: false
+        visible: true
         fillMode: Image.PreserveAspectCrop
         asynchronous: false
         cache: false
     }
 
+    // Frost the whole frozen screenshot in place. Crossfading the full-frame
+    // effect avoids the clipped, expanding screenshot look while preserving
+    // the lock-entry reveal timing for the clock.
     MultiEffect {
         anchors.fill: parent
         source: shot
         visible: shot.status === Image.Ready
+        opacity: root.lockReveal
         blurEnabled: true
         blur: root.held
         blurMax: SettingsService.lockBlur
-        // Gentle luminance correction for DP-1 HDR 10-bit buffer without washing out contrast
         brightness: (root.screenName === "DP-1" ? 0.05 : -0.02) * root.held
         contrast: (root.screenName === "DP-1" ? 0.08 : 0.0) * root.held
         saturation: 0.0
@@ -104,6 +151,19 @@ Item {
         anchors.fill: parent
         color: Theme.scrim
         opacity: 0.16 * root.held
+    }
+
+    // A soft lower vignette keeps the password capsule readable without
+    // flattening the captured wallpaper behind the clock.
+    Rectangle {
+        anchors.fill: parent
+        opacity: root.held
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: "#00000000" }
+            GradientStop { position: 0.48; color: "#08000000" }
+            GradientStop { position: 0.76; color: "#34000000" }
+            GradientStop { position: 1.0; color: "#96000000" }
+        }
     }
 
     // ── TOP NOTCH ISLAND ─────────────────────────────────────────────────────
@@ -126,8 +186,9 @@ Item {
         y: clockContainer.restY + (clockContainer.awakeY - clockContainer.restY) * root.awake
         width: clock.width
         height: clock.height
-        opacity: root.held
-        scale: root.isActive ? (1 - 0.08 * root.awake) : 1
+        opacity: root.held * root.clockReveal
+        scale: (root.isActive ? (1 - 0.08 * root.awake) : 1)
+            * (0.92 + 0.08 * root.clockReveal)
         transformOrigin: Item.Top
 
         Behavior on y { NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing } }
@@ -158,9 +219,12 @@ Item {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Math.round(root.height * 0.20) - 24 * (1 - root.awake)
         opacity: (root.isActive ? 1 : 0) * root.awake * root.held
+        scale: 0.97 + 0.03 * root.awake
+        transformOrigin: Item.Center
 
         Behavior on anchors.bottomMargin { NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing } }
         Behavior on opacity { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
+        Behavior on scale { NumberAnimation { duration: Theme.durationMedium; easing.type: Easing.OutCubic } }
 
         onSubmitted: password => root.submitted(password)
     }

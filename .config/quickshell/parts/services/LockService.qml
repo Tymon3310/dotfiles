@@ -46,7 +46,7 @@ Singleton {
         root.sleep.stop()
     }
 
-    property string activeScreen: "DP-1"
+    property string activeScreen: (Quickshell.screens.length > 0 && Quickshell.screens[0]) ? Quickshell.screens[0].name : "DP-1"
     function setActiveScreen(name: string): void {
         if (name && name.length > 0)
             root.activeScreen = name
@@ -77,7 +77,7 @@ Singleton {
     property bool biopassVerified: false
     property bool biopassFailed: false
 
-    readonly property string currentUser: Quickshell.env("USER") || "tymon"
+    readonly property string currentUser: Quickshell.env("USER") || Quickshell.env("LOGNAME") || ""
 
     readonly property Process biopassProbe: Process {
         command: ["which", "biopass-helper"]
@@ -136,9 +136,12 @@ Singleton {
         onTriggered: root.capture.running = true
     }
 
+    property bool preparingLock: false
+
     function lock(): void {
-        if (root.locked || root.settleCaptureTimer.running)
+        if (root.locked || root.settleCaptureTimer.running || root.preparingLock)
             return
+        root.preparingLock = true
         root.prepareLock()
         settleCaptureTimer.restart()
     }
@@ -146,11 +149,12 @@ Singleton {
     // Capture each monitor independently in parallel for crisp per-output resolution
     readonly property Process capture: Process {
         command: ["sh", "-c",
-            `mkdir -p '${root.shotDirectory}' && timeout 2 grim -t jpeg -q 85 '${root.shotDirectory}/lock.jpg' & for s in $(hyprctl monitors -j 2>/dev/null | jq -r '.[].name' 2>/dev/null); do timeout 2 grim -o "$s" -t jpeg -q 85 '${root.shotDirectory}/lock-'$s'.jpg' & done; wait`]
+            `mkdir -p '${root.shotDirectory}' && timeout 2 grim -t jpeg -q 85 '${root.shotDirectory}/lock.jpg' & for s in $(hyprctl monitors -j 2>/dev/null | jq -r '.[].name' 2>/dev/null); do timeout 2 grim -o "$s" -t jpeg -q 85 '${root.shotDirectory}/lock-'$s'.jpg' & done; wait; test -f '${root.shotDirectory}/lock.jpg'`]
 
         onExited: (code, status) => {
             root.shotSerial += 1
-            root.shotReady = code === 0
+            root.shotReady = (code === 0)
+            root.preparingLock = false
             root.locked = true
             root.begin()
             root.triggerBiopass()
@@ -252,7 +256,9 @@ Singleton {
     }
 
     readonly property Timer leave: Timer {
-        interval: Theme.durationMorph
+        // Keep the session-lock surface alive for the morph and a couple of
+        // compositor frames, without a visible pause after the animation.
+        interval: Theme.durationMorph + 40
         onTriggered: {
             if (root.pam.active)
                 root.pam.abort()

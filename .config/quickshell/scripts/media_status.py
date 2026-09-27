@@ -13,7 +13,10 @@ import socket
 gi.require_version('Playerctl', '2.0')
 from gi.repository import Playerctl, GLib
 
-CONFIG_DIR = "/home/tymon/dotfiles/.config/quickshell"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_DIR = os.path.dirname(SCRIPT_DIR)
+ICONS_DIR = os.path.join(os.path.dirname(os.path.dirname(CONFIG_DIR)), "icons")
+ESKA_ICON = f"file://{os.path.join(ICONS_DIR, 'eska.png')}" if os.path.exists(os.path.join(ICONS_DIR, 'eska.png')) else f"file://{os.path.expanduser('~/dotfiles/icons/eska.png')}"
 CONFIG_PATH = os.path.join(CONFIG_DIR, "spotify_config.json")
 TOKENS_PATH = os.path.join(CONFIG_DIR, "spotify_tokens.json")
 
@@ -297,6 +300,10 @@ class SpotifyApiWorker:
                             "expires_in": expires_in,
                             "created_at": int(time.time())
                         }, f, indent=4)
+                    try:
+                        os.chmod(TOKENS_PATH, 0o600)
+                    except Exception:
+                        pass
                 except Exception as e:
                     sys.stderr.write(f"Error saving refreshed tokens: {e}\n")
             else:
@@ -519,7 +526,7 @@ class MediaListener:
                 "title": radio_status["title"],
                 "artist": radio_status["artist"],
                 "album": "Radio Eska",
-                "artUrl": "file:///home/tymon/dotfiles/icons/eska.png",
+                "artUrl": ESKA_ICON,
                 "position": pos,
                 "length": length,
                 "status": radio_status["status"],
@@ -622,13 +629,16 @@ class MediaListener:
             }), flush=True)
  
     def tick(self):
-        source = get_active_source()
-        if source == "radio":
-            if is_mpv_running():
-                self.send_update()
-        else:
-            if self.player and self.player.props.playback_status == Playerctl.PlaybackStatus.PLAYING:
-                self.send_update()
+        try:
+            source = get_active_source()
+            if source == "radio":
+                if is_mpv_running():
+                    self.send_update()
+            else:
+                if self.player and self.player.props.playback_status == Playerctl.PlaybackStatus.PLAYING:
+                    self.send_update()
+        except Exception as e:
+            sys.stderr.write(f"MediaListener tick error: {e}\n")
         return True
  
 if __name__ == '__main__':

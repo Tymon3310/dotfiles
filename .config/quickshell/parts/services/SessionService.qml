@@ -1,7 +1,7 @@
 // ╭──────────────────────────────────────────────────────────────────────────╮
 // │                                                                          │
 // │   S E S S I O N   S E R V I C E                                          │
-// │   lock, suspend, log out, reboot, shut down                              │
+// │   lock, log out, reboot, shut down                                       │
 // │                                                                          │
 // │   github.com/andreumassanet/impasto                                      │
 // │                                                                          │
@@ -20,7 +20,6 @@ Singleton {
 
     readonly property var actions: [
         { id: "lock",     icon: "󰌾", label: "Lock",      destructive: false },
-        { id: "suspend",  icon: "󰤄", label: "Suspend",   destructive: false },
         { id: "logout",   icon: "󰗽", label: "Log out",   destructive: true },
         { id: "reboot",   icon: "󰜉", label: "Restart",   destructive: true },
         { id: "shutdown", icon: "󰐥", label: "Shut down", destructive: true }
@@ -38,48 +37,29 @@ Singleton {
         }
     }
 
-    // Suspend waits for the compositor to confirm the lock covers the screen,
-    // so the machine never wakes showing the desktop. Asking hypridle's
-    // before_sleep hook to lock instead races the suspend: the lock first
-    // retracts the island and takes a screenshot. No confirmation within
-    // eight seconds means no suspend.
-    property bool suspendWhenLocked: false
-
-    readonly property Timer suspendGiveUp: Timer {
-        interval: 8000
+    // Safety watchdog: if polkit denies or action fails, restore screen after 5 seconds
+    readonly property Timer fadeSafetyTimer: Timer {
+        interval: 5000
+        repeat: false
         onTriggered: {
-            if (!root.suspendWhenLocked)
-                return
-            root.suspendWhenLocked = false
-            console.warn("The session did not lock; not suspending.")
+            if (root.fadingOut) {
+                console.warn("Session action timed out or failed; restoring screen.")
+                root.fadingOut = false
+                root.pendingAction = ""
+            }
         }
     }
 
-    readonly property Connections lockWatch: Connections {
-        target: LockService
-
-        function onSecureChanged(): void {
-            if (!LockService.secure || !root.suspendWhenLocked)
-                return
-            root.suspendWhenLocked = false
-            root.suspendGiveUp.stop()
-            root.exec(["systemctl", "suspend"])
-        }
+    function cancel(): void {
+        root.commitActionTimer.stop()
+        root.fadeSafetyTimer.stop()
+        root.pendingAction = ""
+        root.fadingOut = false
     }
 
     function run(actionId: string): void {
         switch (actionId) {
         case "lock":
-            LockService.lock()
-            break
-        case "suspend":
-            // Already covered (locked by hand or by idle): straight to sleep.
-            if (LockService.secure) {
-                root.exec(["systemctl", "suspend"])
-                break
-            }
-            root.suspendWhenLocked = true
-            root.suspendGiveUp.restart()
             LockService.lock()
             break
         case "logout":
@@ -89,6 +69,7 @@ Singleton {
             root.pendingAction = actionId
             root.fadingOut = true
             root.commitActionTimer.restart()
+            root.fadeSafetyTimer.restart()
             break
         default:
             console.warn("Unknown session action:", actionId)

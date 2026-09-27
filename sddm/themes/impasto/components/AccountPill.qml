@@ -32,6 +32,7 @@ Item {
     signal submitted(string password)
     signal faceRetryRequested()
     signal userChosen(int index)
+    signal dismissed()
 
     function claim(): void {
         field.forceActiveFocus()
@@ -57,25 +58,54 @@ Item {
             required property string realName
             required property url icon
         }
-        onObjectAdded: (index, object) => {
-            if (object && (object.name === "tymon" || object.name === "Tymon3310")) {
-                root.currentIndex = index
+    }
+
+    readonly property bool many: rows.count > 1
+
+    function selectDefaultUser(): void {
+        if (rows.count === 0)
+            return
+        const lastUser = root.users && root.users.lastUser ? root.users.lastUser : ""
+        if (lastUser !== "") {
+            for (let i = 0; i < rows.count; i++) {
+                if (rows.objectAt(i).name === lastUser) {
+                    root.currentIndex = i
+                    return
+                }
+            }
+        }
+        // SDDM can report lastIndex=0 even when lastUser is empty. Prefer an
+        // actual named account over service/build accounts in that case.
+        for (let i = 0; i < rows.count; i++) {
+            const row = rows.objectAt(i)
+            if (row.realName && row.realName !== "") {
+                root.currentIndex = i
+                return
             }
         }
     }
 
-    readonly property bool many: rows.count > 1
+    Component.onCompleted: Qt.callLater(root.selectDefaultUser)
+
+    Connections {
+        target: root.users
+        ignoreUnknownSignals: true
+        function onCountChanged(): void { Qt.callLater(root.selectDefaultUser) }
+    }
 
     readonly property var current: rows.count > 0
         ? rows.objectAt(Math.max(0, Math.min(root.currentIndex, rows.count - 1)))
         : null
 
-    readonly property string userName: root.current !== null ? root.current.name : ""
+    readonly property string userName: (root.current !== null && root.current.name)
+        ? root.current.name
+        : (root.users && root.users.lastUser ? root.users.lastUser : "")
     readonly property string displayName: {
-        if (root.current === null)
-            return ""
-        const real = root.current.realName
-        return (real !== undefined && real !== "") ? real : root.current.name
+        if (root.current !== null) {
+            const real = root.current.realName
+            return (real !== undefined && real !== "") ? real : root.current.name
+        }
+        return (root.users && root.users.lastUser) ? root.users.lastUser : root.userName
     }
     readonly property string userIcon: root.current !== null ? String(root.current.icon) : ""
 
@@ -91,7 +121,6 @@ Item {
     readonly property bool typing: root.awake
         || field.text !== ""
         || field.activeFocus
-        || (root.authenticating && !root.faceScanning)
         || root.failed
 
     readonly property int pillHeight: 56
@@ -227,14 +256,17 @@ Item {
                 }
             }
 
-            // Click avatar to trigger face unlock
+            // Click avatar: if multiple users, toggles user picker. Otherwise retries face unlock!
             MouseArea {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    root.userPickerExpanded = false
-                    root.faceRetryRequested()
+                    if (root.many) {
+                        root.userPickerExpanded = !root.userPickerExpanded
+                    } else {
+                        root.faceRetryRequested()
+                    }
                 }
             }
         }
@@ -370,20 +402,20 @@ Item {
             }
 
             onAccepted: {
-                if (field.text === "")
+                if (field.text === "" || root.authenticating)
                     return
                 root.submitted(field.text)
             }
 
             onTextChanged: {
-                if (root.failed && field.text !== "")
-                    root.failed = false
+                if (field.text !== "")
+                    root.dismissed()
             }
 
             Keys.onEscapePressed: {
                 field.clear()
-                field.focus = false
                 root.userPickerExpanded = false
+                root.forceActiveFocus()
             }
         }
 

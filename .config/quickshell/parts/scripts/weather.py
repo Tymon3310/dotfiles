@@ -23,6 +23,7 @@ import json
 import subprocess
 import sys
 import urllib.parse
+from datetime import datetime
 
 ENDPOINT = "https://wttr.in/{place}?format=j1"
 TIMEOUT = 12
@@ -78,7 +79,7 @@ def report(place):
     today = data["weather"][0]
 
     code = int(current["weatherCode"])
-    daytime = current["observation_time"] and True
+    daytime = 6 <= datetime.now().hour < 21
     # wttr.in reports observation time in UTC and `isdaytime` only per hour, so
     # the day/night split comes from the hour blocks the day is made of.
     hours = today["hourly"]

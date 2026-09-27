@@ -24,12 +24,24 @@ Rectangle {
     Image {
         id: bgImage
         anchors.fill: parent
-        source: "background.png"
+        source: "background.jpg"
         fillMode: Image.PreserveAspectCrop
         asynchronous: false
         cache: true
         smooth: true
         mipmap: false
+    }
+
+    // Let the wallpaper stay vivid while gently protecting the clock and
+    // controls from bright or busy areas of the image.
+    Rectangle {
+        anchors.fill: parent
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: "#08000000" }
+            GradientStop { position: 0.42; color: "#10000000" }
+            GradientStop { position: 0.72; color: "#38000000" }
+            GradientStop { position: 1.0; color: "#a8000000" }
+        }
     }
 
     // ── TOP NOTCH ISLAND ────────────────────────────────────────────────────
@@ -47,6 +59,7 @@ Rectangle {
 
     // ── AWAKE & AUTHENTICATION STATE ────────────────────────────────────────
 
+    readonly property bool isPrimary: (typeof primaryScreen !== "undefined" ? primaryScreen : true)
     property bool awake: false
 
     property bool authenticating: false
@@ -56,53 +69,90 @@ Rectangle {
     property bool faceScanning: false
     property bool faceVerified: false
     property bool faceFailed: false
-    property bool isFaceAttempt: false
+    property bool pendingFaceAuth: false
+    property var activeFaceRequest: null
+    property string helperToken: ""
+
+    function readHelperToken(): void {
+        try {
+            let req = new XMLHttpRequest()
+            req.onreadystatechange = function() {
+                if (req.readyState === XMLHttpRequest.DONE && req.status === 200) {
+                    root.helperToken = req.responseText.trim()
+                }
+            }
+            req.open("GET", "file:///run/sddm-helper-token")
+            req.send()
+        } catch (e) {}
+    }
 
     function wakeUp(): void {
         if (!root.awake) {
             root.awake = true
-            root.attemptFace()
             Qt.callLater(account.claim)
+            if (root.isPrimary)
+                Qt.callLater(root.attemptFace)
         }
     }
 
     // Safety timeout so face scan never hangs or blocks input
     Timer {
         id: faceTimeout
-        interval: 4000
+        interval: 4500
         repeat: false
         onTriggered: {
             if (root.faceScanning) {
+                if (root.activeFaceRequest) {
+                    try { root.activeFaceRequest.abort() } catch (e) {}
+                    root.activeFaceRequest = null
+                }
                 root.faceScanning = false
                 root.faceFailed = true
             }
         }
     }
 
-    // Non-blocking face authentication attempt
+    // Non-blocking face authentication probe via helper daemon
     function attemptFace(): void {
-        if (root.authenticating || root.faceScanning)
+        if (!root.isPrimary || root.authenticating)
             return
-        root.isFaceAttempt = true
-        root.faceScanning = true
-        root.faceVerified = false
+        // Let the PAM module perform biometric verification exactly once.
+        // A separate UI-side biopass-helper run races PAM for the camera and
+        // does not authenticate SDDM's PAM transaction.
         root.faceFailed = false
-        root.failed = false
-        root.message = ""
-        // Notice: root.authenticating remains FALSE so the password field is 100% active and editable!
-        faceTimeout.restart()
-        sddm.login(account.userName, "", session.currentIndex)
+        root.attempt("")
     }
 
     // User password authentication attempt (cancels face scan and submits)
     function attempt(password: string): void {
         faceTimeout.stop()
-        root.isFaceAttempt = false
+        if (root.activeFaceRequest) {
+            try { root.activeFaceRequest.abort() } catch (e) {}
+            root.activeFaceRequest = null
+        }
+        try {
+            let cancelReq = new XMLHttpRequest()
+            let url = "http://127.0.0.1:18293/cancel-face"
+            if (root.helperToken) url += "?token=" + encodeURIComponent(root.helperToken)
+            cancelReq.open("GET", url, true)
+            cancelReq.send()
+        } catch (e) {}
+
         root.faceScanning = false
+        // Keep the password input live while PAM performs the face attempt;
+        // if it fails, text typed during the scan remains available.
         root.authenticating = true
+        root.faceScanning = password === ""
+        root.pendingFaceAuth = password === ""
         root.failed = false
         root.message = ""
-        sddm.login(account.userName, password, session.currentIndex)
+
+        // Start smooth dual-wave fadeout before submitting login to SDDM
+        root.pendingPassword = password
+        root.pendingLoginIsFace = false
+        root.pendingPowerAction = ""
+        root.fadingOut = true
+        sddmCommitTimer.start()
     }
 
     Connections {
@@ -113,21 +163,25 @@ Rectangle {
             root.authenticating = false
             root.faceScanning = false
             root.faceVerified = true
+            root.pendingFaceAuth = false
             root.failed = false
             root.message = ""
+            root.fadingOut = true
         }
 
         function onLoginFailed(): void {
+            const wasFaceAuth = root.pendingFaceAuth
+            root.pendingFaceAuth = false
             faceTimeout.stop()
+            sddmCommitTimer.stop()
             root.authenticating = false
-            if (root.isFaceAttempt) {
-                root.isFaceAttempt = false
-                root.faceScanning = false
-                root.faceFailed = true
-            } else {
-                root.failed = true
-                root.message = qsTr("Wrong password")
-            }
+            root.faceScanning = false
+            root.fadingOut = false
+            root.failed = true
+            root.faceFailed = wasFaceAuth
+            root.message = wasFaceAuth
+                ? qsTr("Face not recognized — enter password")
+                : qsTr("Wrong password")
         }
 
         function onInformationMessage(infoMsg: string): void {
@@ -138,22 +192,32 @@ Rectangle {
     // ── POWER FADEOUT STATE & EXECUTION ─────────────────────────────────────
     property bool fadingOut: false
     property string pendingPowerAction: ""
+    property string pendingPassword: ""
+    property bool pendingLoginIsFace: false
 
     Timer {
         id: sddmCommitTimer
-        interval: 600
+        interval: 540
         repeat: false
         onTriggered: {
             if (root.pendingPowerAction === "reboot" || root.pendingPowerAction === "reboot-uefi") {
                 sddm.reboot()
             } else if (root.pendingPowerAction === "shutdown") {
                 sddm.powerOff()
+            } else if (root.pendingLoginIsFace) {
+                sddm.login(account.userName, "", session.currentIndex)
+            } else {
+                sddm.login(account.userName, root.pendingPassword, session.currentIndex)
             }
         }
     }
 
     function triggerPowerFade(action: string): void {
         faceTimeout.stop()
+        if (root.activeFaceRequest) {
+            try { root.activeFaceRequest.abort() } catch (e) {}
+            root.activeFaceRequest = null
+        }
         root.faceScanning = false
         root.pendingPowerAction = action
 
@@ -162,7 +226,9 @@ Rectangle {
             let req = new XMLHttpRequest()
             let endpoint = (action === "reboot-uefi") ? "reboot-uefi"
                          : (action === "shutdown") ? "shutdown" : "reboot-normal"
-            req.open("GET", "http://127.0.0.1:18293/" + endpoint, true)
+            let url = "http://127.0.0.1:18293/" + endpoint
+            if (root.helperToken) url += "?token=" + encodeURIComponent(root.helperToken)
+            req.open("GET", url, true)
             req.send()
         } catch (e) {}
 
@@ -170,16 +236,12 @@ Rectangle {
         sddmCommitTimer.start()
     }
 
-    // ── EXPANDING WAVE FADEOUT OVERLAY ───────────────────────────────────────
+    // ── FULL-SCREEN FADEOUT ──────────────────────────────────────────────────
     Item {
         id: sddmFadeOverlay
         anchors.fill: parent
         z: 9999
         visible: root.fadingOut || sddmBaseFade.opacity > 0
-
-        readonly property real centerX: root.width / 2
-        readonly property real centerY: 20
-        readonly property real targetRadius: Math.ceil(Math.hypot(root.width / 2, root.height)) + 100
 
         MouseArea {
             anchors.fill: parent
@@ -189,45 +251,14 @@ Rectangle {
             onPressed: (mouse) => mouse.accepted = true
         }
 
+        // Base fade to ensure all display corners smoothly dissolve to pure black
         Rectangle {
             id: sddmBaseFade
             anchors.fill: parent
             color: "#000000"
-            opacity: 0.0
-        }
-
-        Rectangle {
-            id: sddmMainWave
-            width: 0
-            height: width
-            radius: width / 2
-            x: sddmFadeOverlay.centerX - width / 2
-            y: sddmFadeOverlay.centerY - height / 2
-            color: "#000000"
-        }
-
-        ParallelAnimation {
-            id: sddmWaveAnim
-
-            NumberAnimation {
-                target: sddmMainWave
-                property: "width"
-                from: 60
-                to: sddmFadeOverlay.targetRadius * 2.2
-                duration: 600
-                easing.type: Easing.OutQuad
-            }
-
-            SequentialAnimation {
-                PauseAnimation { duration: 270 }
-                NumberAnimation {
-                    target: sddmBaseFade
-                    property: "opacity"
-                    from: 0.0
-                    to: 1.0
-                    duration: 330
-                    easing.type: Easing.InQuad
-                }
+            opacity: root.fadingOut ? 1.0 : 0.0
+            Behavior on opacity {
+                NumberAnimation { duration: 500; easing.type: Easing.InOutCubic }
             }
         }
 
@@ -235,13 +266,9 @@ Rectangle {
             target: root
             function onFadingOutChanged(): void {
                 if (root.fadingOut) {
-                    sddmMainWave.width = 60
-                    sddmBaseFade.opacity = 0.0
-                    sddmWaveAnim.restart()
+                    sddmCommitTimer.start()
                 } else {
-                    sddmWaveAnim.stop()
-                    sddmBaseFade.opacity = 0.0
-                    sddmMainWave.width = 0
+                    sddmCommitTimer.stop()
                 }
             }
         }
@@ -365,6 +392,10 @@ Rectangle {
 
         onSubmitted: password => root.attempt(password)
         onFaceRetryRequested: root.attemptFace()
+        onDismissed: {
+            root.failed = false
+            root.message = ""
+        }
         onUserChosen: index => {
             root.failed = false
             root.message = ""
@@ -386,31 +417,6 @@ Rectangle {
 
         Behavior on opacity {
             NumberAnimation { duration: Theme.durationFast }
-        }
-    }
-
-    // ── BATTERY ─────────────────────────────────────────────────────────────
-
-    Rectangle {
-        anchors.right: parent.right
-        anchors.rightMargin: 16
-        anchors.top: parent.top
-        anchors.topMargin: Theme.barTopMargin + 6
-        width: Theme.capsuleHeight
-        height: Theme.capsuleHeight
-        radius: Theme.radiusPill
-        color: Theme.island
-        border.width: 1
-        border.color: Theme.islandBorder
-        visible: charge.available
-        opacity: root.awake ? 1 : 0.5
-        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
-
-        BatteryRing {
-            id: charge
-
-            anchors.centerIn: parent
-            size: Theme.capsuleHeight
         }
     }
 
@@ -450,14 +456,17 @@ Rectangle {
     // ── KEYBOARD INTERACTION ────────────────────────────────────────────────
 
     focus: true
-    Component.onCompleted: root.forceActiveFocus()
+    Component.onCompleted: {
+        root.forceActiveFocus()
+        root.readHelperToken()
+    }
     Keys.onPressed: event => {
         if (!root.awake) {
             root.wakeUp()
-            if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32) {
-                account.append(event.text)
-                event.accepted = true
-            }
+        }
+        if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32) {
+            account.append(event.text)
+            event.accepted = true
         }
     }
 

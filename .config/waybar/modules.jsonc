@@ -178,7 +178,7 @@
     "custom/jbl": {
         "format": "{}",
         "return-type": "json",
-        "exec": "/home/tymon/JBL_Baterry_Monitor/tools/waybar_jbl.py --mode icons",
+        "exec": "$HOME/JBL_Baterry_Monitor/tools/waybar_jbl.py --mode icons",
         "interval": 1,
         "tooltip": true
     }

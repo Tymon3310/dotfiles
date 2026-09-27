@@ -4,27 +4,58 @@ import Quickshell.Wayland
 
 import "../services"
 
-// The compositor's lock surface via ext-session-lock protocol.
-WlSessionLock {
-    id: root
+Scope {
+    id: lockScope
 
-    locked: LockService.locked
-
-    onSecureStateChanged: LockService.secure = root.secure
-
-    WlSessionLockSurface {
-        id: surface
-
-        LockSurface {
-            anchors.fill: parent
-            screenName: (surface.screen && surface.screen.name) ? surface.screen.name : ""
-
-            Component.onCompleted: {
-                if (isActive)
-                    claim()
+    // Immediate input blocker overlay while island is retracting and grim is capturing
+    Variants {
+        model: Quickshell.screens
+        delegate: PanelWindow {
+            property var modelData
+            screen: modelData
+            anchors {
+                top: true
+                bottom: true
+                left: true
+                right: true
             }
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.keyboardFocus: LockService.preparingLock
+                ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            visible: LockService.preparingLock
+            color: "transparent"
 
-            onSubmitted: password => LockService.submit(password)
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                acceptedButtons: Qt.AllButtons
+                onPressed: (mouse) => mouse.accepted = true
+            }
+        }
+    }
+
+    // The compositor's lock surface via ext-session-lock protocol.
+    WlSessionLock {
+        id: root
+
+        locked: LockService.locked
+
+        onSecureStateChanged: LockService.secure = root.secure
+
+        WlSessionLockSurface {
+            id: surface
+
+            LockSurface {
+                anchors.fill: parent
+                screenName: (surface.screen && surface.screen.name) ? surface.screen.name : ""
+
+                Component.onCompleted: {
+                    if (isActive)
+                        claim()
+                }
+
+                onSubmitted: password => LockService.submit(password)
+            }
         }
     }
 }

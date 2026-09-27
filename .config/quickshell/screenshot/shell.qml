@@ -375,7 +375,7 @@ Scope {
         }
         
         // Clean up the .done file if it exists
-        const envId = Quickshell.env("QS_ID") || ""
+        const envId = root.externalTimestamp || Quickshell.env("QS_ID") || ""
         if (envId) {
             Quickshell.execDetached(["rm", "-f", `/tmp/quickshell-screenshot-${envId}.done`])
         }

@@ -13,20 +13,21 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# 1. Double check backup exists
-if [ ! -d "$DOTFILES_DIR/system_backups/sddm_pam_backup" ]; then
-    echo "Creating backup of current SDDM and PAM configs..."
-    mkdir -p "$DOTFILES_DIR/system_backups/sddm_pam_backup"
-    [ -f /etc/sddm.conf ] && cp -pv /etc/sddm.conf "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
-    [ -d /etc/sddm.conf.d ] && cp -rpv /etc/sddm.conf.d "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
-    cp -pv /etc/pam.d/sddm* "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
-    [ -f /usr/share/sddm/scripts/Xsetup ] && cp -pv /usr/share/sddm/scripts/Xsetup "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
-    [ -f /usr/share/sddm/scripts/Xstop ] && cp -pv /usr/share/sddm/scripts/Xstop "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
-fi
+# 1. Double check backup exists (back up per file so newly added files are captured)
+mkdir -p "$DOTFILES_DIR/system_backups/sddm_pam_backup"
+[ -f /etc/sddm.conf ] && [ ! -f "$DOTFILES_DIR/system_backups/sddm_pam_backup/sddm.conf" ] && cp -pv /etc/sddm.conf "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
+[ -d /etc/sddm.conf.d ] && [ ! -d "$DOTFILES_DIR/system_backups/sddm_pam_backup/sddm.conf.d" ] && cp -rpv /etc/sddm.conf.d "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
+for pamf in /etc/pam.d/sddm*; do
+    [ -f "$pamf" ] && [ ! -f "$DOTFILES_DIR/system_backups/sddm_pam_backup/$(basename "$pamf")" ] && cp -pv "$pamf" "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
+done
+[ -f /usr/share/sddm/scripts/Xsetup ] && [ ! -f "$DOTFILES_DIR/system_backups/sddm_pam_backup/Xsetup" ] && cp -pv /usr/share/sddm/scripts/Xsetup "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
+[ -f /usr/share/sddm/scripts/Xstop ] && [ ! -f "$DOTFILES_DIR/system_backups/sddm_pam_backup/Xstop" ] && cp -pv /usr/share/sddm/scripts/Xstop "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
 
 # 2. Install theme
 echo "Installing theme to $THEME_DST..."
 mkdir -p "$THEME_DST"
+# Clean sync theme files
+rm -rf "$THEME_DST"/*
 cp -rp "$THEME_SRC"/* "$THEME_DST"/
 chmod -R 755 "$THEME_DST"
 
@@ -43,6 +44,11 @@ if [ -f "$DOTFILES_DIR/sddm/scripts/sddm-uefi-helper.py" ]; then
 fi
 
 if [ -f /usr/share/sddm/scripts/Xsetup ]; then
+    # Disable second monitor (DisplayPort-1) in SDDM X11 greeter if present
+    if ! grep -q "xrandr --output DisplayPort-1 --off" /usr/share/sddm/scripts/Xsetup; then
+        sed -i '2i xrandr --output DisplayPort-1 --off 2>/dev/null || true' /usr/share/sddm/scripts/Xsetup || true
+    fi
+
     if ! grep -q "sddm-uefi-helper" /usr/share/sddm/scripts/Xsetup; then
         cat << 'XSETUP' >> /usr/share/sddm/scripts/Xsetup
 
@@ -111,13 +117,12 @@ if [ -f /etc/sddm.conf.d/99-autologin.conf ]; then
     mv /etc/sddm.conf.d/99-autologin.conf /etc/sddm.conf.d/99-autologin.conf.bak
 fi
 
-# 7. Configure PAM for SDDM Face Unlock
+# 7. Configure PAM for SDDM Face Unlock (with optional safe fallthrough via leading hyphen)
 echo "Configuring PAM (/etc/pam.d/sddm) with biopass face unlock..."
-if ! grep -q "libbiopass_pam.so" /etc/pam.d/sddm; then
-    cat << 'PAM' > /etc/pam.d/sddm
+cat << 'PAM' > /etc/pam.d/sddm
 #%PAM-1.0
 
-auth            sufficient      /usr/lib/security/libbiopass_pam.so
+-auth           sufficient      /usr/lib/security/libbiopass_pam.so
 auth            include         system-login
 auth            optional        pam_kwallet5.so
 
@@ -128,8 +133,7 @@ password        include         system-login
 session         include         system-login
 session         optional        pam_kwallet5.so
 PAM
-    chmod 644 /etc/pam.d/sddm
-fi
+chmod 644 /etc/pam.d/sddm
 
 # 8. Add sddm user to video group
 if id sddm >/dev/null 2>&1; then

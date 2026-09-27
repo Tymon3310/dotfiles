@@ -265,9 +265,10 @@ QtObject {
     readonly property int durationMedium: Math.round(200 * root.motion)
     readonly property int durationMorph: Math.round(380 * root.motion)
 
-    // How long anything that screenshots the screen (lock, picker, capture)
-    // waits after closing the island: the morph plus a couple of frames.
-    readonly property int durationIslandGone: root.durationMorph + 40
+    // Lock capture waits for side islands to retract, then for the center
+    // notch to finish shrinking, plus a couple of compositor frames.
+    readonly property int durationIslandRetract: 300
+    readonly property int durationIslandGone: root.durationIslandRetract + root.durationMorph + 40
 
 
     // ── CAPTURE ─────────────────────────────────────────────────────────────

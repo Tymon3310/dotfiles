@@ -67,7 +67,7 @@ if [ ! -f "${SSH_CONFIG_FILE}" ]; then
   echo "Creating new SSH config file with global settings."
   echo "# Global settings" >"${SSH_CONFIG_FILE}"
   echo "IdentitiesOnly yes" >>"${SSH_CONFIG_FILE}"
-  echo "IdentityAgent /home/tymon/.bitwarden-ssh-agent.sock" >>"${SSH_CONFIG_FILE}"
+  echo "IdentityAgent ${HOME}/.bitwarden-ssh-agent.sock" >>"${SSH_CONFIG_FILE}"
   echo "" >>"${SSH_CONFIG_FILE}"
   chmod 600 "${SSH_CONFIG_FILE}"
 fi

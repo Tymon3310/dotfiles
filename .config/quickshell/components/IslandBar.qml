@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
 import Quickshell.Services.SystemTray
+import Quickshell.Widgets
 
 import "../parts/theme"
 import "../parts/services"
@@ -66,7 +67,7 @@ PanelWindow {
                 ? Qt.size(notificationLoader.item.wantWidth, notificationLoader.item.wantHeight)
                 : Qt.size(430, 56)
         case "tray":
-            return Qt.size(280, Math.min(460, trayLoader.item?.contentHeight ?? 60))
+            return Qt.size(280, Math.min(460, detailLoader.item?.contentHeight ?? 60))
         case "session":
             return Qt.size(560, 100)
         case "dashboard":
@@ -176,7 +177,8 @@ PanelWindow {
         }
     }
 
-    // LOCK: 1. Retract side islands into notch -> 2. Demorph notch down to compact 72px
+    // LOCK: 1. Retract side islands into notch -> 2. Demorph notch down to compact 72px.
+    // LockService captures only after both stages finish.
     SequentialAnimation {
         id: lockSequence
 
@@ -184,7 +186,7 @@ PanelWindow {
             target: bar
             property: "islandsEmergeProgress"
             to: 0.0
-            duration: 300
+            duration: Theme.durationIslandRetract
             easing.type: Easing.InOutCubic
         }
 
@@ -204,9 +206,11 @@ PanelWindow {
             }
         }
 
-        // Wait for island morph animation to finish before popping out side islands
+        // Begin the side-island glide shortly before the lock surface lifts.
+        // InOut easing keeps them almost tucked away at handoff, avoiding a
+        // visible pop while still avoiding a dead pause afterward.
         PauseAnimation {
-            duration: Theme.durationMorph + 60
+            duration: Math.max(0, Theme.durationMorph - 80)
         }
 
         NumberAnimation {
@@ -215,7 +219,7 @@ PanelWindow {
             from: 0.0
             to: 1.0
             duration: 620
-            easing.type: Easing.OutCubic
+            easing.type: Easing.InOutCubic
         }
     }
 
@@ -245,8 +249,12 @@ PanelWindow {
             }
         }
 
-        function onUnlocked(): void {
-            unlockSequence.restart()
+        // Start the normal bar's notch morph underneath the lock surface.
+        // LockSurface runs the matching `held` animation on this same state;
+        // by the time it disappears, the two islands have the same geometry.
+        function onLeavingChanged(): void {
+            if (LockService.leaving)
+                unlockSequence.restart()
         }
     }
 
@@ -307,7 +315,8 @@ PanelWindow {
             width: wsWidget.implicitWidth + 12
             radius: height / 2
             color: Theme.island
-            border.width: 0
+            border.width: 1
+            border.color: Theme.hairline
 
             WorkspacesWidget {
                 id: wsWidget
@@ -405,11 +414,10 @@ PanelWindow {
                     height: 20
                     anchors.verticalCenter: parent.verticalCenter
 
-                    Rectangle {
+                    ClippingRectangle {
                         anchors.fill: parent
-                        radius: 4
+                        radius: 5
                         color: Theme.islandSurfaceHover
-                        clip: true
 
                         Image {
                             anchors.fill: parent
@@ -417,6 +425,8 @@ PanelWindow {
                             visible: source !== "" && status === Image.Ready
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
+                            sourceSize.width: 40
+                            sourceSize.height: 40
                         }
 
                         Text {
@@ -435,7 +445,7 @@ PanelWindow {
                     id: songItem
                     anchors.verticalCenter: parent.verticalCenter
                     visible: MediaService.available && (MediaService.title !== "")
-                    width: visible ? Math.min(280, songText.implicitWidth) : 0
+                    width: visible ? Math.min(280, songMetrics.width) : 0
                     height: bar.capsuleH
                     clip: true
 
@@ -451,6 +461,12 @@ PanelWindow {
                         font.weight: Font.Medium
                         color: Theme.text
                         elide: Text.ElideRight
+                    }
+
+                    TextMetrics {
+                        id: songMetrics
+                        font: songText.font
+                        text: songText.text
                     }
                 }
 
@@ -651,7 +667,8 @@ PanelWindow {
             width: trayWidget.implicitWidth + 16
             radius: height / 2
             color: Theme.island
-            border.width: 0
+            border.width: 1
+            border.color: Theme.hairline
             visible: !trayWidget.empty
 
             TrayWidget {
@@ -670,8 +687,14 @@ PanelWindow {
             height: bar.capsuleH
             width: bar.capsuleH
             radius: height / 2
-            color: bar.openId === "session" ? Theme.islandSurfaceHover : Theme.island
-            border.width: 0
+            color: bar.openId === "session" || powerMouse.containsMouse
+                ? Theme.islandSurfaceHover : Theme.island
+            border.width: 1
+            border.color: bar.openId === "session" || powerMouse.containsMouse
+                ? Theme.islandBorder : Theme.hairline
+
+            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
             Text {
                 anchors.centerIn: parent
@@ -679,9 +702,14 @@ PanelWindow {
                 font.family: Theme.fontMono
                 font.pixelSize: 13
                 color: Theme.text
+                scale: powerMouse.pressed ? 0.88 : 1
+                Behavior on scale {
+                    NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutBack }
+                }
             }
 
             MouseArea {
+                id: powerMouse
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor

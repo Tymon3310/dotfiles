@@ -35,60 +35,97 @@ Card {
             Layout.fillHeight: true
             spacing: 6
 
-            Repeater {
-                model: [
-                    { glyph: "󰇚", label: "DOWN", value: StatsService.networkDown,
-                      series: StatsService.downHistory, stroke: Theme.accent },
-                    { glyph: "󰕒", label: "UP", value: StatsService.networkUp,
-                      series: StatsService.upHistory, stroke: Theme.green }
-                ]
+            // DOWN Rate
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                spacing: 2
 
-                ColumnLayout {
-                    required property var modelData
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
 
+                    Text {
+                        text: "󰇚"
+                        font.family: Theme.fontMono
+                        font.pixelSize: 12
+                        color: Theme.accent
+                    }
+
+                    Text {
+                        text: "DOWN"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeLabel
+                        font.weight: Font.DemiBold
+                        color: Theme.textMuted
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    Text {
+                        text: StatsService.rate(StatsService.networkDown)
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: Font.DemiBold
+                        font.features: { "tnum": 1 }
+                        color: Theme.text
+                    }
+                }
+
+                Sparkline {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    spacing: 2
+                    values: StatsService.downHistory.slice(-root.span)
+                    maximum: 0
+                    stroke: Theme.accent
+                    showDot: false
+                }
+            }
 
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 6
+            // UP Rate
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                spacing: 2
 
-                        Text {
-                            text: modelData.glyph
-                            font.family: Theme.fontMono
-                            font.pixelSize: 12
-                            color: modelData.stroke
-                        }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
 
-                        Text {
-                            text: modelData.label
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeLabel
-                            font.weight: Font.DemiBold
-                            color: Theme.textMuted
-                        }
-
-                        Item { Layout.fillWidth: true }
-
-                        Text {
-                            text: StatsService.rate(modelData.value)
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.weight: Font.DemiBold
-                            font.features: { "tnum": 1 }
-                            color: Theme.text
-                        }
+                    Text {
+                        text: "󰕒"
+                        font.family: Theme.fontMono
+                        font.pixelSize: 12
+                        color: Theme.green
                     }
 
-                    Sparkline {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        values: modelData.series.slice(-root.span)
-                        maximum: 0
-                        stroke: modelData.stroke
-                        showDot: false
+                    Text {
+                        text: "UP"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeLabel
+                        font.weight: Font.DemiBold
+                        color: Theme.textMuted
                     }
+
+                    Item { Layout.fillWidth: true }
+
+                    Text {
+                        text: StatsService.rate(StatsService.networkUp)
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: Font.DemiBold
+                        font.features: { "tnum": 1 }
+                        color: Theme.text
+                    }
+                }
+
+                Sparkline {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    values: StatsService.upHistory.slice(-root.span)
+                    maximum: 0
+                    stroke: Theme.green
+                    showDot: false
                 }
             }
         }
