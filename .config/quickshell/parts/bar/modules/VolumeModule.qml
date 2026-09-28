@@ -112,6 +112,15 @@ Item {
                         font.pixelSize: Theme.fontSizeSmall
                         color: AudioService.muted ? Theme.textMuted : Theme.text
                     }
+
+                    Text {
+                        visible: HeadsetService.connected && HeadsetService.battery >= 0
+                        text: `${HeadsetService.charging ? "󰂄 " : "󰥉 "}${HeadsetService.battery}%`
+                        font.family: Theme.fontMono
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: HeadsetService.battery <= 15
+                            ? Theme.accent : Theme.textMuted
+                    }
                 }
 
                 // The whole strip is the hit area.

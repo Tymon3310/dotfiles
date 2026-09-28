@@ -236,6 +236,29 @@ Singleton {
 
     function present(object: var): void {
         const notification = root.snapshot(object)
+
+        // Some headset utilities also send a desktop "Headset Online"
+        // notification. The headset monitor already reports connection state
+        // through OsdService, so translate matching notices to the same OSD
+        // presentation rather than showing a second, differently styled card.
+        const headsetNotice = `${notification.appName} ${notification.summary} ${notification.body}`
+        const headsetIdentity = /\b(headset|headphone|jbl|quantum)\b/i.test(headsetNotice)
+            || (HeadsetService.model !== ""
+                && headsetNotice.toLowerCase().includes(HeadsetService.model.toLowerCase()))
+        if (headsetIdentity
+                && /\b(online|connected|offline|disconnected)\b/i.test(headsetNotice)) {
+            const connected = !/\b(offline|disconnected)\b/i.test(headsetNotice)
+            const battery = HeadsetService.battery
+            const suffix = connected && battery >= 0 ? ` · ${battery}%` : ""
+            OsdService.requested(
+                connected ? "\udb80\udecb" : "\udb81\udfce",
+                connected ? `Headset Connected${suffix}` : "Headset Disconnected",
+                connected && battery >= 0 ? battery / 100.0 : -1
+            )
+            object.expire()
+            return
+        }
+
         const oldHistory = root.history
         root.history = [notification].concat(root.history).slice(0, root.historyLimit)
 
@@ -366,37 +389,70 @@ Singleton {
             return
 
         const key = notification.key
-        const object = root.liveObjects[key]
-        let invoked = false
+        const invoked = root.invokeDefaultAction(notification)
 
-        if (object) {
-            const actions = object.actions ?? []
-            const defaultAction = actions.find(a => a.identifier === "default")
-                ?? (actions.length > 0 ? actions[0] : null)
-            if (defaultAction && typeof defaultAction.invoke === "function") {
-                try {
-                    defaultAction.invoke()
-                    invoked = true
-                } catch (e) {
-                    console.warn("[NotificationService] Error invoking action:", e)
-                }
-            }
-        }
-
-        const appName = notification.appName ?? ""
-        const desktopEntry = notification.desktopEntry ?? ""
-
-        const text = `${notification.summary ?? ""} ${notification.body ?? ""}`
-        const urlMatch = text.match(/https?:\/\/[^\s<>"']+/)
-
-        if (urlMatch) {
-            Qt.openUrlExternally(urlMatch[0])
-        } else {
-            root.focusOrLaunchApp(appName, desktopEntry, invoked)
-        }
+        root.openTarget(notification, invoked)
 
         // Hide it from the banner if currently shown on the island, but keep it in history!
         root.hideKey(key)
+    }
+
+    // History snapshots retain app/URL data. If the notification's live
+    // default action is still available, invoke it first (some apps, including
+    // the screenshot tool, use that action to open their own generated file).
+    function activateFromHistory(notification: var): void {
+        if (!notification)
+            return
+        console.log("[NotificationService] History activation target:",
+            notification.appName ?? "", notification.desktopEntry ?? "")
+        if (!root.invokeDefaultAction(notification))
+            root.openTarget(notification, false)
+        root.hideKey(notification.key)
+    }
+
+    function invokeDefaultAction(notification: var): bool {
+        const object = root.liveObjects[notification.key]
+        if (!object)
+            return false
+        const actions = object.actions ?? []
+        const action = actions.find(a => a.identifier === "default")
+            ?? (actions.length > 0 ? actions[0] : null)
+        if (!action || typeof action.invoke !== "function")
+            return false
+        try {
+            action.invoke()
+            return true
+        } catch (e) {
+            console.warn("[NotificationService] Error invoking action:", e)
+            return false
+        }
+    }
+
+    function openTarget(notification: var, alreadyInvoked: bool): void {
+        const text = `${notification.summary ?? ""} ${notification.body ?? ""}`
+        const urlMatch = text.match(/https?:\/\/[^\s<>"']+/)
+        if (urlMatch) {
+            Qt.openUrlExternally(urlMatch[0])
+            return
+        }
+
+        // Screenshot notifications carry their saved file as the image hint,
+        // but have no application desktop entry to launch.
+        if ((notification.appName ?? "").toLowerCase() === "screenshot") {
+            if (alreadyInvoked)
+                return
+            const image = notification.picture ?? ""
+            if (`${image}`.startsWith("file://")) {
+                Qt.openUrlExternally(image)
+                return
+            }
+        }
+
+        root.focusOrLaunchApp(
+            notification.appName ?? "",
+            notification.desktopEntry ?? "",
+            alreadyInvoked
+        )
     }
 
     function focusOrLaunchApp(appName: string, desktopEntry: string, alreadyInvoked: bool): void {
@@ -414,6 +470,8 @@ Singleton {
                 } catch (e) {
                     console.warn("[NotificationService] Error executing desktop entry:", e)
                 }
+            } else {
+                console.warn("[NotificationService] No desktop entry for notification:", appName, desktopEntry)
             }
         }
     }

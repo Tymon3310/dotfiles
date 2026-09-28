@@ -417,6 +417,13 @@ Item {
                 root.userPickerExpanded = false
                 root.forceActiveFocus()
             }
+
+            Keys.onPressed: event => {
+                if (event.key === Qt.Key_Space && field.text === "") {
+                    root.faceRetryRequested()
+                    event.accepted = true
+                }
+            }
         }
 
         // ── SEND / SPINNER BUTTON ───────────────────────────────────────────

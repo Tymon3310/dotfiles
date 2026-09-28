@@ -24,3 +24,7 @@ export PATH="$HOME/.local/bin:$PATH"
 # terminal-wakatime setup
 export PATH="$HOME/.wakatime:$PATH"
 eval "$(terminal-wakatime init)"
+
+if fgconsole &>/dev/null; then
+	start-hyprland
+fi

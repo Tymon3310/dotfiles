@@ -54,7 +54,12 @@ Rectangle {
         unlocked: root.faceVerified
         scanning: root.faceScanning
         failed: root.faceFailed || root.failed
-        onClicked: root.wakeUp()
+        onClicked: {
+            if (!root.awake)
+                root.wakeUp()
+            else
+                root.attemptFace()
+        }
     }
 
     // ── AWAKE & AUTHENTICATION STATE ────────────────────────────────────────
@@ -70,6 +75,7 @@ Rectangle {
     property bool faceVerified: false
     property bool faceFailed: false
     property bool pendingFaceAuth: false
+    property bool loginCommitted: false
     property var activeFaceRequest: null
     property string helperToken: ""
 
@@ -144,14 +150,17 @@ Rectangle {
         root.authenticating = true
         root.faceScanning = password === ""
         root.pendingFaceAuth = password === ""
+        root.loginCommitted = false
         root.failed = false
         root.message = ""
 
-        // Start smooth dual-wave fadeout before submitting login to SDDM
+        // Queue the login; face attempts stay visible until PAM responds.
         root.pendingPassword = password
-        root.pendingLoginIsFace = false
+        root.pendingLoginIsFace = password === ""
         root.pendingPowerAction = ""
-        root.fadingOut = true
+        // Give the scan indicator a brief visible start before a fast PAM
+        // success. Password logins retain the existing fade-before-submit.
+        root.fadingOut = password !== ""
         sddmCommitTimer.start()
     }
 
@@ -172,6 +181,7 @@ Rectangle {
         function onLoginFailed(): void {
             const wasFaceAuth = root.pendingFaceAuth
             root.pendingFaceAuth = false
+            root.loginCommitted = false
             faceTimeout.stop()
             sddmCommitTimer.stop()
             root.authenticating = false
@@ -197,9 +207,10 @@ Rectangle {
 
     Timer {
         id: sddmCommitTimer
-        interval: 540
+        interval: root.pendingFaceAuth ? 100 : 540
         repeat: false
         onTriggered: {
+            root.loginCommitted = true
             if (root.pendingPowerAction === "reboot" || root.pendingPowerAction === "reboot-uefi") {
                 sddm.reboot()
             } else if (root.pendingPowerAction === "shutdown") {
@@ -219,6 +230,8 @@ Rectangle {
             root.activeFaceRequest = null
         }
         root.faceScanning = false
+        root.pendingFaceAuth = false
+        root.loginCommitted = false
         root.pendingPowerAction = action
 
         // Notify local helper daemon of power intent & firmware-setup state
@@ -265,9 +278,9 @@ Rectangle {
         Connections {
             target: root
             function onFadingOutChanged(): void {
-                if (root.fadingOut) {
+                if (root.fadingOut && !root.loginCommitted) {
                     sddmCommitTimer.start()
-                } else {
+                } else if (!root.fadingOut) {
                     sddmCommitTimer.stop()
                 }
             }
@@ -461,6 +474,14 @@ Rectangle {
         root.readHelperToken()
     }
     Keys.onPressed: event => {
+        if (event.key === Qt.Key_Space && !account.hasText) {
+            if (!root.awake)
+                root.wakeUp()
+            else
+                root.attemptFace()
+            event.accepted = true
+            return
+        }
         if (!root.awake) {
             root.wakeUp()
         }

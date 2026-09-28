@@ -139,14 +139,6 @@ Card {
 
                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
-                MouseArea {
-                    id: entryMouse
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    hoverEnabled: true
-                    onClicked: NotificationService.activate(entry.modelData)
-                }
-
                 RowLayout {
                     id: row
 
@@ -155,7 +147,7 @@ Card {
                     anchors.top: parent.top
                     anchors.topMargin: 8
                     anchors.leftMargin: 9
-                    anchors.rightMargin: 6
+                    anchors.rightMargin: 34
                     spacing: 9
 
                     NotificationPicture {
@@ -213,14 +205,29 @@ Card {
                         }
                     }
 
-                    IconButton {
-                        Layout.alignment: Qt.AlignTop
-                        z: 2
-                        opacity: (entryMouse.containsMouse || entryHover.hovered) ? 1 : 0
-                        icon: "󰅖"
-                        iconSize: 11
-                        onClicked: NotificationService.remove(entry.modelData)
-                    }
+                }
+
+                // Keep the whole row's click target above its passive text and
+                // image children, while the dismiss button sits above it.
+                MouseArea {
+                    id: entryMouse
+                    anchors.fill: parent
+                    z: 1
+                    cursorShape: Qt.PointingHandCursor
+                    hoverEnabled: true
+                    onClicked: NotificationService.activateFromHistory(entry.modelData)
+                }
+
+                IconButton {
+                    anchors.top: parent.top
+                    anchors.topMargin: 8
+                    anchors.right: parent.right
+                    anchors.rightMargin: 8
+                    z: 2
+                    opacity: (entryMouse.containsMouse || entryHover.hovered) ? 1 : 0
+                    icon: "󰅖"
+                    iconSize: 11
+                    onClicked: NotificationService.remove(entry.modelData)
                 }
 
                 HoverHandler {

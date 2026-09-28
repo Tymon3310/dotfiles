@@ -6,6 +6,7 @@ Reads from /run/user/<uid>/jbl_quantum export directory maintained by jbl-quantu
 """
 
 import json
+import glob
 import os
 import sys
 import time
@@ -39,12 +40,32 @@ def read_file(filename: str, default: str = "") -> str:
         return default
 
 
+def usb_charge_cable_connected() -> bool:
+    """The Quantum 610 exposes a second HID device when its charge cable is
+    plugged into this PC: USB VID:PID 0ecb:205b (Wireless headphone)."""
+    for device_dir in glob.glob("/sys/bus/usb/devices/*"):
+        try:
+            with open(os.path.join(device_dir, "idVendor"), "r", encoding="utf-8") as f:
+                vendor = f.read().strip().lower()
+            with open(os.path.join(device_dir, "idProduct"), "r", encoding="utf-8") as f:
+                product = f.read().strip().lower()
+            if vendor == "0ecb" and product == "205b":
+                return True
+        except OSError:
+            # Interface and hub entries do not have both descriptor files.
+            continue
+    return False
+
+
 def main() -> None:
     die_with_parent()
     last_connected = None
     last_mic_muted = None
     last_battery = None
     last_charging = None
+    usb_charge_candidate = None
+    usb_charge_candidate_since = 0.0
+    usb_charge_stable = False
     first_run = True
 
     while True:
@@ -64,7 +85,15 @@ def main() -> None:
                     battery = int(batt_str)
 
                 charge_str = read_file("charging", "0")
-                charging = (charge_str == "1")
+                exported_charging = (charge_str == "1")
+                usb_charge_raw = usb_charge_cable_connected()
+                now = time.monotonic()
+                if usb_charge_raw != usb_charge_candidate:
+                    usb_charge_candidate = usb_charge_raw
+                    usb_charge_candidate_since = now
+                elif now - usb_charge_candidate_since >= 1.0:
+                    usb_charge_stable = usb_charge_candidate
+                charging = exported_charging or usb_charge_stable
 
                 if first_run:
                     last_connected = connected
@@ -145,6 +174,19 @@ def main() -> None:
                         last_battery = battery
                     elif battery is not None:
                         last_battery = battery
+            elif not first_run and last_connected:
+                # The tray daemon may remove its export directory entirely
+                # when the headset disconnects. Treat that as a connection
+                # transition too; HeadsetService forwards it to OsdService.
+                last_connected = False
+                last_battery = None
+                last_charging = False
+                sys.stdout.write(json.dumps({
+                    "type": "connection",
+                    "connected": False,
+                    "model": "Headset"
+                }) + "\n")
+                sys.stdout.flush()
         except Exception:
             pass
 

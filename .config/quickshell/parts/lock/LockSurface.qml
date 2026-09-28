@@ -101,6 +101,13 @@ Item {
         if (!root.isActive) return
         LockService.setActiveScreen(root.screenName)
         LockService.rouse()
+        if (event.key === Qt.Key_Space) {
+            if (!LockService.biopassRunning && !LockService.biopassVerified)
+                LockService.triggerBiopass()
+            Qt.callLater(account.claim)
+            event.accepted = true
+            return
+        }
         account.claim()
     }
 

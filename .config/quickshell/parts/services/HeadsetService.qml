@@ -67,12 +67,12 @@ Singleton {
                         root.headsetBatteryMilestone(evt.battery, evt.charging, evt.milestone)
                     } else if (evt.type === "charging") {
                         root.charging = evt.charging
-                        if (evt.battery !== null)
+                        if (typeof evt.battery === "number")
                             root.battery = evt.battery
                         root.headsetChargingChanged(evt.charging, root.battery)
                     } else if (evt.type === "connection") {
                         root.connected = evt.connected
-                        if (evt.battery !== null)
+                        if (typeof evt.battery === "number")
                             root.battery = evt.battery
                         root.headsetConnectionChanged(evt.connected)
                     }

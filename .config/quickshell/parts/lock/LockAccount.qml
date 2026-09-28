@@ -266,6 +266,13 @@ Item {
                 }
 
                 Keys.onPressed: event => {
+                    if (event.key === Qt.Key_Space && field.text === "") {
+                        LockService.rouse()
+                        if (!LockService.biopassRunning && !LockService.biopassVerified)
+                            LockService.triggerBiopass()
+                        event.accepted = true
+                        return
+                    }
                     if (event.key === Qt.Key_Shift || event.key === Qt.Key_CapsLock || event.key === Qt.Key_Escape)
                         return
                     event.accepted = !LockService.awake
