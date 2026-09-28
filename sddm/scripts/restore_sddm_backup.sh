@@ -1,8 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-BACKUP_DIR="$DOTFILES_DIR/system_backups/sddm_pam_backup"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -d "$SCRIPT_DIR/sddm_pam_backup" ]; then
+    BACKUP_DIR="$SCRIPT_DIR/sddm_pam_backup"
+elif [ -d "$SCRIPT_DIR/../system_backups/sddm_pam_backup" ]; then
+    BACKUP_DIR="$(cd "$SCRIPT_DIR/../system_backups/sddm_pam_backup" && pwd)"
+elif [ -d "$SCRIPT_DIR/../../system_backups/sddm_pam_backup" ]; then
+    BACKUP_DIR="$(cd "$SCRIPT_DIR/../../system_backups/sddm_pam_backup" && pwd)"
+else
+    echo "Error: Backup directory sddm_pam_backup not found!"
+    exit 1
+fi
 
 echo "=== Restoring SDDM & PAM Backups ==="
 

@@ -142,17 +142,29 @@ Scope {
         }
 
         if (root.externalGeom) {
-            const m = root.externalGeom.trim().match(/^(\d+),(\d+)\s+(\d+)x(\d+)$/)
-                   || root.externalGeom.trim().match(/^(\d+)[\s,]+(\d+)[\s,]+(\d+)[\s,]+(\d+)$/)
+            const m = root.externalGeom.trim().match(/^(-?\d+),(-?\d+)\s+(\d+)x(\d+)$/)
+                   || root.externalGeom.trim().match(/^(-?\d+)[\s,]+(-?\d+)[\s,]+(\d+)[\s,]+(\d+)$/)
             if (m) {
-                root._instantGeo = {
-                    x: parseInt(m[1]),
-                    y: parseInt(m[2]),
-                    w: parseInt(m[3]),
-                    h: parseInt(m[4])
+                const w = parseInt(m[3])
+                const h = parseInt(m[4])
+                if (w > 0 && h > 0) {
+                    root._instantGeo = {
+                        x: parseInt(m[1]),
+                        y: parseInt(m[2]),
+                        w: w,
+                        h: h
+                    }
+                    root.instantCapture = true
+                    console.log("[Screenshot] Parsed external geometry:", root._instantGeo.x, root._instantGeo.y, root._instantGeo.w, root._instantGeo.h)
+                } else {
+                    console.log("[Screenshot] Invalid dimensions in external geometry:", root.externalGeom)
+                    root.instantCapture = false
+                    root.uiReady = true
                 }
-                root.instantCapture = true
-                console.log("[Screenshot] Parsed external geometry:", root._instantGeo.x, root._instantGeo.y, root._instantGeo.w, root._instantGeo.h)
+            } else {
+                console.log("[Screenshot] Failed to parse external geometry:", root.externalGeom)
+                root.instantCapture = false
+                root.uiReady = true
             }
         }
 

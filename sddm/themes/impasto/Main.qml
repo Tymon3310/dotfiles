@@ -79,30 +79,41 @@ Rectangle {
     property bool loginCommitted: false
     property var activeFaceRequest: null
     property string helperToken: ""
+    property int helperTokenRetries: 0
 
     Timer {
         id: helperTokenRetryTimer
         interval: 500
         repeat: true
-        running: root.helperToken === ""
+        running: root.helperToken === "" && root.helperTokenRetries < 10
         onTriggered: {
+            root.helperTokenRetries++
             root.readHelperToken()
             if (root.helperToken !== "")
                 stop()
         }
     }
 
-    function readHelperToken(): void {
+    function readHelperToken(callback?: var): void {
         try {
             let req = new XMLHttpRequest()
             req.onreadystatechange = function() {
-                if (req.readyState === XMLHttpRequest.DONE && req.status === 200) {
-                    root.helperToken = req.responseText.trim()
+                if (req.readyState === XMLHttpRequest.DONE) {
+                    if (req.status === 200 || (req.status === 0 && req.responseText)) {
+                        root.helperToken = req.responseText.trim()
+                    }
+                    if (typeof callback === "function") {
+                        callback(root.helperToken)
+                    }
                 }
             }
             req.open("GET", "file:///run/sddm-helper-token")
             req.send()
-        } catch (e) {}
+        } catch (e) {
+            if (typeof callback === "function") {
+                callback("")
+            }
+        }
     }
 
     function wakeUp(): void {
@@ -239,18 +250,24 @@ Rectangle {
         root.pendingPowerAction = action
 
         // Notify local helper daemon of power intent & firmware-setup state
-        try {
-            if (!root.helperToken)
-                root.readHelperToken()
-            let req = new XMLHttpRequest()
-            let endpoint = (action === "reboot-uefi") ? "reboot-uefi"
-                         : (action === "shutdown") ? "shutdown" : "reboot-normal"
-            let url = "http://127.0.0.1:18293/" + endpoint
-            req.open("GET", url, true)
-            if (root.helperToken)
-                req.setRequestHeader("X-Helper-Token", root.helperToken)
-            req.send()
-        } catch (e) {}
+        const sendPowerRequest = function(token: string) {
+            try {
+                let req = new XMLHttpRequest()
+                let endpoint = (action === "reboot-uefi") ? "reboot-uefi"
+                             : (action === "shutdown") ? "shutdown" : "reboot-normal"
+                let url = "http://127.0.0.1:18293/" + endpoint
+                req.open("GET", url, true)
+                if (token)
+                    req.setRequestHeader("X-Helper-Token", token)
+                req.send()
+            } catch (e) {}
+        }
+
+        if (root.helperToken) {
+            sendPowerRequest(root.helperToken)
+        } else {
+            root.readHelperToken(sendPowerRequest)
+        }
 
         root.fadingOut = true
         sddmCommitTimer.start()

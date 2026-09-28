@@ -54,23 +54,32 @@ Singleton {
         printErrors: false
     }
 
-    property var history: {
+    readonly property var cacheData: {
         const raw = root.historyFile.text()
         if (raw && raw.trim() !== "") {
             try {
                 const parsed = JSON.parse(raw)
-                if (Array.isArray(parsed))
+                if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && Array.isArray(parsed.entries))
                     return parsed
+                if (Array.isArray(parsed))
+                    return { instanceId: "", entries: parsed }
             } catch (e) {
                 console.log("[NotificationService] Failed to parse history cache:", e)
             }
         }
-        return []
+        return { instanceId: Quickshell.instanceId, entries: [] }
     }
+
+    readonly property string serverInstance: root.cacheData.instanceId ?? ""
+
+    property var history: root.cacheData.entries ?? []
 
     function saveHistory(): void {
         try {
-            root.historyFile.setText(JSON.stringify(root.history))
+            root.historyFile.setText(JSON.stringify({
+                instanceId: Quickshell.instanceId,
+                entries: root.history
+            }))
         } catch (e) {
             console.log("[NotificationService] Failed to save history cache:", e)
         }
@@ -81,7 +90,14 @@ Singleton {
     readonly property int historyLimit: 50
 
     property var liveObjects: ({})
-    property int serial: 0
+    property int serial: {
+        let max = 0
+        for (const entry of root.history) {
+            if (entry && typeof entry.key === "number" && entry.key > max)
+                max = entry.key
+        }
+        return max
+    }
 
     // The newest on the island, for anything that shows one.
     readonly property var current: root.shown.length > 0 ? root.shown[0] : null
@@ -228,11 +244,16 @@ Singleton {
             // the notification is destroyed as soon as the signal returns.
             notification.tracked = true
 
-            // If this notification is already in history (e.g. from before shell reload),
-            // retain its live object for user actions without re-popping the banner.
-            const existing = root.history.find(entry => entry.key === notification.id)
+            // If this notification is already in history from this server instance
+            // (e.g. delivered before a config reload), retain its live object for user actions
+            // without re-popping the banner.
+            const isSameServer = (root.serverInstance === Quickshell.instanceId)
+            const existing = isSameServer
+                ? root.history.find(entry => entry.id === notification.id)
+                : null
+
             if (existing) {
-                const key = notification.id
+                const key = existing.key
                 const live = Object.assign({}, root.liveObjects)
                 live[key] = notification
                 root.liveObjects = live
@@ -388,7 +409,7 @@ Singleton {
         }
     }
 
-    // Timed out on the island: slides off the screen, but remains alive in history.
+    // Banner dismissed or user activated: slides off the island, leaving the entry in history.
     function hideKey(key: int): void {
         root.shown = root.shown.filter(entry => entry.key !== key)
         const deadlines = Object.assign({}, root.deadlines)
@@ -402,7 +423,8 @@ Singleton {
         }
     }
 
-    // Explicitly dismissed or removed: the application is told it expired.
+    // Timed out on deadline or explicitly dismissed: notifies the sending application via expire(),
+    // freeing callers like notify-send --wait, while keeping the plain snapshot in history.
     function dismissKey(key: int): void {
         const object = root.liveObjects[key]
         root.forget(key)
