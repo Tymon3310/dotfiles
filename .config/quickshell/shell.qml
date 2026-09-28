@@ -50,9 +50,11 @@ ShellRoot {
         value: shellRoot.spotifyData.queue ?? []
     }
 
+    property int mediaRestartAttempts: 0
+
     Timer {
         id: mediaRestartTimer
-        interval: 2500
+        interval: Math.min(30000, 2500 * Math.pow(2, Math.min(shellRoot.mediaRestartAttempts, 5)))
         repeat: false
         onTriggered: mediaListenerProcess.running = true
     }
@@ -63,11 +65,13 @@ ShellRoot {
         command: ["python3", "-u", Quickshell.shellPath("scripts/media_status.py")]
         running: true
         onExited: (code, status) => {
-            console.log("MediaListener exited, restarting in 2.5s...")
+            shellRoot.mediaRestartAttempts++
+            console.log("MediaListener exited, restarting in " + (mediaRestartTimer.interval / 1000) + "s...")
             mediaRestartTimer.restart()
         }
         stdout: SplitParser {
             onRead: (line) => {
+                shellRoot.mediaRestartAttempts = 0
                 try {
                     var data = JSON.parse(line);
                     if (data && !data.error) {
@@ -107,21 +111,6 @@ ShellRoot {
         }
     }
 
-    IpcHandler {
-        target: "fade"
-        function test(): void {
-            SessionService.fadingOut = true
-            testFadeTimer.restart()
-        }
-    }
-
-    Timer {
-        id: testFadeTimer
-        interval: 1500
-        repeat: false
-        onTriggered: SessionService.fadingOut = false
-    }
-
     // ── Screenshot Tool Dynamic Loader ───────────────────────────────
     Loader {
         id: screenshotLoader
@@ -130,6 +119,7 @@ ShellRoot {
         property string envId: ""
         property string modeOverride: ""
         property string instantOverride: ""
+        property string geomOverride: ""
 
         source: Qt.resolvedUrl("screenshot/shell.qml")
 
@@ -145,6 +135,9 @@ ShellRoot {
             if (instantOverride === "1") {
                 item.instantCapture = true
             }
+            if (geomOverride) {
+                item.externalGeom = geomOverride
+            }
             item.initializeCapture()
         }
     }
@@ -159,6 +152,7 @@ ShellRoot {
             screenshotLoader.envId = ""
             screenshotLoader.modeOverride = ""
             screenshotLoader.instantOverride = ""
+            screenshotLoader.geomOverride = ""
         }
     }
 
@@ -188,9 +182,11 @@ ShellRoot {
             console.log("[MainShell] Instant Screenshot IPC triggered with geom:", geomStr)
             screenshotLoader.modeOverride = "region"
             screenshotLoader.instantOverride = "1"
+            screenshotLoader.geomOverride = geomStr || ""
             if (!screenshotLoader.active) {
                 screenshotLoader.active = true
             } else if (screenshotLoader.item) {
+                if (geomStr) screenshotLoader.item.externalGeom = geomStr
                 screenshotLoader.item.instantCapture = true
                 screenshotLoader.item.initializeCapture()
             }

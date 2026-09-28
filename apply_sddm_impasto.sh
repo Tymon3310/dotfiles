@@ -23,32 +23,36 @@ done
 [ -f /usr/share/sddm/scripts/Xsetup ] && [ ! -f "$DOTFILES_DIR/system_backups/sddm_pam_backup/Xsetup" ] && cp -pv /usr/share/sddm/scripts/Xsetup "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
 [ -f /usr/share/sddm/scripts/Xstop ] && [ ! -f "$DOTFILES_DIR/system_backups/sddm_pam_backup/Xstop" ] && cp -pv /usr/share/sddm/scripts/Xstop "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
 
+# Provide restore script in system_backups
+cp -pv "$DOTFILES_DIR/sddm/scripts/restore_sddm_backup.sh" "$DOTFILES_DIR/system_backups/restore_sddm_backup.sh"
+chmod 755 "$DOTFILES_DIR/system_backups/restore_sddm_backup.sh"
+
 # 2. Install theme
 echo "Installing theme to $THEME_DST..."
 mkdir -p "$THEME_DST"
 # Clean sync theme files
 rm -rf "$THEME_DST"/*
 cp -rp "$THEME_SRC"/* "$THEME_DST"/
-chmod -R 755 "$THEME_DST"
+find "$THEME_DST" -type d -exec chmod 755 {} +
+find "$THEME_DST" -type f -exec chmod 644 {} +
 
 # 3. Create faces directory
 mkdir -p /var/lib/impasto/faces
 chmod 755 /var/lib/impasto/faces
 
 # 4. Install UEFI helper script and integrate into SDDM Xsetup / Xstop
-echo "Installing SDDM UEFI reboot helper..."
+echo "Installing SDDM UEFI reboot helper & password validation helper..."
 mkdir -p /usr/share/sddm/scripts
 if [ -f "$DOTFILES_DIR/sddm/scripts/sddm-uefi-helper.py" ]; then
     cp -pv "$DOTFILES_DIR/sddm/scripts/sddm-uefi-helper.py" /usr/share/sddm/scripts/sddm-uefi-helper.py
     chmod 755 /usr/share/sddm/scripts/sddm-uefi-helper.py
 fi
+if [ -f "$DOTFILES_DIR/sddm/scripts/check_empty_password.sh" ]; then
+    cp -pv "$DOTFILES_DIR/sddm/scripts/check_empty_password.sh" /usr/share/sddm/scripts/check_empty_password.sh
+    chmod 755 /usr/share/sddm/scripts/check_empty_password.sh
+fi
 
 if [ -f /usr/share/sddm/scripts/Xsetup ]; then
-    # Disable second monitor (DisplayPort-1) in SDDM X11 greeter if present
-    if ! grep -q "xrandr --output DisplayPort-1 --off" /usr/share/sddm/scripts/Xsetup; then
-        sed -i '2i xrandr --output DisplayPort-1 --off 2>/dev/null || true' /usr/share/sddm/scripts/Xsetup || true
-    fi
-
     if ! grep -q "sddm-uefi-helper" /usr/share/sddm/scripts/Xsetup; then
         cat << 'XSETUP' >> /usr/share/sddm/scripts/Xsetup
 
@@ -111,19 +115,30 @@ EOF_THEME
     fi
 fi
 
-# 6. Handle autologin (disable so login screen is displayed)
+# 6. Handle autologin
 if [ -f /etc/sddm.conf.d/99-autologin.conf ]; then
+    echo "Notice: /etc/sddm.conf.d/99-autologin.conf is present."
     echo "Disabling 99-autologin.conf (renaming to 99-autologin.conf.bak) so SDDM greeter displays..."
     mv /etc/sddm.conf.d/99-autologin.conf /etc/sddm.conf.d/99-autologin.conf.bak
 fi
 
-# 7. Configure PAM for SDDM Face Unlock (with optional safe fallthrough via leading hyphen)
-echo "Configuring PAM (/etc/pam.d/sddm) with biopass face unlock..."
+# 7. Configure PAM for SDDM Face Unlock (with faillock-safe empty password check)
+echo "Configuring PAM (/etc/pam.d/sddm) with biopass face unlock and faillock protection..."
 cat << 'PAM' > /etc/pam.d/sddm
 #%PAM-1.0
 
--auth           sufficient      /usr/lib/security/libbiopass_pam.so
+# 1. Biopass biometric face auth
+-auth           [success=done default=ignore]   /usr/lib/security/libbiopass_pam.so
+
+# 2. If password is empty (failed face scan), immediately terminate auth with failure
+#    WITHOUT falling through to system-login / pam_faillock (prevents account lockout).
+-auth           [success=die default=ignore]    pam_exec.so quiet expose_authtok /usr/share/sddm/scripts/check_empty_password.sh
+
+# 3. Standard login authentication (evaluates actual typed password via pam_unix and pam_faillock)
 auth            include         system-login
+
+# Note: pam_kwallet5 does not receive a password during biometric face logins;
+# manual wallet unlock on first access is expected.
 auth            optional        pam_kwallet5.so
 
 account         include         system-login
@@ -139,6 +154,11 @@ chmod 644 /etc/pam.d/sddm
 if id sddm >/dev/null 2>&1; then
     echo "Ensuring sddm user has access to camera (video group)..."
     usermod -aG video sddm || true
+fi
+
+# 9. Fix ownership of system_backups so non-root git operations work smoothly
+if [ -n "${SUDO_USER:-}" ]; then
+    chown -R "$SUDO_USER:$SUDO_USER" "$DOTFILES_DIR/system_backups" 2>/dev/null || true
 fi
 
 echo ""

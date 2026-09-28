@@ -27,6 +27,7 @@ Scope {
     property string cropPath: ""
     property bool saveToDisk: true
     property string mode: "region"
+    property string externalGeom: ""
     property bool ready: false
     property bool uiReady: false
     property var pendingAction: null
@@ -138,6 +139,21 @@ Scope {
                 instantGeoProcess.command = ["sh", "-c", "hyprctl activewindow -j | jq -r '[.at[0], .at[1], .size[0], .size[1]] | @tsv'"]
             }
             instantGeoProcess.running = true
+        }
+
+        if (root.externalGeom) {
+            const m = root.externalGeom.trim().match(/^(\d+),(\d+)\s+(\d+)x(\d+)$/)
+                   || root.externalGeom.trim().match(/^(\d+)[\s,]+(\d+)[\s,]+(\d+)[\s,]+(\d+)$/)
+            if (m) {
+                root._instantGeo = {
+                    x: parseInt(m[1]),
+                    y: parseInt(m[2]),
+                    w: parseInt(m[3]),
+                    h: parseInt(m[4])
+                }
+                root.instantCapture = true
+                console.log("[Screenshot] Parsed external geometry:", root._instantGeo.x, root._instantGeo.y, root._instantGeo.w, root._instantGeo.h)
+            }
         }
 
         const timestamp = root.externalTimestamp ? root.externalTimestamp : (envId ? envId : Date.now())

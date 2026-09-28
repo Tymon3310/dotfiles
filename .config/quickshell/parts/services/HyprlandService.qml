@@ -245,9 +245,40 @@ QtObject {
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
-                const firstEnd = text.indexOf("]")
-                const secondStart = text.indexOf("[", firstEnd)
-                if (firstEnd < 0 || secondStart < 0)
+                let depth = 0
+                let inString = false
+                let escape = false
+                let firstEnd = -1
+                for (let i = 0; i < text.length; i++) {
+                    const c = text[i]
+                    if (escape) {
+                        escape = false
+                        continue
+                    }
+                    if (c === "\\") {
+                        if (inString) escape = true
+                        continue
+                    }
+                    if (c === '"') {
+                        inString = !inString
+                        continue
+                    }
+                    if (!inString) {
+                        if (c === "[") {
+                            depth++
+                        } else if (c === "]") {
+                            depth--
+                            if (depth === 0) {
+                                firstEnd = i
+                                break
+                            }
+                        }
+                    }
+                }
+                if (firstEnd < 0)
+                    return
+                const secondStart = text.indexOf("[", firstEnd + 1)
+                if (secondStart < 0)
                     return
                 const workspaces = root.parseJson(text.slice(0, firstEnd + 1))
                 const monitors = root.parseJson(text.slice(secondStart))
@@ -288,12 +319,12 @@ QtObject {
             case "movewindowv2":
             case "focusedmon":
             case "focusedmonv2":
-                if (event.name === "focusedmon" || event.name === "focusedmonv2") {
+                if (event.name === "focusedmonv2") {
                     const parts = `${event.data}`.split(",")
                     if (parts[0] && parts[0] !== "") {
                         root.focusedMonitor = parts[0]
                         if (parts[1]) {
-                            const wsId = parseInt(parts[1])
+                            const wsId = parseInt(parts[1], 10)
                             if (!isNaN(wsId)) {
                                 root.activeId = wsId
                                 const copy = Object.assign({}, root.activeByMonitor)
@@ -301,6 +332,11 @@ QtObject {
                                 root.activeByMonitor = copy
                             }
                         }
+                    }
+                } else if (event.name === "focusedmon") {
+                    const parts = `${event.data}`.split(",")
+                    if (parts[0] && parts[0] !== "") {
+                        root.focusedMonitor = parts[0]
                     }
                 }
                 root.refresh()

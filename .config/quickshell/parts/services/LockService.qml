@@ -206,7 +206,7 @@ Singleton {
     }
 
     readonly property PamContext pam: PamContext {
-        config: "login"
+        config: "system-auth"
 
         onResponseRequiredChanged: {
             if (pam.responseRequired && root.pendingPassword !== "") {

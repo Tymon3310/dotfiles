@@ -18,7 +18,7 @@ Item {
     id: root
 
     property string screenName: ""
-    readonly property bool isActive: (screenName === "" || screenName === LockService.activeScreen || Quickshell.screens.length <= 1)
+    readonly property bool isActive: (Quickshell.screens.length <= 1) || (screenName !== "" && screenName === LockService.activeScreen)
 
     signal submitted(string password)
 
@@ -262,5 +262,17 @@ Item {
         anchors.bottomMargin: 24
 
         Behavior on opacity { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
+    }
+
+    // Black overlay for power actions (reboot/shutdown/logout) triggered from the lock screen
+    Rectangle {
+        anchors.fill: parent
+        color: "black"
+        opacity: SessionService.fadingOut ? 1 : 0
+        visible: opacity > 0
+        z: 9999
+        Behavior on opacity {
+            NumberAnimation { duration: SessionService.fadeDuration; easing.type: Easing.InOutCubic }
+        }
     }
 }

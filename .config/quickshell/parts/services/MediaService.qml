@@ -97,7 +97,7 @@ Singleton {
     property int preciseWatchers: 0
 
     readonly property Timer positionTimer: Timer {
-        interval: root.preciseWatchers > 0 ? 30 : 1000
+        interval: root.preciseWatchers > 0 ? 50 : 1000
         repeat: true
         running: root.watchers > 0 && root.playing && root.seekable
         onTriggered: {
@@ -190,18 +190,17 @@ Singleton {
     }
 
     function setVolume(value: real): void {
-        const norm = value > 1.0 ? value / 100.0 : value
-        const level = Math.max(0, Math.min(1, norm))
+        const level = Math.max(0, Math.min(1, value))
 
+        let pipewireUpdated = false
         for (const node of root.spotifyStreams) {
-            if (node.audio)
+            if (node.audio) {
                 node.audio.volume = level
+                pipewireUpdated = true
+            }
         }
-        if (root.available && root.active.volume !== undefined) {
+        if (!pipewireUpdated && root.available && root.active.volume !== undefined) {
             root.active.volume = level
-        }
-        if (root.available && root.active.dbusName) {
-            Quickshell.execDetached(["playerctl", "-p", root.active.dbusName, "volume", level.toFixed(2)])
         }
 
         root.volumeShown = true

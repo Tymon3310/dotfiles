@@ -56,6 +56,21 @@ def glyph(code, daytime):
     return FALLBACK[0] if daytime else FALLBACK[1]
 
 
+def check_daytime(today, hour=None):
+    try:
+        astro = today.get("astronomy", [{}])[0]
+        sr_dt = datetime.strptime(astro.get("sunrise", "06:00 AM"), "%I:%M %p")
+        ss_dt = datetime.strptime(astro.get("sunset", "09:00 PM"), "%I:%M %p")
+        if hour is None:
+            now_time = datetime.now().time()
+            return sr_dt.time() <= now_time <= ss_dt.time()
+        else:
+            return sr_dt.hour <= hour < ss_dt.hour
+    except Exception:
+        h = datetime.now().hour if hour is None else hour
+        return 6 <= h < 21
+
+
 def fetch(place):
     # Quoted: place names carry spaces and non-ASCII characters.
     url = ENDPOINT.format(place=urllib.parse.quote(place.strip(), safe=""))
@@ -79,9 +94,7 @@ def report(place):
     today = data["weather"][0]
 
     code = int(current["weatherCode"])
-    daytime = 6 <= datetime.now().hour < 21
-    # wttr.in reports observation time in UTC and `isdaytime` only per hour, so
-    # the day/night split comes from the hour blocks the day is made of.
+    daytime = check_daytime(today)
     hours = today["hourly"]
 
     return {
@@ -102,7 +115,7 @@ def report(place):
             {
                 "hour": int(block["time"]) // 100,
                 "temperature": int(block["tempC"]),
-                "glyph": glyph(int(block["weatherCode"]), 6 <= int(block["time"]) // 100 < 21),
+                "glyph": glyph(int(block["weatherCode"]), check_daytime(today, int(block["time"]) // 100)),
                 "rain": int(block["chanceofrain"]),
                 "tomorrow": day > 0,
             }

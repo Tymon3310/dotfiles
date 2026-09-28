@@ -137,9 +137,9 @@ def main():
 
     while True:
         try:
-            # Rescan devices periodically every 15 seconds
+            # Rescan devices periodically (15s when active, 5s throttle when no devices accessible)
             now = time.time()
-            if now - last_scan_time > 15.0 or not devices:
+            if now - last_scan_time > (5.0 if not devices else 15.0):
                 close_devices(devices)
                 devices = open_keyboards()
                 leds = has_leds(devices)

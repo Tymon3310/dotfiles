@@ -25,6 +25,6 @@ export PATH="$HOME/.local/bin:$PATH"
 export PATH="$HOME/.wakatime:$PATH"
 eval "$(terminal-wakatime init)"
 
-if fgconsole &>/dev/null; then
-	start-hyprland
+if [ -z "$WAYLAND_DISPLAY" ] && [ "$(tty 2>/dev/null)" = "/dev/tty8" ]; then
+	exec start-hyprland
 fi

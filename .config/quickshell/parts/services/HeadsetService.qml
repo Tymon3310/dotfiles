@@ -21,8 +21,10 @@ Singleton {
     signal headsetChargingChanged(bool charging, int battery)
     signal headsetConnectionChanged(bool connected)
 
+    property int restartAttempts: 0
+
     readonly property Timer restartTimer: Timer {
-        interval: 1500
+        interval: Math.min(30000, 1500 * Math.pow(2, Math.min(root.restartAttempts, 5)))
         repeat: false
         onTriggered: monitorProcess.running = true
     }
@@ -34,6 +36,7 @@ Singleton {
 
         onExited: exitCode => {
             console.log("headset_monitor.py exited with code", exitCode)
+            root.restartAttempts++
             root.restartTimer.start()
         }
 
@@ -49,6 +52,7 @@ Singleton {
             onRead: data => {
                 if (!data || data.trim() === "")
                     return
+                root.restartAttempts = 0
                 try {
                     const evt = JSON.parse(data.trim())
                     if (evt.type === "init") {
@@ -61,6 +65,9 @@ Singleton {
                     } else if (evt.type === "mic_mute") {
                         root.micMuted = evt.muted
                         root.headsetMuteChanged(evt.muted)
+                    } else if (evt.type === "battery") {
+                        root.battery = evt.battery
+                        root.charging = evt.charging
                     } else if (evt.type === "battery_milestone") {
                         root.battery = evt.battery
                         root.charging = evt.charging

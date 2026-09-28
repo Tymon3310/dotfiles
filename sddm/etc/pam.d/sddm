@@ -1,7 +1,17 @@
 #%PAM-1.0
 
--auth           sufficient      /usr/lib/security/libbiopass_pam.so
+# 1. Biopass biometric face auth
+-auth           [success=done default=ignore]   /usr/lib/security/libbiopass_pam.so
+
+# 2. If password is empty (failed face scan), immediately terminate auth with failure
+#    WITHOUT falling through to system-login / pam_faillock (prevents account lockout).
+-auth           [success=die default=ignore]    pam_exec.so quiet expose_authtok /usr/share/sddm/scripts/check_empty_password.sh
+
+# 3. Standard login authentication (evaluates actual typed password via pam_unix and pam_faillock)
 auth            include         system-login
+
+# Note: pam_kwallet5 does not receive a password during biometric face logins;
+# manual wallet unlock on first access is expected.
 auth            optional        pam_kwallet5.so
 
 account         include         system-login

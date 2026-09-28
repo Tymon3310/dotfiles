@@ -66,6 +66,8 @@ def main() -> None:
     usb_charge_candidate = None
     usb_charge_candidate_since = 0.0
     usb_charge_stable = False
+    last_usb_poll = 0.0
+    usb_charge_raw = False
     first_run = True
 
     while True:
@@ -86,8 +88,10 @@ def main() -> None:
 
                 charge_str = read_file("charging", "0")
                 exported_charging = (charge_str == "1")
-                usb_charge_raw = usb_charge_cable_connected()
                 now = time.monotonic()
+                if first_run or (now - last_usb_poll >= 1.0):
+                    usb_charge_raw = usb_charge_cable_connected()
+                    last_usb_poll = now
                 if usb_charge_raw != usb_charge_candidate:
                     usb_charge_candidate = usb_charge_raw
                     usb_charge_candidate_since = now
@@ -151,8 +155,18 @@ def main() -> None:
                         }) + "\n")
                         sys.stdout.flush()
 
-                    # 4. Battery milestone updates (e.g. 75, 50, 30, 15, etc.)
+                    # 4. Battery state updates & milestone alerts
                     if connected and battery is not None and last_battery is not None and battery != last_battery:
+                        # Emit ordinary battery reading change for persistent display
+                        sys.stdout.write(json.dumps({
+                            "type": "battery",
+                            "battery": battery,
+                            "charging": charging,
+                            "model": model
+                        }) + "\n")
+                        sys.stdout.flush()
+
+                        # Emit milestone alert if crossed
                         for m in MILESTONES:
                             # Crossed downwards (discharging)
                             crossed_down = (last_battery > m and battery <= m)

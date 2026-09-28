@@ -12,6 +12,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Io
 import Quickshell.Services.Notifications
 
 // Owns org.freedesktop.Notifications. If another daemon holds the name, the
@@ -42,7 +43,41 @@ Singleton {
     property var waiting: []
     readonly property int maxShown: 3
 
-    property var history: []
+    readonly property string historyPath: {
+        const dir = Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"
+        return `${dir}/quickshell_notifications.json`
+    }
+
+    readonly property FileView historyFile: FileView {
+        path: root.historyPath
+        blockLoading: true
+        printErrors: false
+    }
+
+    property var history: {
+        const raw = root.historyFile.text()
+        if (raw && raw.trim() !== "") {
+            try {
+                const parsed = JSON.parse(raw)
+                if (Array.isArray(parsed))
+                    return parsed
+            } catch (e) {
+                console.log("[NotificationService] Failed to parse history cache:", e)
+            }
+        }
+        return []
+    }
+
+    function saveHistory(): void {
+        try {
+            root.historyFile.setText(JSON.stringify(root.history))
+        } catch (e) {
+            console.log("[NotificationService] Failed to save history cache:", e)
+        }
+    }
+
+    onHistoryChanged: root.saveHistory()
+
     readonly property int historyLimit: 50
 
     property var liveObjects: ({})
@@ -192,6 +227,19 @@ Singleton {
             // Tracking keeps the object alive past this handler; without it
             // the notification is destroyed as soon as the signal returns.
             notification.tracked = true
+
+            // If this notification is already in history (e.g. from before shell reload),
+            // retain its live object for user actions without re-popping the banner.
+            const existing = root.history.find(entry => entry.key === notification.id)
+            if (existing) {
+                const key = notification.id
+                const live = Object.assign({}, root.liveObjects)
+                live[key] = notification
+                root.liveObjects = live
+                notification.closed.connect(() => root.forget(key))
+                return
+            }
+
             root.present(notification)
         }
     }
@@ -208,7 +256,7 @@ Singleton {
             for (const entry of root.shown) {
                 const deadline = root.deadlines[entry.key]
                 if (deadline !== undefined && deadline <= now)
-                    root.hideKey(entry.key)
+                    root.dismissKey(entry.key)
             }
         }
     }
@@ -241,11 +289,11 @@ Singleton {
         // notification. The headset monitor already reports connection state
         // through OsdService, so translate matching notices to the same OSD
         // presentation rather than showing a second, differently styled card.
-        const headsetNotice = `${notification.appName} ${notification.summary} ${notification.body}`
-        const headsetIdentity = /\b(headset|headphone|jbl|quantum)\b/i.test(headsetNotice)
-            || (HeadsetService.model !== ""
-                && headsetNotice.toLowerCase().includes(HeadsetService.model.toLowerCase()))
-        if (headsetIdentity
+        const appName = (notification.appName ?? "").toLowerCase()
+        const isHeadsetApp = /\b(jbl[-_]quantum|headsetcontrol|jbl-quantum-tray)\b/i.test(appName)
+            || (HeadsetService.model !== "" && appName.includes(HeadsetService.model.toLowerCase()))
+        const headsetNotice = `${notification.summary ?? ""} ${notification.body ?? ""}`
+        if (isHeadsetApp
                 && /\b(online|connected|offline|disconnected)\b/i.test(headsetNotice)) {
             const connected = !/\b(offline|disconnected)\b/i.test(headsetNotice)
             const battery = HeadsetService.battery
@@ -299,8 +347,10 @@ Singleton {
                 delete deadlines[bumped.key]
                 root.deadlines = deadlines
                 root.waiting = [bumped].concat(root.waiting)
+                root.show(notification)
+            } else {
+                root.waiting = [notification].concat(root.waiting)
             }
-            root.show(notification)
         } else {
             root.waiting = root.waiting.concat([notification])
         }
@@ -429,6 +479,9 @@ Singleton {
     }
 
     function openTarget(notification: var, alreadyInvoked: bool): void {
+        if (alreadyInvoked)
+            return
+
         const text = `${notification.summary ?? ""} ${notification.body ?? ""}`
         const urlMatch = text.match(/https?:\/\/[^\s<>"']+/)
         if (urlMatch) {
@@ -439,8 +492,6 @@ Singleton {
         // Screenshot notifications carry their saved file as the image hint,
         // but have no application desktop entry to launch.
         if ((notification.appName ?? "").toLowerCase() === "screenshot") {
-            if (alreadyInvoked)
-                return
             const image = notification.picture ?? ""
             if (`${image}`.startsWith("file://")) {
                 Qt.openUrlExternally(image)
@@ -451,13 +502,13 @@ Singleton {
         root.focusOrLaunchApp(
             notification.appName ?? "",
             notification.desktopEntry ?? "",
-            alreadyInvoked
+            false
         )
     }
 
     function focusOrLaunchApp(appName: string, desktopEntry: string, alreadyInvoked: bool): void {
         const id = desktopEntry || appName
-        if (id) {
+        if (id && /^[\w.\-]+$/.test(id)) {
             Hyprland.dispatch(`hl.dsp.focus({ window = "class:${id.toLowerCase()}" })`)
         }
 

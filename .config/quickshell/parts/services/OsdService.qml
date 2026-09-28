@@ -112,8 +112,10 @@ Singleton {
         }
     }
 
+    property int restartAttempts: 0
+
     readonly property Timer restartTimer: Timer {
-        interval: 1000
+        interval: Math.min(30000, 1000 * Math.pow(2, Math.min(root.restartAttempts, 5)))
         repeat: false
         onTriggered: lockMonitorProcess.running = true
     }
@@ -126,6 +128,7 @@ Singleton {
 
         onExited: exitCode => {
             console.log("lockMonitorProcess exited with code", exitCode)
+            root.restartAttempts++
             root.restartTimer.start()
         }
 
@@ -139,6 +142,7 @@ Singleton {
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => {
+                root.restartAttempts = 0
                 if (!root.armed)
                     return
                 try {

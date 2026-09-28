@@ -37,9 +37,9 @@ Singleton {
         }
     }
 
-    // Safety watchdog: if polkit denies or action fails, restore screen after 5 seconds
+    // Safety watchdog: if polkit denies or action fails, restore screen after 15 seconds
     readonly property Timer fadeSafetyTimer: Timer {
-        interval: 5000
+        interval: 15000
         repeat: false
         onTriggered: {
             if (root.fadingOut) {
