@@ -25,6 +25,7 @@ Rectangle {
         id: bgImage
         anchors.fill: parent
         source: "background.jpg"
+        sourceSize: Qt.size(root.width, root.height)
         fillMode: Image.PreserveAspectCrop
         asynchronous: false
         cache: true
@@ -79,6 +80,18 @@ Rectangle {
     property var activeFaceRequest: null
     property string helperToken: ""
 
+    Timer {
+        id: helperTokenRetryTimer
+        interval: 500
+        repeat: true
+        running: root.helperToken === ""
+        onTriggered: {
+            root.readHelperToken()
+            if (root.helperToken !== "")
+                stop()
+        }
+    }
+
     function readHelperToken(): void {
         try {
             let req = new XMLHttpRequest()
@@ -96,8 +109,6 @@ Rectangle {
         if (!root.awake) {
             root.awake = true
             Qt.callLater(account.claim)
-            if (root.isPrimary)
-                Qt.callLater(root.attemptFace)
         }
     }
 
@@ -136,13 +147,6 @@ Rectangle {
             try { root.activeFaceRequest.abort() } catch (e) {}
             root.activeFaceRequest = null
         }
-        try {
-            let cancelReq = new XMLHttpRequest()
-            let url = "http://127.0.0.1:18293/cancel-face"
-            if (root.helperToken) url += "?token=" + encodeURIComponent(root.helperToken)
-            cancelReq.open("GET", url, true)
-            cancelReq.send()
-        } catch (e) {}
 
         root.faceScanning = false
         // Keep the password input live while PAM performs the face attempt;
@@ -236,12 +240,15 @@ Rectangle {
 
         // Notify local helper daemon of power intent & firmware-setup state
         try {
+            if (!root.helperToken)
+                root.readHelperToken()
             let req = new XMLHttpRequest()
             let endpoint = (action === "reboot-uefi") ? "reboot-uefi"
                          : (action === "shutdown") ? "shutdown" : "reboot-normal"
             let url = "http://127.0.0.1:18293/" + endpoint
-            if (root.helperToken) url += "?token=" + encodeURIComponent(root.helperToken)
             req.open("GET", url, true)
+            if (root.helperToken)
+                req.setRequestHeader("X-Helper-Token", root.helperToken)
             req.send()
         } catch (e) {}
 
