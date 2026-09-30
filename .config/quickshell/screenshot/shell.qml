@@ -44,6 +44,14 @@ Scope {
     ]
     property string aiPrompt: "Briefly describe this image in 2-3 sentences."
     property bool shiftHeld: false
+    property bool promptFocused: false
+
+    // Application-wide shortcut: Escape always closes the screenshot tool
+    Shortcut {
+        sequence: "Escape"
+        context: Qt.ApplicationShortcut
+        onActivated: root.exitTool()
+    }
 
     // QR code detection for lens mode
     property var detectedQRCodes: []  // Array of {x, y, width, height, data} in image coords
@@ -684,12 +692,76 @@ Scope {
             property real screenY: modelData.y
             property var hyprlandMonitor: Hyprland.focusedMonitor
 
-            Shortcut {
-                sequence: "Escape"
-                onActivated: () => {
-                    root.exitTool()
+            FocusScope {
+                id: keyScope
+                anchors.fill: parent
+                focus: true
+
+                Component.onCompleted: keyScope.forceActiveFocus()
+
+                Connections {
+                    target: freezeWindow
+                    function onFrozenChanged() {
+                        if (freezeWindow.frozen) keyScope.forceActiveFocus()
+                    }
+                    function onVisibleChanged() {
+                        if (freezeWindow.visible) keyScope.forceActiveFocus()
+                    }
                 }
-            }
+
+                Keys.onPressed: (event) => {
+                    if (root.promptFocused) {
+                        if (event.key === Qt.Key_Escape) {
+                            root.promptFocused = false
+                            keyScope.forceActiveFocus()
+                            event.accepted = true
+                        }
+                        return
+                    }
+
+                    switch (event.key) {
+                    case Qt.Key_Escape:
+                        root.exitTool()
+                        event.accepted = true
+                        break
+                    case Qt.Key_1:
+                        root.mode = "region"
+                        event.accepted = true
+                        break
+                    case Qt.Key_2:
+                        root.mode = "window"
+                        event.accepted = true
+                        break
+                    case Qt.Key_3:
+                        root.mode = "screen"
+                        event.accepted = true
+                        break
+                    case Qt.Key_4:
+                        root.mode = "ocr"
+                        event.accepted = true
+                        break
+                    case Qt.Key_5:
+                        root.mode = "lens"
+                        event.accepted = true
+                        break
+                    case Qt.Key_6:
+                        root.mode = "ai"
+                        event.accepted = true
+                        break
+                    case Qt.Key_S:
+                        root.saveToDisk = !root.saveToDisk
+                        event.accepted = true
+                        break
+                    case Qt.Key_Return:
+                    case Qt.Key_Enter:
+                    case Qt.Key_Space:
+                        if (root.mode === "screen") {
+                            root.processScreenshot(freezeWindow.screenX, freezeWindow.screenY, freezeWindow.modelData.width, freezeWindow.modelData.height, false)
+                            event.accepted = true
+                        }
+                        break
+                    }
+                }
 
 
 
@@ -734,10 +806,11 @@ Scope {
                         crossScreenSelector.clampedWidth,
                         crossScreenSelector.clampedHeight
                     )
-                    property real dimOpacity: 0.6
+                    property real dimOpacity: Theme.captureWash.a
                     property vector2d screenSize: Qt.vector2d(parent.width, parent.height)
-                    property real borderRadius: 10.0
+                    property real borderRadius: Theme.radiusMedium
                     property real outlineThickness: (crossScreenSelector.clampedWidth > 1 && crossScreenSelector.clampedHeight > 1) ? 2.0 : 0.0
+                    property color outlineColor: Theme.accent
 
                     fragmentShader: Qt.resolvedUrl("shaders/dimming.frag.qsb")
                 }
@@ -753,9 +826,9 @@ Scope {
                         ctx.clearRect(0, 0, width, height);
 
                         ctx.beginPath();
-                        ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+                        ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
                         ctx.lineWidth = 1;
-                        ctx.setLineDash([5, 5]);
+                        ctx.setLineDash([4, 4]);
 
                         if (!root.isSelecting && regionMouseArea.containsMouse) {
                             // Crosshair at mouse cursor
@@ -777,6 +850,33 @@ Scope {
                             }
                         }
                         ctx.stroke();
+                    }
+                }
+
+                // Dimension reading pill badge
+                Rectangle {
+                    visible: root.isSelecting && crossScreenSelector.clampedWidth > 20 && crossScreenSelector.clampedHeight > 20
+                    x: Math.min(Math.max(10, crossScreenSelector.clampedX + (crossScreenSelector.clampedWidth - width) / 2),
+                                parent.width - width - 10)
+                    y: crossScreenSelector.clampedY > height + 10
+                        ? crossScreenSelector.clampedY - height - 8
+                        : crossScreenSelector.clampedY + 8
+                    width: readingLabel.implicitWidth + 20
+                    height: 28
+                    radius: height / 2
+                    color: Theme.island
+                    border.color: Theme.islandBorder
+                    border.width: 1
+                    z: 4
+
+                    Text {
+                        id: readingLabel
+                        anchors.centerIn: parent
+                        text: Math.round(root.selectionWidth) + " × " + Math.round(root.selectionHeight)
+                        font.family: Theme.fontMono
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: Font.DemiBold
+                        color: Theme.text
                     }
                 }
 
@@ -845,13 +945,13 @@ Scope {
                         y: localY - 8
                         width: modelData.width + 16
                         height: modelData.height + 16
-                        radius: 8
-                        color: qrMouseArea.containsMouse ? Qt.rgba(0.2, 0.6, 1.0, 0.3) : Qt.rgba(0.2, 0.6, 1.0, 0.15)
-                        border.color: Qt.rgba(0.3, 0.7, 1.0, 0.9)
+                        radius: Theme.radiusSmall
+                        color: qrMouseArea.containsMouse ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.25) : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
+                        border.color: Theme.accent
                         border.width: 2
                         z: 5
 
-                        Behavior on color { ColorAnimation { duration: 100 } }
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
                         // QR icon badge
                         Rectangle {
@@ -861,7 +961,7 @@ Scope {
                             width: 28
                             height: 28
                             radius: 14
-                            color: Qt.rgba(0.2, 0.5, 0.9, 0.95)
+                            color: Theme.accent
 
                             Image {
                                 anchors.centerIn: parent
@@ -880,28 +980,33 @@ Scope {
                             anchors.left: parent.left
                             anchors.topMargin: 8
                             width: qrDataColumn.width + 24
-                            height: qrDataColumn.height + 12
-                            radius: 6
-                            color: Qt.rgba(0.1, 0.1, 0.1, 0.95)
+                            height: qrDataColumn.height + 14
+                            radius: Theme.radiusSmall
+                            color: Theme.island
+                            border.color: Theme.islandBorder
+                            border.width: 1
                             z: 10
 
                             Column {
                                 id: qrDataColumn
                                 anchors.centerIn: parent
-                                spacing: 2
+                                spacing: 3
 
                                 Text {
                                     text: qrOverlay.modelData.data.length > 60 
                                         ? qrOverlay.modelData.data.substring(0, 60) + "..." 
                                         : qrOverlay.modelData.data
-                                    color: "white"
-                                    font.pixelSize: 12
+                                    color: Theme.text
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSizeSmall
                                 }
 
                                 Text {
                                     text: "Click to copy" + (qrOverlay.modelData.data.indexOf("http") === 0 ? " & open" : "")
-                                    color: Qt.rgba(0.5, 0.8, 1.0, 0.7)
-                                    font.pixelSize: 10
+                                    color: Theme.accent
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSizeLabel
+                                    font.weight: Font.DemiBold
                                 }
                             }
                         }
@@ -981,10 +1086,11 @@ Scope {
                         screenSelector.isHovered ? parent.width : 0,
                         screenSelector.isHovered ? parent.height : 0
                     )
-                    property real dimOpacity: 0.6
+                    property real dimOpacity: Theme.captureWash.a
                     property vector2d screenSize: Qt.vector2d(parent.width, parent.height)
-                    property real borderRadius: 10.0
-                    property real outlineThickness: 2.0
+                    property real borderRadius: Theme.radiusLarge
+                    property real outlineThickness: screenSelector.isHovered ? 3.0 : 0.0
+                    property color outlineColor: Theme.accent
 
                     fragmentShader: Qt.resolvedUrl("shaders/dimming.frag.qsb")
                 }
@@ -993,19 +1099,34 @@ Scope {
                 Rectangle {
                     visible: screenSelector.isHovered
                     anchors.centerIn: parent
-                    width: monitorLabel.width + 40
-                    height: monitorLabel.height + 20
-                    radius: 12
-                    color: Qt.rgba(0.1, 0.1, 0.1, 0.8)
+                    width: monitorLabelColumn.width + 48
+                    height: monitorLabelColumn.height + 24
+                    radius: Theme.radiusLarge
+                    color: Theme.island
+                    border.color: Theme.islandBorder
+                    border.width: 1
 
-                    Text {
-                        id: monitorLabel
+                    Column {
+                        id: monitorLabelColumn
                         anchors.centerIn: parent
-                        text: freezeWindow.modelData.name + "\n" + freezeWindow.modelData.width + " × " + freezeWindow.modelData.height
-                        color: "white"
-                        font.pixelSize: 18
-                        font.weight: Font.Medium
-                        horizontalAlignment: Text.AlignHCenter
+                        spacing: 4
+
+                        Text {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: freezeWindow.modelData.name
+                            color: Theme.text
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeLarge
+                            font.weight: Font.DemiBold
+                        }
+
+                        Text {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: freezeWindow.modelData.width + " × " + freezeWindow.modelData.height
+                            color: Theme.textMuted
+                            font.family: Theme.fontMono
+                            font.pixelSize: Theme.fontSizeRegular
+                        }
                     }
                 }
 
@@ -1051,78 +1172,113 @@ Scope {
                 Rectangle {
                     visible: root.selectedScreens.indexOf(freezeWindow.modelData.name) !== -1
                     anchors.fill: parent
-                    color: Qt.rgba(0.2, 0.6, 1.0, 0.3)
-                    border.color: Qt.rgba(0.4, 0.8, 1.0, 0.8)
-                    border.width: 4
+                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                    border.color: Theme.accent
+                    border.width: 3
                     z: 5
                 }
             }
 
-            // Control Bar (only on primary/first screen)
-            WrapperRectangle {
+            // Bottom Notch (only on primary/first screen)
+            Rectangle {
+                id: bottomNotch
                 visible: freezeWindow.frozen && freezeWindow.modelData === root.primaryScreen
                 z: 10
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom
-                anchors.bottomMargin: 40
 
-                color: Qt.rgba(0.1, 0.1, 0.1, 0.85)
-                radius: 16
-                margin: 10
+                property real notchOffset: freezeWindow.frozen ? 0 : height
+                anchors.bottomMargin: -notchOffset
+
+                width: mainRow.implicitWidth + 36
+                height: 52
+                color: Theme.island
+
+                topLeftRadius: Theme.radiusLarge
+                topRightRadius: Theme.radiusLarge
+                bottomLeftRadius: 0
+                bottomRightRadius: 0
+
+                Behavior on notchOffset {
+                    NumberAnimation {
+                        duration: Theme.durationMorph
+                        easing.type: Theme.easing
+                    }
+                }
+                Behavior on width {
+                    NumberAnimation {
+                        duration: Theme.durationFast
+                        easing.type: Theme.easing
+                    }
+                }
 
                 Row {
                     id: mainRow
-                    spacing: 16
+                    anchors.centerIn: parent
+                    anchors.verticalCenterOffset: -2
+                    spacing: 12
 
                     Row {
                         id: buttonRow
-                        spacing: 6
+                        spacing: 4
 
                         Repeater {
                             model: root.modes
 
-                            Button {
-                                id: modeButton
-                                implicitWidth: 52
-                                implicitHeight: 52
+                            Rectangle {
+                                id: modeBtn
+                                required property var modelData
+                                readonly property bool active: root.mode === modelData.mode
 
-                                background: Rectangle {
-                                    radius: 10
-                                    color: {
-                                        if (root.mode === modelData.mode) return Qt.rgba(0.3, 0.5, 0.8, 0.7)
-                                        if (modeButton.hovered) return Qt.rgba(0.4, 0.4, 0.4, 0.5)
-                                        return Qt.rgba(0.25, 0.25, 0.3, 0.5)
-                                    }
-                                    Behavior on color { ColorAnimation { duration: 100 } }
-                                }
+                                implicitWidth: 48
+                                implicitHeight: 40
+                                radius: Theme.radiusMedium - 2
 
-                                contentItem: Column {
+                                color: active
+                                    ? Theme.accent
+                                    : (btnMouse.containsMouse ? Theme.islandSurfaceHover : "transparent")
+                                border.color: active
+                                    ? Theme.accent
+                                    : (btnMouse.containsMouse ? Theme.islandBorder : "transparent")
+                                border.width: 1
+
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                                Column {
                                     anchors.centerIn: parent
-                                    spacing: 2
+                                    spacing: 1
 
                                     Image {
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        width: 24
-                                        height: 24
-                                        sourceSize: Qt.size(96, 96)
-                                        source: Qt.resolvedUrl(`icons/${modelData.icon}.svg`)
+                                        width: 18
+                                        height: 18
+                                        sourceSize: Qt.size(48, 48)
+                                        source: Qt.resolvedUrl(`icons/${modeBtn.modelData.icon}.svg`)
                                         fillMode: Image.PreserveAspectFit
                                         smooth: true
                                         antialiasing: true
-                                        mipmap: true
+                                        opacity: modeBtn.active ? 1.0 : (btnMouse.containsMouse ? 0.9 : 0.65)
+                                        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
                                     }
 
                                     Text {
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        text: modelData.label
-                                        color: "white"
-                                        font.pixelSize: 9
-                                        font.weight: root.mode === modelData.mode ? Font.DemiBold : Font.Normal
+                                        text: modeBtn.modelData.label
+                                        color: modeBtn.active ? Theme.accentText : (btnMouse.containsMouse ? Theme.text : Theme.textMuted)
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeLabel
+                                        font.weight: modeBtn.active ? Font.DemiBold : Font.Normal
+                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                                     }
                                 }
 
-                                onClicked: {
-                                    root.mode = modelData.mode
+                                MouseArea {
+                                    id: btnMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.mode = modeBtn.modelData.mode
                                 }
                             }
                         }
@@ -1130,8 +1286,8 @@ Scope {
 
                     Rectangle {
                         width: 1
-                        height: 40
-                        color: Qt.rgba(1, 1, 1, 0.2)
+                        height: 22
+                        color: Theme.islandBorder
                         anchors.verticalCenter: parent.verticalCenter
                     }
 
@@ -1147,61 +1303,109 @@ Scope {
                             id: saveRow
                             opacity: (root.mode === "region" || root.mode === "window" || root.mode === "screen") ? 1 : 0
                             visible: opacity > 0
-                            spacing: 8
+                            spacing: 10
                             anchors.verticalCenter: parent.verticalCenter
 
-                            Behavior on opacity { NumberAnimation { duration: 150 } }
+                            Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
-                            Text {
-                                text: "Save to disk"
-                                color: "#ffffff"
-                                font.pixelSize: 12
+                            Row {
+                                spacing: 8
                                 anchors.verticalCenter: parent.verticalCenter
+
+                                Text {
+                                    text: "Save to disk"
+                                    color: Theme.text
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+
+                                Rectangle {
+                                    id: saveToggle
+                                    width: 36
+                                    height: 20
+                                    radius: height / 2
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    color: root.saveToDisk ? Theme.accent : Theme.islandSurfaceHover
+                                    border.color: root.saveToDisk ? Theme.accent : Theme.islandBorder
+                                    border.width: 1
+
+                                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                                    Rectangle {
+                                        id: switchThumb
+                                        width: 14
+                                        height: 14
+                                        radius: 7
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        x: root.saveToDisk ? parent.width - width - 3 : 3
+                                        color: root.saveToDisk ? Theme.accentText : Theme.textMuted
+
+                                        Behavior on x { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
+                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.saveToDisk = !root.saveToDisk
+                                    }
+                                }
                             }
 
-                            Switch {
-                                id: saveSwitch
-                                checked: root.saveToDisk
-                                onCheckedChanged: root.saveToDisk = checked
-                            }
-
-                            Text {
-                                text: "│"
-                                color: Qt.rgba(1, 1, 1, 0.3)
-                                font.pixelSize: 14
+                            Rectangle {
+                                width: 1
+                                height: 18
+                                color: Theme.islandBorder
                                 anchors.verticalCenter: parent.verticalCenter
                             }
 
                             Column {
                                 anchors.verticalCenter: parent.verticalCenter
-                                spacing: 0
+                                spacing: 2
 
                                 // Stitch count hint
-                                Text {
+                                Rectangle {
                                     visible: root.selectedScreens.length > 0 || root.windowMultiSelectCount > 0
-                                    text: {
-                                        if (root.selectedScreens.length > 0) return "Stitch: " + root.selectedScreens.length + " screens"
-                                        if (root.windowMultiSelectCount > 0) return "Stitch: " + root.windowMultiSelectCount + " windows"
-                                        return ""
+                                    implicitWidth: stitchText.implicitWidth + 14
+                                    implicitHeight: 18
+                                    radius: height / 2
+                                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)
+                                    border.color: Theme.accent
+                                    border.width: 1
+
+                                    Text {
+                                        id: stitchText
+                                        anchors.centerIn: parent
+                                        text: {
+                                            if (root.selectedScreens.length > 0) return "Stitch: " + root.selectedScreens.length + " screens"
+                                            if (root.windowMultiSelectCount > 0) return "Stitch: " + root.windowMultiSelectCount + " windows"
+                                            return ""
+                                        }
+                                        color: Theme.accentText
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeLabel
+                                        font.weight: Font.DemiBold
                                     }
-                                    color: Qt.rgba(0.5, 0.8, 1.0, 0.9)
-                                    font.pixelSize: 10
-                                    font.weight: Font.Medium
                                 }
 
                                 // Shift+click hint
                                 Text {
                                     text: "Shift+click for editor"
-                                    color: Qt.rgba(1, 1, 1, 0.5)
-                                    font.pixelSize: 10
+                                    color: Theme.textMuted
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSizeLabel
                                 }
 
                                 // Ctrl+click hint
                                 Text {
                                     visible: root.mode === "window" || root.mode === "screen"
                                     text: "Ctrl+click to multi-select"
-                                    color: Qt.rgba(1, 1, 1, 0.35)
-                                    font.pixelSize: 9
+                                    color: Theme.textMuted
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSizeLabel
+                                    opacity: 0.7
                                 }
                             }
                         }
@@ -1210,15 +1414,16 @@ Scope {
                         Column {
                             opacity: (root.mode === "ocr" || root.mode === "lens") ? 1 : 0
                             visible: opacity > 0
-                            spacing: 2
+                            spacing: 3
                             anchors.verticalCenter: parent.verticalCenter
 
-                            Behavior on opacity { NumberAnimation { duration: 150 } }
+                            Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
                             Text {
                                 text: root.mode === "ocr" ? "Select text to extract" : "Select area to search"
-                                color: Qt.rgba(1, 1, 1, 0.6)
-                                font.pixelSize: 12
+                                color: Theme.textMuted
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeSmall
                             }
 
                             Text {
@@ -1226,8 +1431,10 @@ Scope {
                                 text: root.detectedQRCodes.length > 0 
                                     ? root.detectedQRCodes.length + " QR code" + (root.detectedQRCodes.length > 1 ? "s" : "") + " detected"
                                     : "No QR codes detected"
-                                color: root.detectedQRCodes.length > 0 ? Qt.rgba(0.4, 0.8, 1.0, 0.8) : Qt.rgba(1, 1, 1, 0.4)
-                                font.pixelSize: 10
+                                color: root.detectedQRCodes.length > 0 ? Theme.accent : Theme.textMuted
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeLabel
+                                font.weight: root.detectedQRCodes.length > 0 ? Font.DemiBold : Font.Normal
                             }
                         }
 
@@ -1240,26 +1447,27 @@ Scope {
                             anchors.left: parent.left
                             anchors.right: parent.right
 
-                            Behavior on opacity { NumberAnimation { duration: 150 } }
+                            Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
                             Text {
                                 text: "Prompt:"
-                                color: "#ffffff"
-                                font.pixelSize: 12
+                                color: Theme.textMuted
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeSmall
                                 anchors.verticalCenter: parent.verticalCenter
                             }
 
                             Rectangle {
                                 id: promptBox
-                                width: parent.width - 60
-                                height: 36
-                                radius: 8
-                                color: promptInput.activeFocus ? Qt.rgba(0.15, 0.15, 0.2, 0.95) : Qt.rgba(0.2, 0.2, 0.25, 0.8)
-                                border.color: promptInput.activeFocus ? Qt.rgba(0.4, 0.6, 1.0, 0.6) : Qt.rgba(1, 1, 1, 0.15)
-                                border.width: promptInput.activeFocus ? 2 : 1
+                                width: parent.width - 65
+                                height: 34
+                                radius: Theme.radiusSmall
+                                color: promptInput.activeFocus ? Theme.islandSurfaceHover : Theme.islandSurface
+                                border.color: promptInput.activeFocus ? Theme.accent : Theme.islandBorder
+                                border.width: 1
 
-                                Behavior on color { ColorAnimation { duration: 150 } }
-                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
                                 TextInput {
                                     id: promptInput
@@ -1267,21 +1475,24 @@ Scope {
                                     anchors.leftMargin: 10
                                     anchors.rightMargin: 10
                                     verticalAlignment: TextInput.AlignVCenter
-                                    color: "#ffffff"
-                                    font.pixelSize: 12
+                                    color: Theme.text
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSizeSmall
                                     text: root.aiPrompt
                                     clip: true
                                     selectByMouse: true
-                                    selectedTextColor: "#ffffff"
-                                    selectionColor: Qt.rgba(0.3, 0.5, 0.8, 0.6)
+                                    selectedTextColor: Theme.accentText
+                                    selectionColor: Theme.accent
                                     onTextChanged: root.aiPrompt = text
+                                    onActiveFocusChanged: root.promptFocused = activeFocus
 
                                     Text {
                                         anchors.fill: parent
                                         verticalAlignment: Text.AlignVCenter
                                         text: "Describe what to analyze..."
-                                        color: Qt.rgba(1, 1, 1, 0.35)
-                                        font.pixelSize: 12
+                                        color: Theme.textMuted
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeSmall
                                         visible: !promptInput.text && !promptInput.activeFocus
                                     }
                                 }
@@ -1290,6 +1501,27 @@ Scope {
                     }
                 }
             }
+
+            // Notch fillets where the bottom notch meets the bottom bezel
+            NotchFillet {
+                z: 10
+                visible: bottomNotch.visible
+                x: bottomNotch.x - width
+                y: bottomNotch.y + bottomNotch.height - height
+                mirrored: true
+                atBottom: true
+                color: Theme.island
+            }
+
+            NotchFillet {
+                z: 10
+                visible: bottomNotch.visible
+                x: bottomNotch.x + bottomNotch.width
+                y: bottomNotch.y + bottomNotch.height - height
+                atBottom: true
+                color: Theme.island
+            }
         }
     }
+}
 }

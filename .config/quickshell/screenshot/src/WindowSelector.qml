@@ -22,8 +22,8 @@ Item {
     signal captureRequested(bool openEditor)  // Emit when clicking on selected window
 
     // Shader customization properties
-    property real dimOpacity: 0.6
-    property real borderRadius: 10.0
+    property real dimOpacity: Theme.captureWash.a
+    property real borderRadius: Theme.radiusMedium
     property real outlineThickness: 2.0
     property url fragmentShader: Qt.resolvedUrl("../shaders/dimming.frag.qsb")
 
@@ -119,7 +119,7 @@ Item {
     // Dimming overlay (dims everything)
     Rectangle {
         anchors.fill: parent
-        color: Qt.rgba(0, 0, 0, root.dimOpacity)
+        color: Theme.captureWash
         z: 0
     }
 
@@ -130,19 +130,11 @@ Item {
         y: root.selectionY
         width: root.selectionWidth
         height: root.selectionHeight
-        color: "transparent"
-        border.color: Qt.rgba(1, 1, 1, 0.6)
+        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.10)
+        border.color: Theme.accent
         border.width: 2
         radius: root.borderRadius
         z: 1
-
-        // Clear cutout effect
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: 2
-            radius: root.borderRadius - 2
-            color: Qt.rgba(1, 1, 1, 0.1)
-        }
     }
 
     // Repeater for selected windows highlights (convert global to local)
@@ -162,19 +154,11 @@ Item {
             y: localY
             width: modelData.width
             height: modelData.height
-            color: "transparent"
-            border.color: Qt.rgba(0.3, 0.6, 1.0, 0.9)
+            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+            border.color: Theme.accent
             border.width: 3
             radius: root.borderRadius
             z: 2
-
-            // Bright highlight for selected
-            Rectangle {
-                anchors.fill: parent
-                anchors.margins: 3
-                radius: root.borderRadius - 3
-                color: Qt.rgba(0.3, 0.5, 0.8, 0.15)
-            }
 
             // Selection badge
             Rectangle {
@@ -184,13 +168,14 @@ Item {
                 width: 24
                 height: 24
                 radius: 12
-                color: Qt.rgba(0.3, 0.6, 1.0, 0.9)
+                color: Theme.accent
 
                 Text {
                     anchors.centerIn: parent
                     text: "✓"
-                    color: "white"
-                    font.pixelSize: 14
+                    color: Theme.accentText
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 13
                     font.weight: Font.Bold
                 }
             }
@@ -203,9 +188,11 @@ Item {
         x: root.selectionX + (root.selectionWidth - width) / 2
         y: root.selectionY + (root.selectionHeight - height) / 2
         width: windowLabelColumn.width + 32
-        height: windowLabelColumn.height + 16
-        radius: 10
-        color: Qt.rgba(0.1, 0.1, 0.1, 0.85)
+        height: windowLabelColumn.height + 20
+        radius: Theme.radiusMedium
+        color: Theme.island
+        border.color: Theme.islandBorder
+        border.width: 1
         z: 3
 
         Column {
@@ -216,9 +203,10 @@ Item {
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: root.windowTitle
-                color: "white"
-                font.pixelSize: 14
-                font.weight: Font.Medium
+                color: Theme.text
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeMedium
+                font.weight: Font.DemiBold
                 horizontalAlignment: Text.AlignHCenter
                 elide: Text.ElideMiddle
                 width: Math.min(implicitWidth, root.selectionWidth - 48)
@@ -228,16 +216,18 @@ Item {
                 visible: root.windowClass && root.windowClass !== root.windowTitle
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: root.windowClass
-                color: Qt.rgba(1, 1, 1, 0.5)
-                font.pixelSize: 11
+                color: Theme.textMuted
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSmall
                 horizontalAlignment: Text.AlignHCenter
             }
 
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: Math.round(root.selectionWidth) + " × " + Math.round(root.selectionHeight)
-                color: Qt.rgba(1, 1, 1, 0.4)
-                font.pixelSize: 10
+                color: Theme.accent
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeLabel
                 horizontalAlignment: Text.AlignHCenter
             }
         }
@@ -248,24 +238,40 @@ Item {
         visible: root.globalSelectedWindows.length > 1
         anchors.bottom: parent.bottom
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottomMargin: 150
-        width: selectionInfoColumn.width + 32
-        height: selectionInfoColumn.height + 16
-        radius: 8
-        color: Qt.rgba(0.1, 0.1, 0.1, 0.9)
+        anchors.bottomMargin: 120
+        width: selectionRow.implicitWidth + 32
+        height: 34
+        radius: height / 2
+        color: Theme.island
+        border.color: Theme.accent
+        border.width: 1
         z: 4
 
-        Column {
-            id: selectionInfoColumn
+        Row {
+            id: selectionRow
             anchors.centerIn: parent
-            spacing: 2
+            spacing: 6
 
             Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: root.globalSelectedWindows.length + " windows selected • Click to capture"
-                color: Qt.rgba(0.5, 0.8, 1.0, 1.0)
-                font.pixelSize: 12
-                font.weight: Font.Medium
+                text: root.globalSelectedWindows.length + " windows selected"
+                color: Theme.text
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSmall
+                font.weight: Font.DemiBold
+            }
+
+            Text {
+                text: "•"
+                color: Theme.islandBorder
+                font.pixelSize: Theme.fontSizeSmall
+            }
+
+            Text {
+                text: "Click to capture"
+                color: Theme.accent
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSmall
+                font.weight: Font.DemiBold
             }
         }
     }

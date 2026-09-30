@@ -36,6 +36,9 @@ Singleton {
     function rouse(): void {
         root.awake = true
         root.sleep.restart()
+        if (root.locked && !root.leaving && !root.biopassRunning && !root.biopassVerified && !root.authenticating) {
+            root.triggerBiopass()
+        }
     }
 
     function rest(): void {
@@ -155,6 +158,9 @@ Singleton {
             root.preparingLock = false
             root.locked = true
             root.begin()
+            if (root.biopassAvailable && !root.biopassRunning && !root.biopassVerified) {
+                root.triggerBiopass()
+            }
         }
     }
 

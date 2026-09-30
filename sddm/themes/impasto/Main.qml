@@ -94,7 +94,7 @@ Rectangle {
         }
     }
 
-    function readHelperToken(callback?: var): void {
+    function readHelperToken(callback: var): void {
         try {
             let req = new XMLHttpRequest()
             req.onreadystatechange = function() {
@@ -120,6 +120,8 @@ Rectangle {
         if (!root.awake) {
             root.awake = true
             Qt.callLater(account.claim)
+            if (root.isPrimary)
+                Qt.callLater(root.attemptFace)
         }
     }
 
@@ -170,6 +172,8 @@ Rectangle {
         root.message = ""
 
         // Queue the login; face attempts stay visible until PAM responds.
+        if (password === "")
+            faceTimeout.restart()
         root.pendingPassword = password
         root.pendingLoginIsFace = password === ""
         root.pendingPowerAction = ""
@@ -496,6 +500,8 @@ Rectangle {
     Component.onCompleted: {
         root.forceActiveFocus()
         root.readHelperToken()
+        if (root.isPrimary)
+            Qt.callLater(root.wakeUp)
     }
     Keys.onPressed: event => {
         if (event.key === Qt.Key_Space && !account.hasText) {

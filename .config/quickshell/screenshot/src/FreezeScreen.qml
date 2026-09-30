@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Hyprland
 
 PanelWindow {
     id: root
@@ -8,6 +9,12 @@ PanelWindow {
     property var targetScreen: Quickshell.screens[0]
     property alias contentItem: root.contentItem
     property bool frozen: false
+
+    HyprlandFocusGrab {
+        id: focusGrab
+        active: root.visible
+        windows: [root]
+    }
 
     Timer {
         interval: 20

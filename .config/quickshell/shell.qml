@@ -123,6 +123,13 @@ ShellRoot {
 
         source: Qt.resolvedUrl("screenshot/shell.qml")
 
+        onStatusChanged: {
+            if (status === Loader.Error) {
+                console.log("[MainShell] Screenshot tool failed to load, resetting active state")
+                active = false
+            }
+        }
+
         onLoaded: {
             console.log("[MainShell] Screenshot tool QML loaded dynamically")
             item.isLoadedDynamically = true
@@ -164,7 +171,8 @@ ShellRoot {
             screenshotLoader.envId = envId
             screenshotLoader.modeOverride = mode
             screenshotLoader.instantOverride = instant
-            if (!screenshotLoader.active) {
+            if (!screenshotLoader.active || !screenshotLoader.item) {
+                screenshotLoader.active = false
                 screenshotLoader.active = true
             } else if (screenshotLoader.item) {
                 if (envId) screenshotLoader.item.externalTimestamp = envId

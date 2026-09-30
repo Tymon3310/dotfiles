@@ -10,6 +10,7 @@ layout(std140, binding = 0) uniform buf {
     vec2 screenSize;
     float borderRadius;
     float outlineThickness;
+    vec4 outlineColor;
 };
 
 float sdRoundedBox(vec2 p, vec2 b, float r) {
@@ -26,13 +27,12 @@ void main() {
     float dist = sdRoundedBox(p, halfSize, borderRadius);
 
     bool insideFilledArea = dist <= 0.0;
-
     bool insideOutline = dist > 0.0 && dist <= outlineThickness;
 
     if (insideFilledArea) {
         fragColor = vec4(0.0);
     } else if (insideOutline) {
-        fragColor = vec4(1.0, 1.0, 1.0, 1.0 * qt_Opacity);
+        fragColor = vec4(outlineColor.rgb, outlineColor.a * qt_Opacity);
     } else {
         fragColor = vec4(0.0, 0.0, 0.0, dimOpacity * qt_Opacity);
     }

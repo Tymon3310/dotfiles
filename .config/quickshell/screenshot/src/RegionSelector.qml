@@ -6,9 +6,10 @@ Item {
     signal regionSelected(real x, real y, real width, real height)
 
     // Shader customization properties
-    property real dimOpacity: 0.6
-    property real borderRadius: 10.0
+    property real dimOpacity: Theme.captureWash.a
+    property real borderRadius: Theme.radiusMedium
     property real outlineThickness: 2.0
+    property color outlineColor: Theme.accent
     property url fragmentShader: Qt.resolvedUrl("../shaders/dimming.frag.qsb")
 
     property point startPos
@@ -47,6 +48,7 @@ Item {
         property vector2d screenSize: Qt.vector2d(root.width, root.height)
         property real borderRadius: root.borderRadius
         property real outlineThickness: root.outlineThickness
+        property color outlineColor: root.outlineColor
 
         fragmentShader: root.fragmentShader
     }
@@ -62,9 +64,9 @@ Item {
             ctx.clearRect(0, 0, width, height);
 
             ctx.beginPath();
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
             ctx.lineWidth = 1;
-            ctx.setLineDash([5, 5]);
+            ctx.setLineDash([4, 4]);
 
             if (!mouseArea.pressed) {
                 // Crosshair at mouse cursor (Before clicking)
@@ -93,18 +95,21 @@ Item {
         x: root.selectionX + (root.selectionWidth - width) / 2
         y: root.selectionY + (root.selectionHeight - height) / 2
         width: dimensionsText.width + 24
-        height: dimensionsText.height + 12
-        radius: 6
-        color: Qt.rgba(0.1, 0.1, 0.1, 0.85)
+        height: 28
+        radius: height / 2
+        color: Theme.island
+        border.color: Theme.islandBorder
+        border.width: 1
         z: 4
 
         Text {
             id: dimensionsText
             anchors.centerIn: parent
             text: Math.round(root.selectionWidth) + " × " + Math.round(root.selectionHeight)
-            color: "white"
-            font.pixelSize: 14
-            font.weight: Font.Medium
+            color: Theme.text
+            font.family: Theme.fontMono
+            font.pixelSize: Theme.fontSizeSmall
+            font.weight: Font.DemiBold
         }
     }
 
