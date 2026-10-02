@@ -45,6 +45,17 @@ QtObject {
     property var activeByMonitor: ({})
     property string focusedMonitor: ""
 
+    // Fullscreen state per monitor
+    property var fullscreenByMonitor: ({})
+
+    function isFullscreenOn(monitor: string): bool {
+        if (!monitor || monitor === "")
+            return !!root.fullscreenByMonitor[root.focusedMonitor]
+        return !!root.fullscreenByMonitor[monitor]
+    }
+
+    readonly property bool isFullscreen: root.isFullscreenOn(root.focusedMonitor)
+
     function activeOn(monitor: string): int {
         return root.activeByMonitor[monitor] ?? root.activeId
     }
@@ -143,6 +154,14 @@ QtObject {
                 const window = root.parseJson(text)
                 root.focusedAddress = window && typeof window.address === "string"
                     ? window.address : ""
+                if (window && typeof window.fullscreen === "number" && root.focusedMonitor !== "") {
+                    const isFs = window.fullscreen > 0
+                    if (root.fullscreenByMonitor[root.focusedMonitor] !== isFs) {
+                        const copy = Object.assign({}, root.fullscreenByMonitor)
+                        copy[root.focusedMonitor] = isFs
+                        root.fullscreenByMonitor = copy
+                    }
+                }
             }
         }
     }
@@ -288,6 +307,7 @@ QtObject {
                     .filter(workspace => workspace.windows > 0)
                     .map(workspace => workspace.id)
                 const active = {}
+                const fullscreenMap = {}
                 for (const monitor of monitors) {
                     if (!monitor.activeWorkspace)
                         continue
@@ -296,8 +316,24 @@ QtObject {
                         root.focusedMonitor = monitor.name
                         root.activeId = monitor.activeWorkspace.id
                     }
+
+                    let isFs = false
+                    const activeWsId = monitor.activeWorkspace?.id
+                    const specialWsId = monitor.specialWorkspace?.id
+                    for (const ws of workspaces) {
+                        if (ws.id === activeWsId && !!ws.hasfullscreen) {
+                            isFs = true
+                            break
+                        }
+                        if (specialWsId && ws.id === specialWsId && !!ws.hasfullscreen) {
+                            isFs = true
+                            break
+                        }
+                    }
+                    fullscreenMap[monitor.name] = isFs
                 }
                 root.activeByMonitor = active
+                root.fullscreenByMonitor = fullscreenMap
             }
         }
     }
@@ -319,6 +355,10 @@ QtObject {
             case "movewindowv2":
             case "focusedmon":
             case "focusedmonv2":
+            case "fullscreen":
+                if (event.name === "fullscreen") {
+                    root.focusedProcess.running = true
+                }
                 if (event.name === "focusedmonv2") {
                     const parts = `${event.data}`.split(",")
                     if (parts[0] && parts[0] !== "") {
@@ -361,6 +401,8 @@ QtObject {
                     root.focusedAddress = event.data === "" ? "" : `0x${event.data}`
                 if (root.watchClients)
                     root.loadClients()
+                root.focusedProcess.running = true
+                root.refresh()
                 break
             }
         }

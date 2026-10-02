@@ -48,6 +48,27 @@ Item {
     readonly property int maxWidth: 600
     property int maxBodyLines: 8
 
+    // Timeout countdown progress (1.0 -> 0.0)
+    readonly property real progressFraction: {
+        if (!root.notification || root.critical)
+            return 1.0
+        const deadline = NotificationService.deadlines[root.notification.key]
+        if (!deadline)
+            return 1.0
+        const total = Math.max(1000, deadline - root.notification.time)
+        const remaining = Math.max(0, deadline - progressTicker.now)
+        return Math.min(1.0, Math.max(0.0, remaining / total))
+    }
+
+    Timer {
+        id: progressTicker
+        property real now: Date.now()
+        interval: 33
+        repeat: true
+        running: !NotificationService.held
+        onTriggered: now = Date.now()
+    }
+
     // The picture: 38 px square for icons and avatars, up to `pictureWide`
     // across for a landscape image.
     readonly property int pictureHeight: picture.landscape ? 56 : 38
@@ -163,11 +184,47 @@ Item {
             }
         }
 
-        IconButton {
+        Item {
+            id: closeContainer
             Layout.alignment: Qt.AlignVCenter
-            icon: "󰅖"
-            iconSize: 12
-            onClicked: NotificationService.closeKey(root.key)
+            Layout.preferredWidth: 24
+            Layout.preferredHeight: 24
+
+            RingIndicator {
+                anchors.fill: parent
+                thickness: 2
+                trackColor: Qt.rgba(1, 1, 1, 0.08)
+                fillColor: root.critical ? Theme.red : Theme.accent
+                progress: root.progressFraction
+                sweepDuration: 40
+
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 18
+                    height: 18
+                    radius: 9
+                    color: closeMouse.containsMouse ? Theme.islandSurfaceHover : "transparent"
+
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "󰅖"
+                        font.family: Theme.fontMono
+                        font.pixelSize: 10
+                        color: closeMouse.containsMouse ? Theme.text : Theme.textMuted
+                    }
+                }
+            }
+
+            MouseArea {
+                id: closeMouse
+                anchors.fill: parent
+                anchors.margins: -4
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: NotificationService.closeKey(root.key)
+            }
         }
     }
 }

@@ -95,6 +95,12 @@ ShellRoot {
         delegate: IslandBar {}
     }
 
+    // Fullscreen heads-up notification overlay on all connected monitors
+    Variants {
+        model: Quickshell.screens
+        delegate: NotificationHeadsUp {}
+    }
+
     // Fullscreen cinematic fade-to-black on all monitors during logout / reboot / shutdown
     Variants {
         model: Quickshell.screens

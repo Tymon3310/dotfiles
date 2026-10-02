@@ -47,7 +47,11 @@ PanelWindow {
         }
     }
 
-    readonly property bool notifying: NotificationService.active && !bar.expanded
+    readonly property bool isFullscreen: HyprlandService.isFullscreenOn(bar.screen ? bar.screen.name : "")
+    readonly property bool headsUpActive: (SettingsService.notificationHeadsUpMode === "always")
+        || (SettingsService.notificationHeadsUpMode === "fullscreen" && bar.isFullscreen)
+
+    readonly property bool notifying: NotificationService.active && !bar.expanded && !bar.headsUpActive
 
     function toggle(id: string): void {
         bar.openId = bar.openId === id ? "" : id

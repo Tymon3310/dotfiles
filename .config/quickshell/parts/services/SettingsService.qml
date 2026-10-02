@@ -47,6 +47,11 @@ Singleton {
 
     property bool doNotDisturb: false
     property int notificationTimeout: 5000
+    // "fullscreen" (default: show sleek heads-up overlay banner when on fullscreen)
+    // "always"     (always show heads-up overlay banner for all notifications)
+    // "never"      (never show heads-up banner, only classic island notch)
+    property string notificationHeadsUpMode: "fullscreen"
+    readonly property alias headsUpMode: root.notificationHeadsUpMode
 
     // ── WEATHER ───────────────────────────────────────────────────────────
 
