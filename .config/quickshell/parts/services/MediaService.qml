@@ -19,8 +19,8 @@ import "."
 // Picks one MPRIS player and exposes it flatly: the one that is playing,
 // otherwise the first controllable one, so a paused track stays on the island.
 //
-// Spotify only (the desktop client, spotify_player, spotifyd): browsers and
-// other players are ignored. playerctld is skipped too: it mirrors whichever
+// Spotify and MPV: browsers and other players are ignored.
+// playerctld is skipped too: it mirrors whichever
 // player is active, so it would let the others back in.
 Singleton {
     id: root
@@ -39,6 +39,9 @@ Singleton {
 
     readonly property bool available: root.active !== null
     readonly property bool playing: root.available && root.active.isPlaying
+    readonly property bool activeIsSpotify: root.available
+        && `${root.active.dbusName} ${root.active.identity} ${root.active.desktopEntry}`
+            .toLowerCase().includes("spotify")
 
     // ── VISUALIZER INACTIVITY TIMEOUT ─────────────────────────────
     // After 20 seconds without Spotify playing, visualizerActive becomes false.
@@ -151,9 +154,9 @@ Singleton {
             root.active.previous()
     }
 
-    // ── SPOTIFY'S OWN VOLUME ──────────────────────────────────────────────
+    // ── ACTIVE PLAYER VOLUME ─────────────────────────────────────────────
     //
-    // Set on Spotify's PipeWire streams and MPRIS interface.
+    // Spotify uses PipeWire streams; other players use their MPRIS volume.
     // Quickshell connects to PipeWire lazily, on the first read of a default
     // device; reading the node list alone leaves it empty.
     readonly property var pipewireWake: Pipewire.defaultAudioSink
@@ -163,23 +166,32 @@ Singleton {
     readonly property var spotifyStreams: Pipewire.nodes.values.filter(node =>
         node.isStream && (node.name ?? "").toLowerCase() === "spotify")
 
+    readonly property var volumeStreams: root.activeIsSpotify ? root.spotifyStreams : []
+
     readonly property PwObjectTracker streamTracker: PwObjectTracker {
         objects: root.spotifyStreams
     }
 
-    readonly property bool volumeAvailable: root.spotifyStreams.some(node => node.audio) || root.available
+    readonly property bool mprisVolumeAvailable: root.available
+        && root.active.canControl && root.active.volumeSupported
+    readonly property bool volumeAvailable: root.volumeStreams.some(node => node.audio)
+        || root.mprisVolumeAvailable
 
     // Volume level 0.0 – 1.0
     readonly property real volume: {
-        const node = root.spotifyStreams.find(node => node.audio)
+        const node = root.volumeStreams.find(node => node.audio)
         if (node && node.audio && node.audio.volume !== undefined)
             return node.audio.volume
-        if (root.available && root.active.volume !== undefined && root.active.volume >= 0)
+        if (root.mprisVolumeAvailable)
             return root.active.volume
         return 1.0
     }
 
-    readonly property bool muted: root.spotifyStreams.some(node => node.audio?.muted ?? false)
+    readonly property bool muted: root.volumeStreams.some(node => node.audio)
+        ? root.volumeStreams.some(node => node.audio?.muted ?? false)
+        : (root.mprisVolumeAvailable && root.active.volume === 0)
+    property real volumeBeforeMute: 1.0
+    onActiveChanged: root.volumeBeforeMute = 1.0
 
     // True for a moment after a change, so the bar / osd can show the level.
     property bool volumeShown: false
@@ -190,16 +202,18 @@ Singleton {
     }
 
     function setVolume(value: real): void {
+        if (!root.volumeAvailable)
+            return
         const level = Math.max(0, Math.min(1, value))
 
         let pipewireUpdated = false
-        for (const node of root.spotifyStreams) {
+        for (const node of root.volumeStreams) {
             if (node.audio) {
                 node.audio.volume = level
                 pipewireUpdated = true
             }
         }
-        if (!pipewireUpdated && root.available && root.active.volume !== undefined) {
+        if (!pipewireUpdated && root.mprisVolumeAvailable) {
             root.active.volume = level
         }
 
@@ -221,10 +235,18 @@ Singleton {
     }
 
     function toggleMute(): void {
+        if (!root.volumeAvailable)
+            return
         const target = !root.muted
-        for (const node of root.spotifyStreams) {
-            if (node.audio)
-                node.audio.muted = target
+        if (root.volumeStreams.some(node => node.audio)) {
+            for (const node of root.volumeStreams) {
+                if (node.audio)
+                    node.audio.muted = target
+            }
+        } else if (root.mprisVolumeAvailable) {
+            if (target)
+                root.volumeBeforeMute = root.volume
+            root.setVolume(target ? 0 : root.volumeBeforeMute)
         }
     }
 }

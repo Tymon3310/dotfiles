@@ -77,7 +77,9 @@ Rectangle {
     property bool faceFailed: false
     property bool pendingFaceAuth: false
     property bool loginCommitted: false
-    property var activeFaceRequest: null
+    property string queuedPassword: ""
+    property string queuedUser: ""
+    property int queuedSessionIndex: -1
     property string helperToken: ""
     property int helperTokenRetries: 0
 
@@ -125,24 +127,22 @@ Rectangle {
         }
     }
 
-    // Safety timeout so face scan never hangs or blocks input
+    // SDDM cannot cancel PAM from QML. Stop the scan animation without
+    // disabling password entry; a submitted password waits for PAM to finish.
     Timer {
         id: faceTimeout
         interval: 4500
         repeat: false
         onTriggered: {
             if (root.faceScanning) {
-                if (root.activeFaceRequest) {
-                    try { root.activeFaceRequest.abort() } catch (e) {}
-                    root.activeFaceRequest = null
-                }
                 root.faceScanning = false
                 root.faceFailed = true
+                root.message = qsTr("Face scan is taking too long — enter password")
             }
         }
     }
 
-    // Non-blocking face authentication probe via helper daemon
+    // Face authentication through SDDM's PAM transaction.
     function attemptFace(): void {
         if (!root.isPrimary || root.authenticating)
             return
@@ -153,13 +153,32 @@ Rectangle {
         root.attempt("")
     }
 
-    // User password authentication attempt (cancels face scan and submits)
+    // SDDM accepts only one PAM transaction at a time. Remember password
+    // submissions during face authentication instead of sending a second login.
     function attempt(password: string): void {
-        faceTimeout.stop()
-        if (root.activeFaceRequest) {
-            try { root.activeFaceRequest.abort() } catch (e) {}
-            root.activeFaceRequest = null
+        if (root.authenticating) {
+            if (root.pendingFaceAuth && password !== "") {
+                root.queuedPassword = password
+                root.queuedUser = account.userName
+                root.queuedSessionIndex = session.currentIndex
+                faceTimeout.stop()
+                root.faceScanning = false
+                root.message = qsTr("Password queued — waiting for face authentication")
+            }
+            return
         }
+        root.beginLogin(password, account.userName, session.currentIndex)
+    }
+
+    function clearQueuedLogin(): void {
+        root.queuedPassword = ""
+        root.queuedUser = ""
+        root.queuedSessionIndex = -1
+    }
+
+    function beginLogin(password: string, userName: string, sessionIndex: int): void {
+        faceTimeout.stop()
+        root.clearQueuedLogin()
 
         root.faceScanning = false
         // Keep the password input live while PAM performs the face attempt;
@@ -175,6 +194,8 @@ Rectangle {
         if (password === "")
             faceTimeout.restart()
         root.pendingPassword = password
+        root.pendingUser = userName
+        root.pendingSessionIndex = sessionIndex
         root.pendingLoginIsFace = password === ""
         root.pendingPowerAction = ""
         // Give the scan indicator a brief visible start before a fast PAM
@@ -188,6 +209,8 @@ Rectangle {
 
         function onLoginSucceeded(): void {
             faceTimeout.stop()
+            root.clearQueuedLogin()
+            root.pendingPassword = ""
             root.authenticating = false
             root.faceScanning = false
             root.faceVerified = true
@@ -199,6 +222,11 @@ Rectangle {
 
         function onLoginFailed(): void {
             const wasFaceAuth = root.pendingFaceAuth
+            const password = root.queuedPassword
+            const userName = root.queuedUser
+            const sessionIndex = root.queuedSessionIndex
+            root.clearQueuedLogin()
+            root.pendingPassword = ""
             root.pendingFaceAuth = false
             root.loginCommitted = false
             faceTimeout.stop()
@@ -211,6 +239,8 @@ Rectangle {
             root.message = wasFaceAuth
                 ? qsTr("Face not recognized — enter password")
                 : qsTr("Wrong password")
+            if (wasFaceAuth && password !== "")
+                root.beginLogin(password, userName, sessionIndex)
         }
 
         function onInformationMessage(infoMsg: string): void {
@@ -222,6 +252,8 @@ Rectangle {
     property bool fadingOut: false
     property string pendingPowerAction: ""
     property string pendingPassword: ""
+    property string pendingUser: ""
+    property int pendingSessionIndex: -1
     property bool pendingLoginIsFace: false
 
     Timer {
@@ -234,20 +266,18 @@ Rectangle {
                 sddm.reboot()
             } else if (root.pendingPowerAction === "shutdown") {
                 sddm.powerOff()
-            } else if (root.pendingLoginIsFace) {
-                sddm.login(account.userName, "", session.currentIndex)
             } else {
-                sddm.login(account.userName, root.pendingPassword, session.currentIndex)
+                const password = root.pendingLoginIsFace ? "" : root.pendingPassword
+                root.pendingPassword = ""
+                sddm.login(root.pendingUser, password, root.pendingSessionIndex)
             }
         }
     }
 
     function triggerPowerFade(action: string): void {
         faceTimeout.stop()
-        if (root.activeFaceRequest) {
-            try { root.activeFaceRequest.abort() } catch (e) {}
-            root.activeFaceRequest = null
-        }
+        root.clearQueuedLogin()
+        root.pendingPassword = ""
         root.faceScanning = false
         root.pendingFaceAuth = false
         root.loginCommitted = false
@@ -428,6 +458,7 @@ Rectangle {
         capsLock: keyboard.capsLock
 
         faceScanning: root.faceScanning
+        faceAuthPending: root.pendingFaceAuth
         faceVerified: root.faceVerified
         faceFailed: root.faceFailed
 

@@ -24,6 +24,7 @@ Item {
     property bool capsLock: false
 
     property bool faceScanning: false
+    property bool faceAuthPending: false
     property bool faceVerified: false
     property bool faceFailed: false
 
@@ -61,6 +62,7 @@ Item {
     }
 
     readonly property bool many: rows.count > 1
+    readonly property bool passwordBusy: root.authenticating && !root.faceAuthPending
 
     function selectDefaultUser(): void {
         if (rows.count === 0)
@@ -375,7 +377,7 @@ Item {
             echoMode: TextInput.Password
             passwordCharacter: "●"
             passwordMaskDelay: 0
-            enabled: (!root.authenticating || root.faceScanning)
+            enabled: !root.passwordBusy
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeSmall + 2
             font.letterSpacing: 3
@@ -398,11 +400,11 @@ Item {
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSmall
                 font.letterSpacing: 0
-                visible: field.text === "" && !root.authenticating
+                visible: field.text === "" && !root.passwordBusy
             }
 
             onAccepted: {
-                if (field.text === "" || root.authenticating)
+                if (field.text === "" || root.passwordBusy)
                     return
                 root.submitted(field.text)
             }
@@ -436,7 +438,7 @@ Item {
             width: 40
             height: 40
             radius: width / 2
-            color: (root.authenticating && !root.faceScanning) ? "transparent"
+            color: root.passwordBusy ? "transparent"
                 : (sendMouse.containsMouse ? Theme.accentHover : Theme.accent)
             opacity: root.typing ? 1 : 0
             scale: root.typing ? 1 : 0.6
@@ -458,12 +460,12 @@ Item {
                 font.family: Theme.fontMono
                 font.pixelSize: 18
                 color: Theme.accentText
-                visible: !(root.authenticating && !root.faceScanning)
+                visible: !root.passwordBusy
             }
 
             RingSpinner {
                 anchors.centerIn: parent
-                visible: root.authenticating && !root.faceScanning
+                visible: root.passwordBusy
                 running: visible
                 fillColor: Theme.accent
             }
@@ -473,7 +475,7 @@ Item {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                enabled: !(root.authenticating && !root.faceScanning) && field.text !== ""
+                enabled: !root.passwordBusy && field.text !== ""
                 onClicked: {
                     if (field.text !== "")
                         root.submitted(field.text)

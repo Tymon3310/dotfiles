@@ -87,7 +87,27 @@ Item {
         anchors.fill: parent
         enabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: NotificationService.activate(root.notification)
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        property real pressY: 0
+        property bool swiped: false
+        onPressed: mouse => {
+            pressY = mouse.y
+            swiped = false
+        }
+        onPositionChanged: mouse => {
+            if (pressed && !swiped && mouse.y - pressY < -24) {
+                swiped = true
+                NotificationService.closeKey(root.key)
+            }
+        }
+        onClicked: mouse => {
+            if (swiped)
+                return
+            if (mouse.button === Qt.RightButton)
+                NotificationService.closeKey(root.key)
+            else
+                NotificationService.activate(root.notification)
+        }
     }
 
     RowLayout {

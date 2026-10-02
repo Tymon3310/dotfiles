@@ -39,9 +39,13 @@ Singleton {
     //   shown     on the island, newest first, at most `maxShown`
     //   waiting   the rest, oldest first; each moves up when a slot frees,
     //             and its time starts only then
-    property var shown: []
-    property var waiting: []
+    property var shown: root.serverInstance === Quickshell.instanceId
+        ? (root.cacheData.shown ?? []) : []
+    property var waiting: root.serverInstance === Quickshell.instanceId
+        ? (root.cacheData.waiting ?? []) : []
     readonly property int maxShown: 3
+
+    property bool cacheReady: false
 
     readonly property string historyPath: {
         const dir = Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"
@@ -54,7 +58,7 @@ Singleton {
         printErrors: false
     }
 
-    readonly property var cacheData: {
+    property var cacheData: {
         const raw = root.historyFile.text()
         if (raw && raw.trim() !== "") {
             try {
@@ -75,17 +79,42 @@ Singleton {
     property var history: root.cacheData.entries ?? []
 
     function saveHistory(): void {
+        if (!root.cacheReady)
+            return
         try {
             root.historyFile.setText(JSON.stringify({
                 instanceId: Quickshell.instanceId,
-                entries: root.history
+                entries: root.history,
+                shown: root.shown,
+                waiting: root.waiting,
+                deadlines: root.deadlines
             }))
         } catch (e) {
             console.log("[NotificationService] Failed to save history cache:", e)
         }
     }
 
-    onHistoryChanged: root.saveHistory()
+    function scheduleSave(): void {
+        if (root.cacheReady)
+            root.saveTimer.restart()
+    }
+
+    readonly property Timer saveTimer: Timer {
+        interval: 0
+        onTriggered: root.saveHistory()
+    }
+
+    Component.onCompleted: {
+        // Freeze the loaded generation's state before writing the cache.
+        root.cacheData = root.cacheData
+        root.cacheReady = true
+        root.scheduleSave()
+    }
+
+    onHistoryChanged: root.scheduleSave()
+    onShownChanged: root.scheduleSave()
+    onWaitingChanged: root.scheduleSave()
+    onDeadlinesChanged: root.scheduleSave()
 
     readonly property int historyLimit: 50
 
@@ -104,7 +133,8 @@ Singleton {
 
     // When each shown one times out, by key (absent: never). Kept apart from
     // the entries so extending one does not rebuild the list.
-    property var deadlines: ({})
+    property var deadlines: root.serverInstance === Quickshell.instanceId
+        ? (root.cacheData.deadlines ?? {}) : ({})
 
     // True while the pointer is over the stack: nothing times out under it.
     property bool held: false
@@ -244,12 +274,12 @@ Singleton {
             // the notification is destroyed as soon as the signal returns.
             notification.tracked = true
 
-            // If this notification is already in history from this server instance
-            // (e.g. delivered before a config reload), retain its live object for user actions
-            // without re-popping the banner.
+            // Reattach live objects to the restored queue and its original
+            // deadlines. Replayed notifications must not get a fresh timeout.
             const isSameServer = (root.serverInstance === Quickshell.instanceId)
             const existing = isSameServer
-                ? root.history.find(entry => entry.id === notification.id)
+                ? root.history.concat(root.shown, root.waiting)
+                    .find(entry => entry.id === notification.id)
                 : null
 
             if (existing) {
@@ -258,6 +288,24 @@ Singleton {
                 live[key] = notification
                 root.liveObjects = live
                 notification.closed.connect(() => root.forget(key))
+                // Older caches held only history. Recover any still-live
+                // banners using their original arrival time, or expire them.
+                if (root.cacheData.shown === undefined) {
+                    const timeout = root.timeoutFor(existing)
+                    const deadline = existing.time + timeout
+                    if (timeout > 0 && deadline <= Date.now()) {
+                        // The server registers replayed objects after this
+                        // handler returns, so expiration must wait until then.
+                        Qt.callLater(() => root.dismissKey(key))
+                    } else {
+                        root.enqueue(existing)
+                        if (timeout > 0 && root.shown.some(entry => entry.key === key)) {
+                            const deadlines = Object.assign({}, root.deadlines)
+                            deadlines[key] = deadline
+                            root.deadlines = deadlines
+                        }
+                    }
+                }
                 return
             }
 
@@ -356,6 +404,11 @@ Singleton {
         // The application closed it, or it was expired or dismissed here.
         object.closed.connect(() => root.forget(key))
 
+        root.enqueue(notification)
+        root.arrived(notification)
+    }
+
+    function enqueue(notification: var): void {
         if (root.shown.length < root.maxShown) {
             root.show(notification)
         } else if (root.isCritical(notification)) {
@@ -375,8 +428,6 @@ Singleton {
         } else {
             root.waiting = root.waiting.concat([notification])
         }
-
-        root.arrived(notification)
     }
 
     function show(notification: var): void {
