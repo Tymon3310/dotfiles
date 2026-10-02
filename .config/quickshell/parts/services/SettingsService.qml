@@ -18,20 +18,15 @@ import Quickshell
 Singleton {
     id: root
 
-    readonly property string stateDirectory:
-        `${Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state"}/quickshell`
-
     // ── BAR ───────────────────────────────────────────────────────────────
 
-    // Matches the dotfiles bar (30 px, attached to the top edge).
+    // Notch content height and its inset below the screen edge.
     property int barHeight: 30
-    property int barMargin: 0
+    property int barMargin: 4
 
     // ── CLOCK ─────────────────────────────────────────────────────────────
 
     property string clockFormat: "HH:mm"
-    property bool clockShowsDate: false
-    property bool clockShowsSeconds: false
 
     // ── WORKSPACES ────────────────────────────────────────────────────────
 
@@ -45,23 +40,16 @@ Singleton {
 
     // ── NOTIFICATIONS ─────────────────────────────────────────────────────
 
-    property bool doNotDisturb: false
     property int notificationTimeout: 5000
     // "fullscreen" (default: show sleek heads-up overlay banner when on fullscreen)
     // "always"     (always show heads-up overlay banner for all notifications)
     // "never"      (never show heads-up banner, only classic island notch)
     property string notificationHeadsUpMode: "fullscreen"
-    readonly property alias headsUpMode: root.notificationHeadsUpMode
 
     // ── WEATHER ───────────────────────────────────────────────────────────
 
     // Empty: wttr.in guesses from the IP address.
     property string weatherPlace: ""
-
-    // ── CHIPS ─────────────────────────────────────────────────────────────
-
-    // "icon" (glyph and figure) or "ring" (the module's gauge); see ChipFace.
-    property string chipShape: "icon"
 
     // ── LOOK ──────────────────────────────────────────────────────────────
 
@@ -69,10 +57,6 @@ Singleton {
     property string fontMono: "Google Sans Code NF"
     property int motionScale: 100
     property string motionCurve: "OutCubic"
-
-    // Read by Theme only; kept so it resolves.
-    property bool notesHandwriting: false
-    property int dockIconSize: 44
 
     // ── LOCK SCREEN ───────────────────────────────────────────────────────
 

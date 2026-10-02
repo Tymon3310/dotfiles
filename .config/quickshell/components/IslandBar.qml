@@ -3,12 +3,10 @@ import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
 import Quickshell.Services.SystemTray
-import Quickshell.Widgets
 
 import "../parts/theme"
 import "../parts/services"
 import "../parts/components"
-import "../parts/bar/modules"
 import "../parts/bar/widgets"
 import "../parts/bar/island"
 import "../parts/bar/island/controls"
@@ -106,160 +104,13 @@ PanelWindow {
         }
     }
 
-    // ── ANIMATION STATES (STARTUP, UNLOCK, LOCK & PANELS) ────────────────────
+    property alias notchYOffset: motion.notchYOffset
+    property alias islandsEmergeProgress: motion.islandsEmergeProgress
+    property alias isDemorphed: motion.isDemorphed
 
-    property real notchYOffset: -bar.capsuleH - bar.barTopMargin - 20
-    property real islandsEmergeProgress: 0.0
-    property bool isDemorphed: false
-
-    ParallelAnimation {
-        id: startupAnimation
-
-        SequentialAnimation {
-            PauseAnimation { duration: 60 }
-            NumberAnimation {
-                target: bar
-                property: "notchYOffset"
-                from: -bar.capsuleH - bar.barTopMargin - 20
-                to: 0
-                duration: 480
-                easing.type: Easing.OutBack
-                easing.overshoot: 1.15
-            }
-        }
-
-        SequentialAnimation {
-            PauseAnimation { duration: 340 }
-            NumberAnimation {
-                target: bar
-                property: "islandsEmergeProgress"
-                from: 0.0
-                to: 1.0
-                duration: 620
-                easing.type: Easing.OutCubic
-            }
-        }
-    }
-
-    // Side islands retraction (into notch) - relaxed and smooth
-    NumberAnimation {
-        id: sideIslandsRetractAnimation
-        target: bar
-        property: "islandsEmergeProgress"
-        to: 0.0
-        duration: 360
-        easing.type: Easing.InOutCubic
-    }
-
-    // Side islands emergence (out from notch) - fluid glide
-    NumberAnimation {
-        id: sideIslandsEmergeAnimation
-        target: bar
-        property: "islandsEmergeProgress"
-        from: 0.0
-        to: 1.0
-        duration: 620
-        easing.type: Easing.OutCubic
-    }
-
-    // Timer ensuring side islands pop out AFTER the island completes its morph/demorph back to rest
-    readonly property Timer postMorphEmergeTimer: Timer {
-        interval: Theme.durationMorph + 60
-        onTriggered: {
-            if (bar.below === "" && !LockService.locked && !bar.isDemorphed) {
-                sideIslandsEmergeAnimation.restart()
-            }
-        }
-    }
-
-    onBelowChanged: {
-        if (bar.below !== "") {
-            postMorphEmergeTimer.stop()
-            sideIslandsRetractAnimation.restart()
-        } else {
-            postMorphEmergeTimer.restart()
-        }
-    }
-
-    // LOCK: 1. Retract side islands into notch -> 2. Demorph notch down to compact 72px.
-    // LockService captures only after both stages finish.
-    SequentialAnimation {
-        id: lockSequence
-
-        NumberAnimation {
-            target: bar
-            property: "islandsEmergeProgress"
-            to: 0.0
-            duration: Theme.durationIslandRetract
-            easing.type: Easing.InOutCubic
-        }
-
-        ScriptAction {
-            script: bar.isDemorphed = true
-        }
-    }
-
-    // UNLOCK: 1. Morph notch to full width -> 2. Pop out side islands after morph finishes
-    SequentialAnimation {
-        id: unlockSequence
-
-        ScriptAction {
-            script: {
-                bar.notchYOffset = 0
-                bar.isDemorphed = false
-            }
-        }
-
-        // Begin the side-island glide shortly before the lock surface lifts.
-        // InOut easing keeps them almost tucked away at handoff, avoiding a
-        // visible pop while still avoiding a dead pause afterward.
-        PauseAnimation {
-            duration: Math.max(0, Theme.durationMorph - 80)
-        }
-
-        NumberAnimation {
-            target: bar
-            property: "islandsEmergeProgress"
-            from: 0.0
-            to: 1.0
-            duration: 620
-            easing.type: Easing.InOutCubic
-        }
-    }
-
-    Component.onCompleted: {
-        if (!LockService.locked) {
-            startupAnimation.start()
-        } else {
-            bar.notchYOffset = 0
-            bar.isDemorphed = true
-            bar.islandsEmergeProgress = 0.0
-        }
-    }
-
-    Connections {
-        target: LockService
-
-        function onPrepareLock(): void {
-            bar.close()
-            lockSequence.restart()
-        }
-
-        function onLockedChanged(): void {
-            if (LockService.locked) {
-                bar.close()
-                bar.isDemorphed = true
-                bar.islandsEmergeProgress = 0.0
-            }
-        }
-
-        // Start the normal bar's notch morph underneath the lock surface.
-        // LockSurface runs the matching `held` animation on this same state;
-        // by the time it disappears, the two islands have the same geometry.
-        function onLeavingChanged(): void {
-            if (LockService.leaving)
-                unlockSequence.restart()
-        }
+    IslandMotion {
+        id: motion
+        island: bar
     }
 
     // ── SURFACE ──────────────────────────────────────────────────────────────
@@ -271,7 +122,7 @@ PanelWindow {
     }
 
     readonly property int capsuleH: Theme.capsuleHeight
-    readonly property int barTopMargin: 4
+    readonly property int barTopMargin: Theme.barTopMargin
     readonly property int pad: 14
     readonly property int openRadius: Theme.radiusLarge + 4
 
@@ -293,11 +144,6 @@ PanelWindow {
         active: bar.expanded
         windows: [bar]
         onCleared: bar.close()
-    }
-
-    SystemClock {
-        id: clockTime
-        precision: SystemClock.Minutes
     }
 
     // ── LEFT FLOATING ZONE ───────────────────────────────────────────────────
@@ -346,7 +192,7 @@ PanelWindow {
                 ? Math.max(260, osdLayerItem.implicitWidth + 36)
                 : bar.isDemorphed
                     ? 72
-                    : restRow.implicitWidth + 28
+                    : IslandMetrics.notchWidth
 
         height: bar.below !== ""
             ? bar.belowSize.height + 2 * bar.pad
@@ -393,172 +239,14 @@ PanelWindow {
             onWheel: event => MediaService.nudgeVolume(event.angleDelta.y > 0 ? 0.05 : -0.05)
         }
 
-        // Rest row content
-        Item {
-            id: restRowContainer
+        IslandRestRow {
             anchors.top: parent.top
             anchors.topMargin: bar.barTopMargin
             anchors.horizontalCenter: parent.horizontalCenter
-            width: restRow.implicitWidth
-            height: bar.capsuleH
 
             opacity: (bar.below !== "" || bar.osdActive || bar.isDemorphed) ? 0 : 1
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
-
-            Row {
-                id: restRow
-                anchors.centerIn: parent
-                spacing: 10
-
-                // 1. Media Album Art Thumbnail
-                Item {
-                    id: mediaThumb
-                    width: 20
-                    height: 20
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    ClippingRectangle {
-                        anchors.fill: parent
-                        radius: 5
-                        color: Theme.islandSurfaceHover
-
-                        Image {
-                            anchors.fill: parent
-                            source: MediaService.artUrl
-                            visible: source !== "" && status === Image.Ready
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            sourceSize.width: 40
-                            sourceSize.height: 40
-                        }
-
-                        Text {
-                            anchors.centerIn: parent
-                            visible: !MediaService.available || MediaService.artUrl === ""
-                            text: "󰝚"
-                            font.family: Theme.fontMono
-                            font.pixelSize: 11
-                            color: Theme.accent
-                        }
-                    }
-                }
-
-                // 2. Song Name (Title and Artist)
-                Item {
-                    id: songItem
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible: MediaService.available && (MediaService.title !== "")
-                    width: visible ? Math.min(280, songMetrics.width) : 0
-                    height: bar.capsuleH
-                    clip: true
-
-                    Text {
-                        id: songText
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width
-                        text: MediaService.artist !== ""
-                            ? `${MediaService.title}  •  ${MediaService.artist}`
-                            : MediaService.title
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSmall
-                        font.weight: Font.Medium
-                        color: Theme.text
-                        elide: Text.ElideRight
-                    }
-
-                    TextMetrics {
-                        id: songMetrics
-                        font: songText.font
-                        text: songText.text
-                    }
-                }
-
-                // 3. Audio Visualizer Spectrum (fades out 20 s after Spotify stops)
-                Item {
-                    id: visualizerContainer
-                    anchors.verticalCenter: parent.verticalCenter
-                    readonly property bool shouldShow: MediaService.visualizerActive
-
-                    width: shouldShow ? islandVisualizer.implicitWidth : 0
-                    height: 14
-                    opacity: shouldShow ? 1 : 0
-                    visible: opacity > 0 || width > 0
-                    clip: true
-
-                    Behavior on width {
-                        NumberAnimation {
-                            duration: Theme.durationMorph
-                            easing.type: Theme.easing
-                        }
-                    }
-
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: Theme.durationMorph
-                            easing.type: Theme.easing
-                        }
-                    }
-
-                    Spectrum {
-                        id: islandVisualizer
-                        anchors.centerIn: parent
-                        barWidth: 2.5
-                        barSpacing: 1.5
-                        minimum: 2
-                        height: 14
-                        active: MediaService.playing
-                        barColor: Theme.accent
-                        visible: parent.visible
-                    }
-                }
-
-                // 4. Clock Time
-                Item {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: clockText.implicitWidth
-                    height: bar.capsuleH
-
-                    Text {
-                        id: clockText
-                        anchors.centerIn: parent
-                        text: Qt.formatDateTime(clockTime.date, SettingsService.clockFormat || "HH:mm")
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSmall + 1
-                        font.weight: Font.DemiBold
-                        font.features: { "tnum": 1 }
-                        color: Theme.text
-                    }
-                }
-
-                // Divider
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "|"
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeSmall
-                    font.weight: Font.Light
-                    color: Theme.textMuted
-                    opacity: 0.25
-                }
-
-                // 4. Clock Date
-                Item {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: dateText.implicitWidth
-                    height: bar.capsuleH
-
-                    Text {
-                        id: dateText
-                        anchors.centerIn: parent
-                        text: Qt.formatDateTime(clockTime.date, "dddd, d MMM")
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSmall - 1
-                        font.weight: Font.Medium
-                        color: Theme.textMuted
-                    }
-                }
-            }
         }
 
         // ── MORPHING OSD LAYER (Volume, Caps Lock, Num Lock) ───────────────

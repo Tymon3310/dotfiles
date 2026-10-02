@@ -25,18 +25,6 @@ Singleton {
 
     readonly property bool active: root.watchers > 0
 
-    // Mean of the bars as a single level, for the player's ring chip. Raised
-    // to 0.55 because cava reports linear amplitude and loudness is perceived
-    // roughly logarithmically.
-    readonly property real level: {
-        if (root.values.length === 0)
-            return 0
-        let total = 0
-        for (const value of root.values)
-            total += Math.max(0, value)
-        return Math.pow(total / root.values.length, 0.55)
-    }
-
     readonly property Process process: Process {
         command: ["cava", "-p", Quickshell.shellPath("parts/scripts/cava.conf")]
         running: root.active

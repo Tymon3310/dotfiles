@@ -1,9 +1,5 @@
 import QtQuick
-import QtQuick.Controls
 import Quickshell
-import Quickshell.Wayland
-import Quickshell.Hyprland
-import Quickshell.Widgets
 import Quickshell.Io
 
 import "./src"
@@ -16,9 +12,10 @@ Scope {
     signal finished()
 
     function exitTool() {
+        const standalone = !root.isLoadedDynamically
         root.cleanup()
         root.finished()
-        if (!root.isLoadedDynamically) {
+        if (standalone) {
             Qt.quit()
         }
     }
@@ -29,9 +26,7 @@ Scope {
     property string mode: "region"
     property string externalGeom: ""
     property bool ready: false
-    property bool uiReady: false
     property var pendingAction: null
-    property bool processing: false
     property bool instantCapture: false
     signal requestFlash()
     property var modes: [
@@ -94,11 +89,11 @@ Scope {
     property real globalStartY: 0
     property real globalEndX: 0
     property real globalEndY: 0
-    
+
     // Multi-selection state
     property var selectedWindows: [] // Array of window objects (address, x, y, width, height)
     property var selectedScreens: [] // Array of screen names
-    property int windowMultiSelectCount: 0
+    readonly property int windowMultiSelectCount: root.selectedWindows.length
 
     // Computed selection rect (normalized)
     property real selectionX: Math.min(globalStartX, globalEndX)
@@ -125,21 +120,17 @@ Scope {
     Component.onCompleted: startupTimer.start()
 
     function initializeCapture() {
-        console.log("Shell loaded, starting capture...")
-        root.uiReady = false
 
         // CLI args via env vars
-        const envMode = Quickshell.env("QS_MODE") || ""
-        const envInstant = Quickshell.env("QS_INSTANT") || ""
-        const envId = Quickshell.env("QS_ID") || ""
+        const envMode = root.isLoadedDynamically ? "" : (Quickshell.env("QS_MODE") || "")
+        const envInstant = root.isLoadedDynamically ? "" : (Quickshell.env("QS_INSTANT") || "")
+        const envId = root.isLoadedDynamically ? "" : (Quickshell.env("QS_ID") || "")
         const validModes = ["region", "window", "screen", "ocr", "lens", "ai"]
         if (envMode && validModes.includes(envMode)) {
             root.mode = envMode
-            console.log("Mode set from QS_MODE:", envMode)
         }
-        if (envInstant === "1" && (root.mode === "screen" || root.mode === "window")) {
-            root.instantCapture = true
-            console.log("Instant capture enabled for mode:", root.mode)
+        root.instantCapture = root.instantCapture || envInstant === "1"
+        if (root.instantCapture && !root.externalGeom && (root.mode === "screen" || root.mode === "window")) {
             // Fetch geometry upfront via hyprctl (Hyprland QML API isn't available yet)
             if (root.mode === "screen") {
                 instantGeoProcess.command = ["sh", "-c", "hyprctl monitors -j | jq -r '[.[] | select(.focused)][0] | [.x, .y, .width, .height] | @tsv'"]
@@ -147,6 +138,8 @@ Scope {
                 instantGeoProcess.command = ["sh", "-c", "hyprctl activewindow -j | jq -r '[.at[0], .at[1], .size[0], .size[1]] | @tsv'"]
             }
             instantGeoProcess.running = true
+        } else if (root.instantCapture && !root.externalGeom) {
+            root.instantCapture = false
         }
 
         if (root.externalGeom) {
@@ -163,16 +156,13 @@ Scope {
                         h: h
                     }
                     root.instantCapture = true
-                    console.log("[Screenshot] Parsed external geometry:", root._instantGeo.x, root._instantGeo.y, root._instantGeo.w, root._instantGeo.h)
                 } else {
-                    console.log("[Screenshot] Invalid dimensions in external geometry:", root.externalGeom)
+                    console.warn("[Screenshot] Invalid dimensions in external geometry:", root.externalGeom)
                     root.instantCapture = false
-                    root.uiReady = true
                 }
             } else {
-                console.log("[Screenshot] Failed to parse external geometry:", root.externalGeom)
+                console.warn("[Screenshot] Failed to parse external geometry:", root.externalGeom)
                 root.instantCapture = false
-                root.uiReady = true
             }
         }
 
@@ -245,10 +235,11 @@ Scope {
                         w: parseInt(parts[2]),
                         h: parseInt(parts[3])
                     }
-                    console.log("Instant geometry:", root._instantGeo.x, root._instantGeo.y, root._instantGeo.w, root._instantGeo.h)
+                    root.tryInstantCapture()
                 } else {
-                    console.log("Failed to parse instant geometry:", this.text)
+                    console.warn("Failed to parse instant geometry:", this.text)
                     root.instantCapture = false
+                    root.screensFrozen = root.ready
                 }
             }
         }
@@ -258,16 +249,14 @@ Scope {
         id: captureProcess
         running: false
         onExited: function(exitCode) {
-            console.log("Capture process exited with code:", exitCode)
             if (exitCode !== 0) {
-                 console.log("Grim capture failed with exit code:", exitCode)
-                 Quickshell.execDetached(["notify-send", "Screenshot Failed", "grim capture failed. Try restarting Hyprland.", "-u", "critical"])
-                 root.exitTool()
-                 return
+                console.warn("Grim capture failed with exit code:", exitCode)
+                Quickshell.execDetached(["notify-send", "Screenshot Failed", "grim capture failed. Try restarting Hyprland.", "-u", "critical"])
+                root.exitTool()
+                return
             }
             // Grim is done — show UI only for interactive captures
             if (!root.instantCapture) {
-                root.uiReady = true
                 root.screensFrozen = true
             }
             // Start stitch in background — root.ready = true when done
@@ -280,34 +269,27 @@ Scope {
         id: stitchProcess
         running: false
         onExited: function(exitCode) {
-            console.log("Stitch process exited with code:", exitCode)
+            if (exitCode !== 0) {
+                console.warn("[Screenshot] Stitch failed:", exitCode)
+                root.exitTool()
+                return
+            }
             root.ready = true
 
-            // Instant capture: process immediately without UI interaction
-            if (root.instantCapture && root._instantGeo) {
-                root.instantCapture = false
-                const g = root._instantGeo
-                console.log("Instant capture:", g.x, g.y, g.w, g.h)
-                root.processScreenshot(g.x, g.y, g.w, g.h, false)
+            if (!root.instantCapture) {
+                root.screensFrozen = true
             }
+            root.tryInstantCapture()
         }
     }
-
-    // ...
 
     Process {
         id: qrScanProcess
         running: false
-        
-        onExited: function(exitCode) {
-            console.log("QR Process exited with code:", exitCode)
-        }
 
         stdout: StdioCollector {
             onStreamFinished: {
                 var output = this.text.trim()
-                console.log("QR Scan raw output length:", output.length)
-                // console.log("QR Scan raw output:", output)
                 if (!output) {
                     root.detectedQRCodes = []
                     return
@@ -329,25 +311,22 @@ Scope {
                         })
                     }
                 }
-                console.log("Parsed QR codes:", codes.length)
                 root.detectedQRCodes = codes
             }
         }
         stderr: StdioCollector {
             onStreamFinished: {
-                if (this.text.trim()) console.log("QR scan stderr:", this.text)
+                if (this.text.trim()) console.warn("QR scan stderr:", this.text)
             }
         }
     }
 
     function startQRScan() {
         if (!tempPath) {
-             console.log("startQRScan: No tempPath")
-             return
+            console.warn("startQRScan: No tempPath")
+            return
         }
-        console.log("Starting QR Scan on:", tempPath)
         var scanScript = Qt.resolvedUrl("src/qr.py").toString().replace("file://", "")
-        console.log("Using script:", scanScript)
         var cmd = "/usr/bin/python3 '" + scanScript + "' '" + tempPath + "'"
         qrScanProcess.command = ["sh", "-c", cmd]
         qrScanProcess.running = true
@@ -361,7 +340,7 @@ Scope {
                 break
             }
         }
-        
+
         // Create a copy of the array to ensure change detection works
         let newSelection = []
         for (let i = 0; i < selectedWindows.length; i++) {
@@ -373,26 +352,25 @@ Scope {
         } else {
             newSelection.push(win)
         }
-        
+
         selectedWindows = newSelection
-        windowMultiSelectCount = selectedWindows.length
     }
 
     function toggleScreenSelection(screenName) {
         let index = selectedScreens.indexOf(screenName)
-        
+
         // Copy array
         let newSelection = []
         for (let i = 0; i < selectedScreens.length; i++) {
             newSelection.push(selectedScreens[i])
         }
-        
+
         if (index !== -1) {
             newSelection.splice(index, 1)
         } else {
             newSelection.push(screenName)
         }
-        
+
         selectedScreens = newSelection
     }
 
@@ -402,21 +380,21 @@ Scope {
         if (qrScanProcess.running) qrScanProcess.running = false
         if (tempPath) Quickshell.execDetached(["rm", "-f", tempPath])
         if (cropPath) Quickshell.execDetached(["rm", "-f", cropPath])
-        
+
         // Clean up raw PPM files if any remain (e.g. if cancelled before stitch)
         if (root._stitchTmpFiles && root._stitchTmpFiles.length > 0) {
             for (var i = 0; i < root._stitchTmpFiles.length; i++) {
                 Quickshell.execDetached(["rm", "-f", root._stitchTmpFiles[i]])
             }
         }
-        
+
         // Clean up the .done file if it exists
-        const envId = root.externalTimestamp || Quickshell.env("QS_ID") || ""
+        const envId = root.externalTimestamp || (root.isLoadedDynamically ? "" : Quickshell.env("QS_ID")) || ""
         if (envId) {
             Quickshell.execDetached(["rm", "-f", `/tmp/quickshell-screenshot-${envId}.done`])
         }
     }
-    
+
     Timer {
         id: quitTimer
         interval: 250
@@ -425,16 +403,21 @@ Scope {
         }
     }
 
+    function tryInstantCapture(): void {
+        if (!root.instantCapture || !root.ready || !root._instantGeo)
+            return
+        root.instantCapture = false
+        const geometry = root._instantGeo
+        root.processScreenshot(geometry.x, geometry.y, geometry.w, geometry.h, false)
+    }
+
+    function scheduleExit(): void { quitTimer.restart() }
+
     Component.onDestruction: cleanup()
-
-
-
-
 
     onReadyChanged: {
         if (ready) {
             if (pendingAction) {
-                root.processing = true
                 root.processScreenshot(
                     pendingAction.x,
                     pendingAction.y,
@@ -443,7 +426,6 @@ Scope {
                     pendingAction.openEditor
                 )
                 root.pendingAction = null
-                root.processing = false
             } else if (!root.instantCapture && tempPath) {
                 startQRScan()
             }
@@ -459,13 +441,12 @@ Scope {
                 height: height,
                 openEditor: openEditor
             }
-            root.processing = true
             return
         }
         // Handle stitching if multiple items selected
         if (selectedWindows.length > 0 || selectedScreens.length > 0) {
             var items = []
-            
+
             // Collect all regions to stitch
             if (selectedWindows.length > 0) {
                 for (var i = 0; i < selectedWindows.length; i++) {
@@ -512,25 +493,25 @@ Scope {
                     const now = new Date()
                     const timestamp = Qt.formatDateTime(now, "yyyy-MM-dd_hh-mm-ss")
                     const outputPath = root.saveToDisk ? `${picturesDir}/screenshot-${timestamp}.png` : tempPath
-                    
+
                     // Build magick command
                     // Start with empty canvas
                     var cmd = `magick -size ${width}x${height} xc:none `
-                    
+
                     for (var i = 0; i < items.length; i++) {
                         var item = items[i]
                         var cropX = Math.round(item.x - root.minScreenX)
                         var cropY = Math.round(item.y - root.minScreenY)
                         var destX = Math.round(item.x - minX)
                         var destY = Math.round(item.y - minY)
-                        
+
                         cmd += `\\( "${tempPath}" -crop ${item.width}x${item.height}+${cropX}+${cropY} +repage \\) -geometry +${destX}+${destY} -composite `
                     }
-                    
+
 
                     // Add fast compression to output
                     // Note: -define applies to the write.
-                    
+
                     // Logic reuse: If editor, construct edit command. Else construct save command.
                      if (openEditor) {
                         const cropPath = Quickshell.cachePath(`screenshot-crop-${Date.now()}.png`)
@@ -543,9 +524,9 @@ Scope {
                                `paplay /usr/share/sounds/freedesktop/stereo/camera-shutter.oga && ` +
                                `rm "${tempPath}"`
                     }
-                    
+
                     Quickshell.execDetached(["sh", "-c", cmd])
-                    
+
                     tempPath = ""
                     root.requestFlash()
                     quitTimer.start()
@@ -574,9 +555,9 @@ Scope {
             const timestamp = Date.now()
             cropPath = Quickshell.cachePath(`screenshot-crop-${timestamp}.png`)
             const cmd = `magick "${tempPath}" -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} "${cropPath}" && satty --filename "${cropPath}" && rm "${tempPath}"`
-            
+
             Quickshell.execDetached(["sh", "-c", cmd])
-            
+
             tempPath = ""
             // Satty handles UI, so maybe no flash? Or flash before?
             // Flash + Quit
@@ -594,7 +575,7 @@ Scope {
             const apiKey = Quickshell.env("GEMINI_API_KEY") || ""
             // Escape prompt for JSON
             const escapedPrompt = root.aiPrompt.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')
-            
+
             const cmd = `magick "${tempPath}" -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} "${cropPath}" && ` +
                 `base64 -w0 "${cropPath}" > "${b64Path}" && ` +
                 `{ printf '{"contents":[{"parts":[{"text":"${escapedPrompt}"},{"inline_data":{"mime_type":"image/png","data":"'; cat "${b64Path}"; printf '"}}]}],"generationConfig":{"thinkingConfig":{"thinkingLevel":"low"}}}'; } > "${jsonPath}" && ` +
@@ -607,23 +588,23 @@ Scope {
                 `( if [ "$(notify-send 'AI Analysis' "$TEXT" --action=default=Open --wait)" = "default" ]; then printf '%s' "$TEXT" > /tmp/qs-ai.txt && xdg-open /tmp/qs-ai.txt; fi ) & ` +
                 `paplay /usr/share/sounds/freedesktop/stereo/camera-shutter.oga && ` +
                 `rm -f "${tempPath}" "${cropPath}" "${jsonPath}" "${b64Path}" "${responsePath}"`
-            
+
             Quickshell.execDetached(["sh", "-c", cmd])
-            
+
             // Protect tempPath from cleanup
             tempPath = ""
-            
+
             root.requestFlash()
             quitTimer.start()
-            
+
         } else if (mode === "ocr") {
             const cmd = `text=$(magick "${tempPath}" -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} - | tesseract - - -l eng) && echo -n "$text" | wl-copy && ( if [ "$(notify-send 'OCR Complete' "$text" --action=default=Open --wait)" = "default" ]; then printf '%s' "$text" > /tmp/qs-ocr.txt && xdg-open /tmp/qs-ocr.txt; fi ) & paplay /usr/share/sounds/freedesktop/stereo/camera-shutter.oga && rm "${tempPath}"`
             Quickshell.execDetached(["sh", "-c", cmd])
-            
+
             tempPath = ""
             root.requestFlash()
             quitTimer.start()
-            
+
         } else if (mode === "lens") {
             const timestamp = Date.now()
             cropPath = Quickshell.cachePath(`screenshot-crop-${timestamp}.png`)
@@ -631,15 +612,15 @@ Scope {
                 `imageLink=$(curl -sF files[]=@"${cropPath}" 'https://uguu.se/upload' | jq -r '.files[0].url') && ` +
                 `xdg-open "https://lens.google.com/uploadbyurl?url=\${imageLink}" && ` +
                 `rm "${tempPath}" "${cropPath}"`
-                
+
             Quickshell.execDetached(["sh", "-c", cmd])
-            
+
             tempPath = ""
             // No flash for Lens usually, but let's add it for consistency or user feedback? keeping as is (sync? no, detached)
             // Original code didn't flash Lens in previous step, but user asked for flash. adding it.
             root.requestFlash()
             quitTimer.start()
-            
+
         } else {
             const picturesDir = Quickshell.env("SCREENSHOT_DIR") || Quickshell.env("XDG_SCREENSHOTS_DIR") || Quickshell.env("XDG_PICTURES_DIR") || (Quickshell.env("HOME") + "/Pictures")
             const now = new Date()
@@ -651,877 +632,25 @@ Scope {
                 `( if [ "$(notify-send "Screenshot saved" "$(basename "${outputPath}") · copied" -a "Screenshot" -h "string:image-path:${outputPath}" --action=default=Open --wait)" = "default" ]; then xdg-open "${outputPath}"; fi ) & ` +
                 `paplay /usr/share/sounds/freedesktop/stereo/camera-shutter.oga && ` +
                 `rm "${tempPath}"`
-            
+
             Quickshell.execDetached(["sh", "-c", cmd])
-            
+
             tempPath = ""
-            
+
             // Visual Flash
             root.requestFlash()
             quitTimer.start()
         }
     }
-    
+
     // Flash removed from here (moved to FreezeScreen)
-    
-
-
-
-
 
     Variants {
-        // Defer FreezeScreen creation until grim finishes to avoid
-        // Hyprland 0.54 wlr-screencopy protocol conflict
+        // Wait until grim releases screencopy before creating frozen overlays.
         model: root.screensFrozen ? Quickshell.screens : []
 
-        FreezeScreen {
-            id: freezeWindow
-            required property var modelData
-            
-            Connections {
-                target: root
-                function onRequestFlash() {
-                    freezeWindow.triggerFlash()
-                }
-            }
-            
-            visible: true
-            targetScreen: modelData
-
-            property real screenX: modelData.x
-            property real screenY: modelData.y
-            property var hyprlandMonitor: Hyprland.focusedMonitor
-
-            FocusScope {
-                id: keyScope
-                anchors.fill: parent
-                focus: true
-
-                Component.onCompleted: keyScope.forceActiveFocus()
-
-                Connections {
-                    target: freezeWindow
-                    function onFrozenChanged() {
-                        if (freezeWindow.frozen) keyScope.forceActiveFocus()
-                    }
-                    function onVisibleChanged() {
-                        if (freezeWindow.visible) keyScope.forceActiveFocus()
-                    }
-                }
-
-                Keys.onPressed: (event) => {
-                    if (root.promptFocused) {
-                        if (event.key === Qt.Key_Escape) {
-                            root.promptFocused = false
-                            keyScope.forceActiveFocus()
-                            event.accepted = true
-                        }
-                        return
-                    }
-
-                    switch (event.key) {
-                    case Qt.Key_Escape:
-                        root.exitTool()
-                        event.accepted = true
-                        break
-                    case Qt.Key_1:
-                        root.mode = "region"
-                        event.accepted = true
-                        break
-                    case Qt.Key_2:
-                        root.mode = "window"
-                        event.accepted = true
-                        break
-                    case Qt.Key_3:
-                        root.mode = "screen"
-                        event.accepted = true
-                        break
-                    case Qt.Key_4:
-                        root.mode = "ocr"
-                        event.accepted = true
-                        break
-                    case Qt.Key_5:
-                        root.mode = "lens"
-                        event.accepted = true
-                        break
-                    case Qt.Key_6:
-                        root.mode = "ai"
-                        event.accepted = true
-                        break
-                    case Qt.Key_S:
-                        root.saveToDisk = !root.saveToDisk
-                        event.accepted = true
-                        break
-                    case Qt.Key_Return:
-                    case Qt.Key_Enter:
-                    case Qt.Key_Space:
-                        if (root.mode === "screen") {
-                            root.processScreenshot(freezeWindow.screenX, freezeWindow.screenY, freezeWindow.modelData.width, freezeWindow.modelData.height, false)
-                            event.accepted = true
-                        }
-                        break
-                    }
-                }
-
-
-
-            // Region/OCR/Lens/AI selector with cross-screen support
-            Item {
-                id: crossScreenSelector
-                visible: root.mode === "region" || root.mode === "ocr" || root.mode === "lens" || root.mode === "ai"
-                anchors.fill: parent
-
-                // Calculate local selection rect for this screen
-                property real localSelX: root.selectionX - freezeWindow.screenX
-                property real localSelY: root.selectionY - freezeWindow.screenY
-                property real localSelWidth: root.selectionWidth
-                property real localSelHeight: root.selectionHeight
-
-                // Clamp to screen bounds
-                property real clampedX: Math.max(0, localSelX)
-                property real clampedY: Math.max(0, localSelY)
-                property real clampedRight: Math.min(freezeWindow.modelData.width, localSelX + localSelWidth)
-                property real clampedBottom: Math.min(freezeWindow.modelData.height, localSelY + localSelHeight)
-                property real clampedWidth: Math.max(0, clampedRight - clampedX)
-                property real clampedHeight: Math.max(0, clampedBottom - clampedY)
-
-                property real mouseX: 0
-                property real mouseY: 0
-
-                onClampedXChanged: canvas.requestPaint()
-                onClampedYChanged: canvas.requestPaint()
-                onClampedWidthChanged: canvas.requestPaint()
-                onClampedHeightChanged: canvas.requestPaint()
-                onMouseXChanged: canvas.requestPaint()
-                onMouseYChanged: canvas.requestPaint()
-
-                // Dimming shader
-                ShaderEffect {
-                    anchors.fill: parent
-                    z: 0
-
-                    property vector4d selectionRect: Qt.vector4d(
-                        crossScreenSelector.clampedX,
-                        crossScreenSelector.clampedY,
-                        crossScreenSelector.clampedWidth,
-                        crossScreenSelector.clampedHeight
-                    )
-                    property real dimOpacity: Theme.captureWash.a
-                    property vector2d screenSize: Qt.vector2d(parent.width, parent.height)
-                    property real borderRadius: Theme.radiusMedium
-                    property real outlineThickness: (crossScreenSelector.clampedWidth > 1 && crossScreenSelector.clampedHeight > 1) ? 2.0 : 0.0
-                    property color outlineColor: Theme.accent
-
-                    fragmentShader: Qt.resolvedUrl("shaders/dimming.frag.qsb")
-                }
-
-                // Crosshair / guides
-                Canvas {
-                    id: canvas
-                    anchors.fill: parent
-                    z: 2
-
-                    onPaint: {
-                        var ctx = getContext("2d");
-                        ctx.clearRect(0, 0, width, height);
-
-                        ctx.beginPath();
-                        ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
-                        ctx.lineWidth = 1;
-                        ctx.setLineDash([4, 4]);
-
-                        if (!root.isSelecting && regionMouseArea.containsMouse) {
-                            // Crosshair at mouse cursor
-                            ctx.moveTo(crossScreenSelector.mouseX, 0);
-                            ctx.lineTo(crossScreenSelector.mouseX, height);
-                            ctx.moveTo(0, crossScreenSelector.mouseY);
-                            ctx.lineTo(width, crossScreenSelector.mouseY);
-                        } else {
-                            // Guides around selection
-                            const x = crossScreenSelector.clampedX
-                            const y = crossScreenSelector.clampedY
-                            const w = crossScreenSelector.clampedWidth
-                            const h = crossScreenSelector.clampedHeight
-                            if (w > 0 && h > 0) {
-                                ctx.moveTo(x, 0); ctx.lineTo(x, height);
-                                ctx.moveTo(x + w, 0); ctx.lineTo(x + w, height);
-                                ctx.moveTo(0, y); ctx.lineTo(width, y);
-                                ctx.moveTo(0, y + h); ctx.lineTo(width, y + h);
-                            }
-                        }
-                        ctx.stroke();
-                    }
-                }
-
-                // Dimension reading pill badge
-                Rectangle {
-                    visible: root.isSelecting && crossScreenSelector.clampedWidth > 20 && crossScreenSelector.clampedHeight > 20
-                    x: Math.min(Math.max(10, crossScreenSelector.clampedX + (crossScreenSelector.clampedWidth - width) / 2),
-                                parent.width - width - 10)
-                    y: crossScreenSelector.clampedY > height + 10
-                        ? crossScreenSelector.clampedY - height - 8
-                        : crossScreenSelector.clampedY + 8
-                    width: readingLabel.implicitWidth + 20
-                    height: 28
-                    radius: height / 2
-                    color: Theme.island
-                    border.color: Theme.islandBorder
-                    border.width: 1
-                    z: 4
-
-                    Text {
-                        id: readingLabel
-                        anchors.centerIn: parent
-                        text: Math.round(root.selectionWidth) + " × " + Math.round(root.selectionHeight)
-                        font.family: Theme.fontMono
-                        font.pixelSize: Theme.fontSizeSmall
-                        font.weight: Font.DemiBold
-                        color: Theme.text
-                    }
-                }
-
-                MouseArea {
-                    id: regionMouseArea
-                    anchors.fill: parent
-                    z: 3
-                    hoverEnabled: true
-                    cursorShape: Qt.CrossCursor
-                    acceptedButtons: Qt.LeftButton
-
-                    onPressed: (mouse) => {
-                        root.shiftHeld = (mouse.modifiers & Qt.ShiftModifier)
-                        root.isSelecting = true
-                        const globalX = freezeWindow.screenX + mouse.x
-                        const globalY = freezeWindow.screenY + mouse.y
-                        root.globalStartX = globalX
-                        root.globalStartY = globalY
-                        root.globalEndX = globalX
-                        root.globalEndY = globalY
-                    }
-
-                    onPositionChanged: (mouse) => {
-                        crossScreenSelector.mouseX = mouse.x
-                        crossScreenSelector.mouseY = mouse.y
-
-                        if (pressed) {
-                            root.globalEndX = freezeWindow.screenX + mouse.x
-                            root.globalEndY = freezeWindow.screenY + mouse.y
-                        }
-                    }
-
-                    onReleased: (mouse) => {
-                        const openEditor = (mouse.modifiers & Qt.ShiftModifier) || root.shiftHeld
-                        root.isSelecting = false
-                        root.processScreenshot(
-                            root.selectionX,
-                            root.selectionY,
-                            root.selectionWidth,
-                            root.selectionHeight,
-                            openEditor
-                        )
-                    }
-                }
-
-                // QR Code overlays - visible in lens mode
-                Repeater {
-                    model: root.mode === "lens" ? root.detectedQRCodes : []
-
-                    Rectangle {
-                        id: qrOverlay
-                        required property var modelData
-                        required property int index
-
-                        // Convert image coordinates to local screen coordinates
-                        property real imgX: modelData.x + root.minScreenX
-                        property real imgY: modelData.y + root.minScreenY
-                        property real localX: imgX - freezeWindow.screenX
-                        property real localY: imgY - freezeWindow.screenY
-
-                        // Only show if QR code is on this screen
-                        visible: localX + modelData.width > 0 && localX < freezeWindow.modelData.width &&
-                                 localY + modelData.height > 0 && localY < freezeWindow.modelData.height
-
-                        x: localX - 8
-                        y: localY - 8
-                        width: modelData.width + 16
-                        height: modelData.height + 16
-                        radius: Theme.radiusSmall
-                        color: qrMouseArea.containsMouse ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.25) : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
-                        border.color: Theme.accent
-                        border.width: 2
-                        z: 5
-
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                        // QR icon badge
-                        Rectangle {
-                            anchors.top: parent.top
-                            anchors.right: parent.right
-                            anchors.margins: -6
-                            width: 28
-                            height: 28
-                            radius: 14
-                            color: Theme.accent
-
-                            Image {
-                                anchors.centerIn: parent
-                                width: 16
-                                height: 16
-                                sourceSize: Qt.size(64, 64)
-                                source: Qt.resolvedUrl("icons/qr.svg")
-                                fillMode: Image.PreserveAspectFit
-                            }
-                        }
-
-                        // Data preview tooltip
-                        Rectangle {
-                            visible: qrMouseArea.containsMouse
-                            anchors.top: parent.bottom
-                            anchors.left: parent.left
-                            anchors.topMargin: 8
-                            width: qrDataColumn.width + 24
-                            height: qrDataColumn.height + 14
-                            radius: Theme.radiusSmall
-                            color: Theme.island
-                            border.color: Theme.islandBorder
-                            border.width: 1
-                            z: 10
-
-                            Column {
-                                id: qrDataColumn
-                                anchors.centerIn: parent
-                                spacing: 3
-
-                                Text {
-                                    text: qrOverlay.modelData.data.length > 60 
-                                        ? qrOverlay.modelData.data.substring(0, 60) + "..." 
-                                        : qrOverlay.modelData.data
-                                    color: Theme.text
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeSmall
-                                }
-
-                                Text {
-                                    text: "Click to copy" + (qrOverlay.modelData.data.indexOf("http") === 0 ? " & open" : "")
-                                    color: Theme.accent
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeLabel
-                                    font.weight: Font.DemiBold
-                                }
-                            }
-                        }
-
-                        MouseArea {
-                            id: qrMouseArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            z: 10
-
-                            onClicked: {
-                                var data = qrOverlay.modelData.data
-                                var isUrl = data.indexOf("http://") === 0 || data.indexOf("https://") === 0
-                                var cmd = isUrl
-                                    ? "printf '%s' '" + data.replace(/'/g, "'\"'\"'") + "' | wl-copy && notify-send 'QR Code' 'Copied & opening...' && xdg-open '" + data.replace(/'/g, "'\"'\"'") + "'"
-                                    : "printf '%s' '" + data.replace(/'/g, "'\"'\"'") + "' | wl-copy && notify-send 'QR Code' 'Copied to clipboard'"
-                                cmd += " && rm -f '" + root.tempPath + "'"
-                                root.ready = false
-                                Quickshell.execDetached(["sh", "-c", cmd])
-                                root.tempPath = ""
-                                root.requestFlash()
-                                quitTimer.start()
-                            }
-                        }
-                    }
-                }
-            }
-
-            WindowSelector {
-                visible: root.mode === "window"
-                anchors.fill: parent
-                monitor: freezeWindow.hyprlandMonitor
-                screenX: freezeWindow.screenX
-                screenY: freezeWindow.screenY
-                dimOpacity: 0.6
-                borderRadius: 10.0
-                outlineThickness: 2.0
-                
-                // Pass root-level selection state
-                globalSelectedWindows: root.selectedWindows
-                
-                onRegionSelected: (x, y, width, height, openEditor) => {
-                    // Clear multi-selection because user clicked a specific window to capture IT ONLY
-                    root.selectedWindows = []
-                    root.selectedScreens = []
-                    root.windowMultiSelectCount = 0
-                    
-                    // Window coordinates are already global from WindowSelector
-                    root.processScreenshot(x, y, width, height, openEditor)
-                }
-                onCaptureRequested: (openEditor) => {
-                    // Capture all selected windows (stitching)
-                    root.processScreenshot(0, 0, 0, 0, openEditor)
-                }
-                onWindowToggled: (windowInfo) => {
-                    root.toggleWindowSelection(windowInfo)
-                }
-            }
-
-            // Screen mode - click anywhere on this monitor to capture it
-            Item {
-                id: screenSelector
-                visible: root.mode === "screen"
-                anchors.fill: parent
-
-                property bool isHovered: false
-
-                // Dimming shader - highlight full screen when hovered
-                ShaderEffect {
-                    anchors.fill: parent
-                    z: 0
-
-                    property vector4d selectionRect: Qt.vector4d(
-                        screenSelector.isHovered ? 0 : 0,
-                        screenSelector.isHovered ? 0 : 0,
-                        screenSelector.isHovered ? parent.width : 0,
-                        screenSelector.isHovered ? parent.height : 0
-                    )
-                    property real dimOpacity: Theme.captureWash.a
-                    property vector2d screenSize: Qt.vector2d(parent.width, parent.height)
-                    property real borderRadius: Theme.radiusLarge
-                    property real outlineThickness: screenSelector.isHovered ? 3.0 : 0.0
-                    property color outlineColor: Theme.accent
-
-                    fragmentShader: Qt.resolvedUrl("shaders/dimming.frag.qsb")
-                }
-
-                // Monitor label
-                Rectangle {
-                    visible: screenSelector.isHovered
-                    anchors.centerIn: parent
-                    width: monitorLabelColumn.width + 48
-                    height: monitorLabelColumn.height + 24
-                    radius: Theme.radiusLarge
-                    color: Theme.island
-                    border.color: Theme.islandBorder
-                    border.width: 1
-
-                    Column {
-                        id: monitorLabelColumn
-                        anchors.centerIn: parent
-                        spacing: 4
-
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: freezeWindow.modelData.name
-                            color: Theme.text
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeLarge
-                            font.weight: Font.DemiBold
-                        }
-
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: freezeWindow.modelData.width + " × " + freezeWindow.modelData.height
-                            color: Theme.textMuted
-                            font.family: Theme.fontMono
-                            font.pixelSize: Theme.fontSizeRegular
-                        }
-                    }
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    z: 3
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-
-                    onEntered: screenSelector.isHovered = true
-                    onExited: screenSelector.isHovered = false
-
-                    onClicked: (mouse) => {
-                        // Multi-selection with Ctrl
-                        if (mouse.modifiers & Qt.ControlModifier) {
-                            root.toggleScreenSelection(freezeWindow.modelData.name)
-                            return
-                        }
-
-                        // If clicking a selected screen, capture all selected screens
-                        if (root.selectedScreens.indexOf(freezeWindow.modelData.name) !== -1 && root.selectedScreens.length > 0) {
-                            root.processScreenshot(0, 0, 0, 0, false)
-                            return
-                        }
-
-                        // Otherwise clear selection and capture just this screen
-                        root.selectedWindows = []
-                        root.selectedScreens = []
-                        root.windowMultiSelectCount = 0
-
-                        const openEditor = (mouse.modifiers & Qt.ShiftModifier)
-                        root.processScreenshot(
-                            freezeWindow.screenX,
-                            freezeWindow.screenY,
-                            freezeWindow.modelData.width,
-                            freezeWindow.modelData.height,
-                            openEditor
-                        )
-                    }
-                }
-
-                // Selection indicator
-                Rectangle {
-                    visible: root.selectedScreens.indexOf(freezeWindow.modelData.name) !== -1
-                    anchors.fill: parent
-                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                    border.color: Theme.accent
-                    border.width: 3
-                    z: 5
-                }
-            }
-
-            // Bottom Notch (only on primary/first screen)
-            Rectangle {
-                id: bottomNotch
-                visible: freezeWindow.frozen && freezeWindow.modelData === root.primaryScreen
-                z: 10
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.bottom
-
-                property real notchOffset: freezeWindow.frozen ? 0 : height
-                anchors.bottomMargin: -notchOffset
-
-                width: mainRow.implicitWidth + 36
-                height: 52
-                color: Theme.island
-
-                topLeftRadius: Theme.radiusLarge
-                topRightRadius: Theme.radiusLarge
-                bottomLeftRadius: 0
-                bottomRightRadius: 0
-
-                Behavior on notchOffset {
-                    NumberAnimation {
-                        duration: Theme.durationMorph
-                        easing.type: Theme.easing
-                    }
-                }
-                Behavior on width {
-                    NumberAnimation {
-                        duration: Theme.durationFast
-                        easing.type: Theme.easing
-                    }
-                }
-
-                Row {
-                    id: mainRow
-                    anchors.centerIn: parent
-                    anchors.verticalCenterOffset: -2
-                    spacing: 12
-
-                    Row {
-                        id: buttonRow
-                        spacing: 4
-
-                        Repeater {
-                            model: root.modes
-
-                            Rectangle {
-                                id: modeBtn
-                                required property var modelData
-                                readonly property bool active: root.mode === modelData.mode
-
-                                implicitWidth: 48
-                                implicitHeight: 40
-                                radius: Theme.radiusMedium - 2
-
-                                color: active
-                                    ? Theme.accent
-                                    : (btnMouse.containsMouse ? Theme.islandSurfaceHover : "transparent")
-                                border.color: active
-                                    ? Theme.accent
-                                    : (btnMouse.containsMouse ? Theme.islandBorder : "transparent")
-                                border.width: 1
-
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                                Column {
-                                    anchors.centerIn: parent
-                                    spacing: 1
-
-                                    Image {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        width: 18
-                                        height: 18
-                                        sourceSize: Qt.size(48, 48)
-                                        source: Qt.resolvedUrl(`icons/${modeBtn.modelData.icon}.svg`)
-                                        fillMode: Image.PreserveAspectFit
-                                        smooth: true
-                                        antialiasing: true
-                                        opacity: modeBtn.active ? 1.0 : (btnMouse.containsMouse ? 0.9 : 0.65)
-                                        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
-                                    }
-
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: modeBtn.modelData.label
-                                        color: modeBtn.active ? Theme.accentText : (btnMouse.containsMouse ? Theme.text : Theme.textMuted)
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeLabel
-                                        font.weight: modeBtn.active ? Font.DemiBold : Font.Normal
-                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                                    }
-                                }
-
-                                MouseArea {
-                                    id: btnMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.mode = modeBtn.modelData.mode
-                                }
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        width: 1
-                        height: 22
-                        color: Theme.islandBorder
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-
-                    // Options panel with fixed width to prevent layout shifts
-                    Item {
-                        id: optionsPanel
-                        width: 320
-                        height: 40
-                        anchors.verticalCenter: parent.verticalCenter
-
-                        // Save toggle - for region/window/screen modes
-                        Row {
-                            id: saveRow
-                            opacity: (root.mode === "region" || root.mode === "window" || root.mode === "screen") ? 1 : 0
-                            visible: opacity > 0
-                            spacing: 10
-                            anchors.verticalCenter: parent.verticalCenter
-
-                            Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
-
-                            Row {
-                                spacing: 8
-                                anchors.verticalCenter: parent.verticalCenter
-
-                                Text {
-                                    text: "Save to disk"
-                                    color: Theme.text
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-
-                                Rectangle {
-                                    id: saveToggle
-                                    width: 36
-                                    height: 20
-                                    radius: height / 2
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    color: root.saveToDisk ? Theme.accent : Theme.islandSurfaceHover
-                                    border.color: root.saveToDisk ? Theme.accent : Theme.islandBorder
-                                    border.width: 1
-
-                                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                                    Rectangle {
-                                        id: switchThumb
-                                        width: 14
-                                        height: 14
-                                        radius: 7
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        x: root.saveToDisk ? parent.width - width - 3 : 3
-                                        color: root.saveToDisk ? Theme.accentText : Theme.textMuted
-
-                                        Behavior on x { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
-                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                                    }
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: root.saveToDisk = !root.saveToDisk
-                                    }
-                                }
-                            }
-
-                            Rectangle {
-                                width: 1
-                                height: 18
-                                color: Theme.islandBorder
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-
-                            Column {
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 2
-
-                                // Stitch count hint
-                                Rectangle {
-                                    visible: root.selectedScreens.length > 0 || root.windowMultiSelectCount > 0
-                                    implicitWidth: stitchText.implicitWidth + 14
-                                    implicitHeight: 18
-                                    radius: height / 2
-                                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)
-                                    border.color: Theme.accent
-                                    border.width: 1
-
-                                    Text {
-                                        id: stitchText
-                                        anchors.centerIn: parent
-                                        text: {
-                                            if (root.selectedScreens.length > 0) return "Stitch: " + root.selectedScreens.length + " screens"
-                                            if (root.windowMultiSelectCount > 0) return "Stitch: " + root.windowMultiSelectCount + " windows"
-                                            return ""
-                                        }
-                                        color: Theme.accentText
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeLabel
-                                        font.weight: Font.DemiBold
-                                    }
-                                }
-
-                                // Shift+click hint
-                                Text {
-                                    text: "Shift+click for editor"
-                                    color: Theme.textMuted
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeLabel
-                                }
-
-                                // Ctrl+click hint
-                                Text {
-                                    visible: root.mode === "window" || root.mode === "screen"
-                                    text: "Ctrl+click to multi-select"
-                                    color: Theme.textMuted
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeLabel
-                                    opacity: 0.7
-                                }
-                            }
-                        }
-
-                        // OCR/Lens hint
-                        Column {
-                            opacity: (root.mode === "ocr" || root.mode === "lens") ? 1 : 0
-                            visible: opacity > 0
-                            spacing: 3
-                            anchors.verticalCenter: parent.verticalCenter
-
-                            Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
-
-                            Text {
-                                text: root.mode === "ocr" ? "Select text to extract" : "Select area to search"
-                                color: Theme.textMuted
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSizeSmall
-                            }
-
-                            Text {
-                                visible: root.mode === "lens"
-                                text: root.detectedQRCodes.length > 0 
-                                    ? root.detectedQRCodes.length + " QR code" + (root.detectedQRCodes.length > 1 ? "s" : "") + " detected"
-                                    : "No QR codes detected"
-                                color: root.detectedQRCodes.length > 0 ? Theme.accent : Theme.textMuted
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSizeLabel
-                                font.weight: root.detectedQRCodes.length > 0 ? Font.DemiBold : Font.Normal
-                            }
-                        }
-
-                        // AI Prompt input
-                        Row {
-                            opacity: root.mode === "ai" ? 1 : 0
-                            visible: opacity > 0
-                            spacing: 8
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-
-                            Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
-
-                            Text {
-                                text: "Prompt:"
-                                color: Theme.textMuted
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSizeSmall
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-
-                            Rectangle {
-                                id: promptBox
-                                width: parent.width - 65
-                                height: 34
-                                radius: Theme.radiusSmall
-                                color: promptInput.activeFocus ? Theme.islandSurfaceHover : Theme.islandSurface
-                                border.color: promptInput.activeFocus ? Theme.accent : Theme.islandBorder
-                                border.width: 1
-
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                                TextInput {
-                                    id: promptInput
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 10
-                                    anchors.rightMargin: 10
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    color: Theme.text
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    text: root.aiPrompt
-                                    clip: true
-                                    selectByMouse: true
-                                    selectedTextColor: Theme.accentText
-                                    selectionColor: Theme.accent
-                                    onTextChanged: root.aiPrompt = text
-                                    onActiveFocusChanged: root.promptFocused = activeFocus
-
-                                    Text {
-                                        anchors.fill: parent
-                                        verticalAlignment: Text.AlignVCenter
-                                        text: "Describe what to analyze..."
-                                        color: Theme.textMuted
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeSmall
-                                        visible: !promptInput.text && !promptInput.activeFocus
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Notch fillets where the bottom notch meets the bottom bezel
-            NotchFillet {
-                z: 10
-                visible: bottomNotch.visible
-                x: bottomNotch.x - width
-                y: bottomNotch.y + bottomNotch.height - height
-                mirrored: true
-                atBottom: true
-                color: Theme.island
-            }
-
-            NotchFillet {
-                z: 10
-                visible: bottomNotch.visible
-                x: bottomNotch.x + bottomNotch.width
-                y: bottomNotch.y + bottomNotch.height - height
-                atBottom: true
-                color: Theme.island
-            }
+        CaptureOverlay {
+            controller: root
         }
     }
-}
 }

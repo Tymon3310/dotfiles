@@ -215,7 +215,7 @@ Card {
                     z: 1
                     cursorShape: Qt.PointingHandCursor
                     hoverEnabled: true
-                    onClicked: NotificationService.activateFromHistory(entry.modelData)
+                    onClicked: NotificationService.activate(entry.modelData)
                 }
 
                 IconButton {

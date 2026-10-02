@@ -128,9 +128,6 @@ Singleton {
         return max
     }
 
-    // The newest on the island, for anything that shows one.
-    readonly property var current: root.shown.length > 0 ? root.shown[0] : null
-
     // When each shown one times out, by key (absent: never). Kept apart from
     // the entries so extending one does not rebuild the list.
     property var deadlines: root.serverInstance === Quickshell.instanceId
@@ -440,19 +437,7 @@ Singleton {
         root.shown = [notification].concat(root.shown)
     }
 
-    // Off the island and out of the queue, without telling anyone; the next
-    // waiting one moves up.
-    function forget(key: int): void {
-        if (!(key in root.liveObjects))
-            return
-        const live = Object.assign({}, root.liveObjects)
-        delete live[key]
-        root.liveObjects = live
-        const deadlines = Object.assign({}, root.deadlines)
-        delete deadlines[key]
-        root.deadlines = deadlines
-        root.shown = root.shown.filter(entry => entry.key !== key)
-        root.waiting = root.waiting.filter(entry => entry.key !== key)
+    function promoteWaiting(): void {
         while (root.shown.length < root.maxShown && root.waiting.length > 0) {
             const next = root.waiting[0]
             root.waiting = root.waiting.slice(1)
@@ -460,18 +445,24 @@ Singleton {
         }
     }
 
-    // Banner dismissed or user activated: slides off the island, leaving the entry in history.
+    // Remove the banner and queue entry, keeping the plain history snapshot.
     function hideKey(key: int): void {
         root.shown = root.shown.filter(entry => entry.key !== key)
+        root.waiting = root.waiting.filter(entry => entry.key !== key)
         const deadlines = Object.assign({}, root.deadlines)
         delete deadlines[key]
         root.deadlines = deadlines
+        root.promoteWaiting()
+    }
 
-        while (root.shown.length < root.maxShown && root.waiting.length > 0) {
-            const next = root.waiting[0]
-            root.waiting = root.waiting.slice(1)
-            root.show(next)
-        }
+    // Drop a live object without calling it; it may already have been deleted.
+    function forget(key: int): void {
+        if (!(key in root.liveObjects))
+            return
+        const live = Object.assign({}, root.liveObjects)
+        delete live[key]
+        root.liveObjects = live
+        root.hideKey(key)
     }
 
     // Timed out on deadline or explicitly dismissed: notifies the sending application via expire(),
@@ -502,34 +493,13 @@ Singleton {
             action.invoke()
     }
 
-    // User clicked the notification (in popup or in dashboard history):
-    // 1. Invokes the notification's action (default/first).
-    // 2. Focuses the app's window in Hyprland or launches it.
-    // 3. Opens URLs if present.
-    // Keeps notification in history; only dismisses banner if currently on island.
+    // Popups and history use the same snapshots. Prefer a live default action,
+    // then fall back to the saved URL, screenshot path or application identity.
     function activate(notification: var): void {
         if (!notification)
             return
-
-        const key = notification.key
-        const invoked = root.invokeDefaultAction(notification)
-
-        root.openTarget(notification, invoked)
-
-        // Hide it from the banner if currently shown on the island, but keep it in history!
-        root.hideKey(key)
-    }
-
-    // History snapshots retain app/URL data. If the notification's live
-    // default action is still available, invoke it first (some apps, including
-    // the screenshot tool, use that action to open their own generated file).
-    function activateFromHistory(notification: var): void {
-        if (!notification)
-            return
-        console.log("[NotificationService] History activation target:",
-            notification.appName ?? "", notification.desktopEntry ?? "")
         if (!root.invokeDefaultAction(notification))
-            root.openTarget(notification, false)
+            root.openTarget(notification)
         root.hideKey(notification.key)
     }
 
@@ -551,10 +521,7 @@ Singleton {
         }
     }
 
-    function openTarget(notification: var, alreadyInvoked: bool): void {
-        if (alreadyInvoked)
-            return
-
+    function openTarget(notification: var): void {
         const text = `${notification.summary ?? ""} ${notification.body ?? ""}`
         const urlMatch = text.match(/https?:\/\/[^\s<>"']+/)
         if (urlMatch) {
@@ -574,29 +541,26 @@ Singleton {
 
         root.focusOrLaunchApp(
             notification.appName ?? "",
-            notification.desktopEntry ?? "",
-            false
+            notification.desktopEntry ?? ""
         )
     }
 
-    function focusOrLaunchApp(appName: string, desktopEntry: string, alreadyInvoked: bool): void {
+    function focusOrLaunchApp(appName: string, desktopEntry: string): void {
         const id = desktopEntry || appName
         if (id && /^[\w.\-]+$/.test(id)) {
             Hyprland.dispatch(`hl.dsp.focus({ window = "class:${id.toLowerCase()}" })`)
         }
 
-        if (!alreadyInvoked) {
-            const entry = (desktopEntry ? DesktopEntries.byId(desktopEntry) : null)
-                ?? DesktopEntries.heuristicLookup(appName)
-            if (entry && typeof entry.execute === "function") {
-                try {
-                    entry.execute()
-                } catch (e) {
-                    console.warn("[NotificationService] Error executing desktop entry:", e)
-                }
-            } else {
-                console.warn("[NotificationService] No desktop entry for notification:", appName, desktopEntry)
+        const entry = (desktopEntry ? DesktopEntries.byId(desktopEntry) : null)
+            ?? DesktopEntries.heuristicLookup(appName)
+        if (entry && typeof entry.execute === "function") {
+            try {
+                entry.execute()
+            } catch (e) {
+                console.warn("[NotificationService] Error executing desktop entry:", e)
             }
+        } else {
+            console.warn("[NotificationService] No desktop entry for notification:", appName, desktopEntry)
         }
     }
 
@@ -604,17 +568,6 @@ Singleton {
     function dismiss(): void {
         for (const entry of root.shown.concat(root.waiting))
             root.dismissKey(entry.key)
-    }
-
-    // The newest one, for callers that show only that.
-    function close(): void {
-        if (root.current)
-            root.closeKey(root.current.key)
-    }
-
-    function invoke(identifier: string): void {
-        if (root.current)
-            root.invokeKey(root.current.key, identifier)
     }
 
     function clearHistory(): void {

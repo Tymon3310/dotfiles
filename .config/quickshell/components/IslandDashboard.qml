@@ -65,13 +65,23 @@ GridLayout {
 
     // ── SECOND ROW ─────────────────────────────────────────────────────────
 
-    Tile { moduleId: "volume"; Layout.preferredWidth: root.leftWidth }
+    Card {
+        padding: 0
+        Layout.preferredWidth: root.leftWidth
+        Layout.preferredHeight: root.secondHeight
+        VolumeModule { anchors.fill: parent }
+    }
     // Wired only: throughput and pings instead of the Wi-Fi detail.
     LinkCard {
         Layout.preferredWidth: root.middleWidth
         Layout.preferredHeight: root.secondHeight
     }
-    Tile { moduleId: "bluetooth"; Layout.preferredWidth: root.rightWidth }
+    Card {
+        padding: 0
+        Layout.preferredWidth: root.rightWidth
+        Layout.preferredHeight: root.secondHeight
+        BluetoothModule { anchors.fill: parent }
+    }
 
     // ── THIRD ROW ──────────────────────────────────────────────────────────
 
@@ -88,17 +98,4 @@ GridLayout {
         onClosed: root.closed()
     }
 
-    // A module's island detail on a card; the details pad themselves.
-    component Tile: Card {
-        property alias moduleId: module.moduleId
-
-        padding: 0
-        Layout.preferredHeight: root.secondHeight
-
-        Module {
-            id: module
-            anchors.fill: parent
-            compact: false
-        }
-    }
 }

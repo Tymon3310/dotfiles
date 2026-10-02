@@ -44,7 +44,7 @@ Singleton {
             .toLowerCase().includes("spotify")
 
     // ── VISUALIZER INACTIVITY TIMEOUT ─────────────────────────────
-    // After 20 seconds without Spotify playing, visualizerActive becomes false.
+    // After 20 seconds without playback, visualizerActive becomes false.
     property bool visualizerTimeout: false
 
     readonly property Timer visualizerTimeoutTimer: Timer {
@@ -96,7 +96,7 @@ Singleton {
     property int watchers: 0
 
     // Holders that need the position to the frame, not the second (synced
-    // lyrics): the poll runs at 30 ms while any is held.
+    // lyrics): the poll runs at 50 ms while any is held.
     property int preciseWatchers: 0
 
     readonly property Timer positionTimer: Timer {
@@ -128,9 +128,8 @@ Singleton {
     }
 
     // The next tracks, [{ title, artist, artUrl }], from the Spotify Web API.
-    // MPRIS has no queue, so the host fills this in: the dotfiles' shell.qml
-    // binds it to media_status.py's `queue` logic.
-    property var queue: []
+    // MPRIS has no queue; the Web API worker supplies it only for Spotify.
+    readonly property var queue: root.activeIsSpotify ? SpotifyQueueService.queue : []
 
     function toggle(): void {
         if (root.canToggle)

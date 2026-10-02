@@ -1,6 +1,4 @@
 import QtQuick
-import Quickshell
-import Quickshell.Widgets
 
 import "../theme"
 import "../services"
@@ -13,18 +11,17 @@ Item {
 
     property real held: 1
 
-    readonly property int capsuleH: 30
-    readonly property int barTopMargin: 4
+    readonly property int capsuleH: Theme.capsuleHeight
+    readonly property int barTopMargin: Theme.barTopMargin
     readonly property int notchHeight: root.capsuleH + root.barTopMargin
 
-    // The locked notch stays compact; media appears only as the lock surface
-    // gives way to the desktop island.
+    // The locked notch stays compact, then matches the desktop at handoff.
     readonly property int lockedWidth: 72
     // Unlocked notch matches IslandBar rest width
-    readonly property int unlockedWidth: restRow.implicitWidth > 0 ? (restRow.implicitWidth + 28) : 260
+    readonly property real unlockedWidth: IslandMetrics.notchWidth
 
     // Morph width between locked compact padlock and full media/clock bar
-    readonly property int notchWidth: Math.round(unlockedWidth + (lockedWidth - unlockedWidth) * root.held)
+    readonly property real notchWidth: unlockedWidth + (lockedWidth - unlockedWidth) * root.held
 
     anchors.horizontalCenter: parent.horizontalCenter
     anchors.top: parent.top
@@ -33,11 +30,6 @@ Item {
 
     Behavior on width { NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing } }
     Behavior on height { NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing } }
-
-    SystemClock {
-        id: clockTime
-        precision: SystemClock.Minutes
-    }
 
     // Fillets attaching notch to top screen edge
     NotchFillet {
@@ -90,180 +82,12 @@ Item {
                 NumberAnimation { to: 0.9; duration: 600; easing.type: Easing.InOutSine }
             }
         }
-
         MouseArea {
             anchors.fill: parent
             enabled: root.held > 0.5
             onClicked: {
                 LockService.rouse()
                 LockService.triggerBiopass()
-            }
-        }
-
-        // 2. Bar's resting content (media + clock) fading in upon unlock
-        Item {
-            anchors.top: parent.top
-            anchors.topMargin: root.barTopMargin
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: restRow.implicitWidth
-            height: root.capsuleH
-            // Keep the lock island padlock-only. The desktop island is already
-            // underneath during unlock, so revealing this duplicate row made
-            // the two players overlap at the handoff.
-            opacity: 0
-            visible: false
-            clip: true
-
-            Row {
-                id: restRow
-                anchors.centerIn: parent
-                spacing: 10
-
-                // Media Album Art Thumbnail
-                Item {
-                    width: 20
-                    height: 20
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    ClippingRectangle {
-                        anchors.fill: parent
-                        radius: 5
-                        color: Theme.islandSurfaceHover
-
-                        Image {
-                            anchors.fill: parent
-                            source: MediaService.artUrl
-                            visible: source !== "" && status === Image.Ready
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            sourceSize.width: 40
-                            sourceSize.height: 40
-                        }
-
-                        Text {
-                            anchors.centerIn: parent
-                            visible: !MediaService.available || MediaService.artUrl === ""
-                            text: "󰝚"
-                            font.family: Theme.fontMono
-                            font.pixelSize: 11
-                            color: Theme.accent
-                        }
-                    }
-                }
-
-                // Song Name
-                Item {
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible: MediaService.available && (MediaService.title !== "")
-                    width: visible ? Math.min(280, songMetrics.width) : 0
-                    height: root.capsuleH
-                    clip: true
-
-                    Text {
-                        id: songText
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width
-                        text: MediaService.artist !== ""
-                            ? `${MediaService.title}  •  ${MediaService.artist}`
-                            : MediaService.title
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSmall
-                        font.weight: Font.Medium
-                        color: Theme.text
-                        elide: Text.ElideRight
-                    }
-
-                    TextMetrics {
-                        id: songMetrics
-                        font: songText.font
-                        text: songText.text
-                    }
-                }
-
-                // Spectrum Visualizer (Smoothly disappears after ~5m of no Spotify)
-                Item {
-                    id: visualizerContainer
-                    anchors.verticalCenter: parent.verticalCenter
-                    readonly property bool shouldShow: MediaService.visualizerActive
-
-                    width: shouldShow ? lockVisualizer.implicitWidth : 0
-                    height: 14
-                    opacity: shouldShow ? 1 : 0
-                    visible: opacity > 0 || width > 0
-                    clip: true
-
-                    Behavior on width {
-                        NumberAnimation {
-                            duration: Theme.durationMorph
-                            easing.type: Theme.easing
-                        }
-                    }
-
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: Theme.durationMorph
-                            easing.type: Theme.easing
-                        }
-                    }
-
-                    Spectrum {
-                        id: lockVisualizer
-                        anchors.centerIn: parent
-                        barWidth: 2.5
-                        barSpacing: 1.5
-                        minimum: 2
-                        height: 14
-                        active: MediaService.playing
-                        barColor: Theme.accent
-                        visible: parent.visible
-                    }
-                }
-
-                // Clock Time
-                Item {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: clockText.implicitWidth
-                    height: root.capsuleH
-
-                    Text {
-                        id: clockText
-                        anchors.centerIn: parent
-                        text: Qt.formatDateTime(clockTime.date, SettingsService.clockFormat || "HH:mm")
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSmall + 1
-                        font.weight: Font.DemiBold
-                        font.features: { "tnum": 1 }
-                        color: Theme.text
-                    }
-                }
-
-                // Divider
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "|"
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeSmall
-                    font.weight: Font.Light
-                    color: Theme.textMuted
-                    opacity: 0.25
-                }
-
-                // Date
-                Item {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: dateText.implicitWidth
-                    height: root.capsuleH
-
-                    Text {
-                        id: dateText
-                        anchors.centerIn: parent
-                        text: Qt.formatDateTime(clockTime.date, "dddd, d MMM")
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSmall - 1
-                        font.weight: Font.Medium
-                        color: Theme.textMuted
-                    }
-                }
             }
         }
 

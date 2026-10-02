@@ -1,5 +1,7 @@
 FreezeScreen 1.0 FreezeScreen.qml
 WindowSelector 1.0 WindowSelector.qml
-RegionSelector 1.0 RegionSelector.qml
 NotchFillet 1.0 NotchFillet.qml
 singleton Theme 1.0 Theme.qml
+CaptureOverlay 1.0 CaptureOverlay.qml
+CaptureToolbar 1.0 CaptureToolbar.qml
+RegionSelection 1.0 RegionSelection.qml

@@ -14,176 +14,132 @@ import "../../theme"
 import "../../services"
 import "../../components"
 
-// The ring is the level and the glyph the output device; the detail is a
-// slider and the two mutes. The ring stays white: volume is a choice, not a
-// warning.
+// Output volume, headset battery and output/microphone mute controls.
 Item {
     id: root
 
-    property bool compact: false
+    implicitWidth: detail.implicitWidth
+    implicitHeight: detail.implicitHeight
 
-    implicitWidth: holder.implicitWidth
-    implicitHeight: holder.implicitHeight
-
-    Loader {
-        id: holder
+    RowLayout {
+        id: detail
         anchors.fill: parent
-        sourceComponent: root.compact ? chip : detail
-    }
+        anchors.margins: 14
+        spacing: 14
 
-    Component {
-        id: chip
+        // Output level and device.
+        RingIndicator {
+            Layout.preferredWidth: 56
+            Layout.preferredHeight: 56
+            Layout.alignment: Qt.AlignVCenter
+            thickness: 3.5
+            progress: AudioService.muted ? 0 : AudioService.volume / 100
+            trackColor: Theme.indicatorDim
+            fillColor: Theme.indicator
 
-        Item {
-            Item {
-                id: mark
-
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                width: Theme.capsuleHeight
-                height: Theme.capsuleHeight
-
-                RingIndicator {
-                    anchors.fill: parent
-                    thickness: 2.5
-                    progress: AudioService.muted ? 0 : AudioService.volume / 100
-                    trackColor: Theme.indicatorDim
-                    fillColor: Theme.indicator
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: AudioService.icon
-                        font.family: Theme.fontMono
-                        font.pixelSize: Math.round(Theme.capsuleHeight * 0.38)
-                        color: AudioService.muted ? Theme.textMuted : Theme.indicator
-                    }
-                }
+            Text {
+                anchors.centerIn: parent
+                text: AudioService.icon
+                font.family: Theme.fontMono
+                font.pixelSize: 20
+                color: AudioService.muted ? Theme.textMuted : Theme.indicator
             }
         }
-    }
 
-    Component {
-        id: detail
+        ColumnLayout {
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignVCenter
+            spacing: 8
 
-        RowLayout {
-            anchors.fill: parent
-            anchors.margins: 14
-            spacing: 14
-
-            // Same white ring as the chip; the slider follows the palette.
-            RingIndicator {
-                Layout.preferredWidth: 56
-                Layout.preferredHeight: 56
-                Layout.alignment: Qt.AlignVCenter
-                thickness: 3.5
-                progress: AudioService.muted ? 0 : AudioService.volume / 100
-                trackColor: Theme.indicatorDim
-                fillColor: Theme.indicator
+            RowLayout {
+                Layout.fillWidth: true
 
                 Text {
-                    anchors.centerIn: parent
-                    text: AudioService.icon
+                    Layout.fillWidth: true
+                    text: "Volume"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeSmall
+                    font.weight: Font.DemiBold
+                    color: Theme.text
+                }
+
+                Text {
+                    text: AudioService.muted ? "Muted" : `${AudioService.volume}%`
                     font.family: Theme.fontMono
-                    font.pixelSize: 20
-                    color: AudioService.muted ? Theme.textMuted : Theme.indicator
+                    font.pixelSize: Theme.fontSizeSmall
+                    color: AudioService.muted ? Theme.textMuted : Theme.text
+                }
+
+                Text {
+                    visible: HeadsetService.connected && HeadsetService.battery >= 0
+                    text: `${HeadsetService.charging ? "󰂄 " : "󰥉 "}${HeadsetService.battery}%`
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
+                    color: HeadsetService.battery <= 15
+                        ? Theme.accent : Theme.textMuted
                 }
             }
 
-            ColumnLayout {
+            // The whole strip is the hit area.
+            Item {
+                id: slider
+
                 Layout.fillWidth: true
-                Layout.alignment: Qt.AlignVCenter
-                spacing: 8
+                Layout.preferredHeight: 16
 
-                RowLayout {
-                    Layout.fillWidth: true
+                UsageBar {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    implicitHeight: sliderMouse.containsMouse ? 6 : 4
+                    progress: AudioService.volume / 100
+                    fillColor: AudioService.muted
+                        ? Theme.indicatorDim : Theme.accent
 
-                    Text {
-                        Layout.fillWidth: true
-                        text: "Volume"
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSmall
-                        font.weight: Font.DemiBold
-                        color: Theme.text
-                    }
-
-                    Text {
-                        text: AudioService.muted ? "Muted" : `${AudioService.volume}%`
-                        font.family: Theme.fontMono
-                        font.pixelSize: Theme.fontSizeSmall
-                        color: AudioService.muted ? Theme.textMuted : Theme.text
-                    }
-
-                    Text {
-                        visible: HeadsetService.connected && HeadsetService.battery >= 0
-                        text: `${HeadsetService.charging ? "󰂄 " : "󰥉 "}${HeadsetService.battery}%`
-                        font.family: Theme.fontMono
-                        font.pixelSize: Theme.fontSizeSmall
-                        color: HeadsetService.battery <= 15
-                            ? Theme.accent : Theme.textMuted
-                    }
-                }
-
-                // The whole strip is the hit area.
-                Item {
-                    id: slider
-
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 16
-
-                    UsageBar {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        implicitHeight: sliderMouse.containsMouse ? 6 : 4
-                        progress: AudioService.volume / 100
-                        fillColor: AudioService.muted
-                            ? Theme.indicatorDim : Theme.accent
-
-                        Behavior on implicitHeight {
-                            NumberAnimation {
-                                duration: Theme.durationFast
-                                easing.type: Theme.easing
-                            }
-                        }
-                    }
-
-                    MouseArea {
-                        id: sliderMouse
-
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onPressed: event => AudioService.setVolume(
-                            Math.round(event.x / slider.width * 100))
-                        onPositionChanged: event => {
-                            if (pressed)
-                                AudioService.setVolume(Math.max(0, Math.min(100,
-                                    Math.round(event.x / slider.width * 100))))
+                    Behavior on implicitHeight {
+                        NumberAnimation {
+                            duration: Theme.durationFast
+                            easing.type: Theme.easing
                         }
                     }
                 }
 
-                RowLayout {
+                MouseArea {
+                    id: sliderMouse
+
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onPressed: event => AudioService.setVolume(
+                        Math.round(event.x / slider.width * 100))
+                    onPositionChanged: event => {
+                        if (pressed)
+                            AudioService.setVolume(Math.max(0, Math.min(100,
+                                Math.round(event.x / slider.width * 100))))
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 9
+
+                PillButton {
                     Layout.fillWidth: true
-                    spacing: 9
+                    Layout.preferredWidth: 0
+                    text: "Mute"
+                    active: AudioService.muted
+                    implicitHeight: 28
+                    onClicked: AudioService.toggleMute()
+                }
 
-                    PillButton {
-                        Layout.fillWidth: true
-                        Layout.preferredWidth: 0
-                        text: "Mute"
-                        active: AudioService.muted
-                        implicitHeight: 28
-                        onClicked: AudioService.toggleMute()
-                    }
-
-                    PillButton {
-                        Layout.fillWidth: true
-                        Layout.preferredWidth: 0
-                        text: "Mic"
-                        active: AudioService.sourceMuted
-                        implicitHeight: 28
-                        onClicked: AudioService.toggleSourceMute()
-                    }
+                PillButton {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 0
+                    text: "Mic"
+                    active: AudioService.sourceMuted
+                    implicitHeight: 28
+                    onClicked: AudioService.toggleSourceMute()
                 }
             }
         }
