@@ -1,24 +1,30 @@
 #!/usr/bin/python3
-import subprocess
 import concurrent.futures
+import subprocess
 import sys
-import os
+from collections import Counter, defaultdict
 import click
 
-# --- Configuration ---
 # Priorities: Lower number = Higher importance (Testing > Core > Extra > AUR)
 REPOS = {
-    "core-testing":     {"color": "magenta", "abbr": "C-T", "prio": 1},
-    "extra-testing":    {"color": "cyan",    "abbr": "E-T", "prio": 2},
-    "multilib-testing": {"color": "yellow",  "abbr": "M-T", "prio": 3},
-    "core":             {"color": "red",     "abbr": "COR", "prio": 4},
-    "extra":            {"color": "green",   "abbr": "EXT", "prio": 5},
-    "multilib":         {"color": "yellow",  "abbr": "MUL", "prio": 6},
-    "visual-studio-code-insiders": {"color": "blue", "abbr": "VSC", "prio": 7},
-    "aur":              {"color": "blue",    "abbr": "AUR", "prio": 50},
-    "flatpak":          {"color": "white",   "abbr": "FLT", "prio": 60},
-    "unknown":          {"color": "white",   "abbr": "???", "prio": 99}
+    "core-testing":                {"color": "magenta", "abbr": "C-T", "prio": 1},
+    "extra-testing":               {"color": "cyan",    "abbr": "E-T", "prio": 2},
+    "multilib-testing":            {"color": "yellow",  "abbr": "M-T", "prio": 3},
+    "core":                        {"color": "red",     "abbr": "COR", "prio": 4},
+    "extra":                       {"color": "green",   "abbr": "EXT", "prio": 5},
+    "multilib":                    {"color": "yellow",  "abbr": "MUL", "prio": 6},
+    "visual-studio-code-insiders": {"color": "blue",    "abbr": "VSC", "prio": 7},
+    "aur":                         {"color": "blue",    "abbr": "AUR", "prio": 50},
+    "flatpak":                     {"color": "white",   "abbr": "FLT", "prio": 60},
+    "unknown":                     {"color": "white",   "abbr": "???", "prio": 99},
 }
+
+CATEGORIES = {
+    "Pacman":  {"color": "blue",    "pad": 2},
+    "AUR":     {"color": "cyan",    "pad": 5},
+    "Flatpak": {"color": "magenta", "pad": 1},
+}
+
 
 def run_command(cmd):
     """Run a command and return stdout lines."""
@@ -28,236 +34,226 @@ def run_command(cmd):
     except (subprocess.CalledProcessError, FileNotFoundError):
         return []
 
+
 def build_version_map():
-    """
-    Map package versions to their repository using pacman -Sl.
-    Returns: { "package_name": { "1.0.0-1": "core", "1.0.1-1": "core-testing" } }
-    """
-    version_map = {}
-    try:
-        lines = run_command(["pacman", "-Sl"])
-        for line in lines:
-            parts = line.split()
-            if len(parts) >= 3:
-                repo = parts[0]
-                name = parts[1]
-                ver  = parts[2]
-                
-                if name not in version_map:
-                    version_map[name] = {}
-                version_map[name][ver] = repo
-    except: pass
+    """Map package versions to their repository using pacman -Sl."""
+    version_map = defaultdict(dict)
+    for line in run_command(["pacman", "-Sl"]):
+        parts = line.split()
+        if len(parts) >= 3:
+            version_map[parts[1]][parts[2]] = parts[0]
     return version_map
+
+
+def parse_arrow_line(line):
+    """Parse 'pkg old_ver -> new_ver ...' line."""
+    parts = line.split()
+    if "->" in parts:
+        idx = parts.index("->")
+        if idx >= 2 and len(parts) > idx + 1:
+            return parts[0], parts[idx - 1], parts[idx + 1]
+    return None
+
 
 def fetch_updates():
     """Fetch updates from all sources in parallel."""
-    # We don't print "Fetching..." here anymore because we do it after the sync in main()
-    
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future_map = executor.submit(build_version_map)
         future_pac = executor.submit(run_command, ["checkupdates"])
         future_aur = executor.submit(run_command, ["yay", "-Qua"])
-        # Request clean columns to avoid parsing issues
-        future_flat = executor.submit(run_command, ["flatpak", "remote-ls", "--updates", "--columns=application,version"])
-        
+        future_flat = executor.submit(
+            run_command, ["flatpak", "remote-ls", "--updates", "--columns=application,version"]
+        )
+
         return (
             future_map.result(),
             future_pac.result(),
             future_aur.result(),
-            future_flat.result()
+            future_flat.result(),
         )
+
+
+def get_category(repo):
+    if repo == "flatpak":
+        return "Flatpak"
+    if repo == "aur":
+        return "AUR"
+    return "Pacman"
+
 
 def parse_updates(version_map, pac_raw, aur_raw, flat_raw):
     updates = []
-    
+
     # Official Repos
     for line in pac_raw:
-        try:
-            parts = line.split()
-            if "->" in parts:
-                idx = parts.index("->")
-                if idx >= 2 and len(parts) > idx + 1:
-                    name = parts[0]
-                    old_ver = parts[idx-1]
-                    new_ver = parts[idx+1]
-                    
-                    # Exact Version Match: Find which repo owns 'new_ver'
-                    repo = "core" # Default fallback
-                    if name in version_map and new_ver in version_map[name]:
-                        repo = version_map[name][new_ver]
-                    elif name in version_map:
-                        # Fallback: use the first repo found for this package if version mismatch
-                        repo = list(version_map[name].values())[0]
-
-                    updates.append({"name": name, "old": old_ver, "new": new_ver, "repo": repo})
-        except: continue
+        parsed = parse_arrow_line(line)
+        if parsed:
+            name, old_ver, new_ver = parsed
+            repo_map = version_map.get(name, {})
+            repo = repo_map.get(new_ver) or next(iter(repo_map.values()), "core")
+            updates.append({"name": name, "old": old_ver, "new": new_ver, "repo": repo})
 
     # AUR
     for line in aur_raw:
-        try:
-            parts = line.split()
-            if "->" in parts:
-                idx = parts.index("->")
-                if idx >= 2 and len(parts) > idx + 1:
-                    updates.append({"name": parts[0], "old": parts[idx-1], "new": parts[idx+1], "repo": "aur"})
-        except: continue
-    
+        parsed = parse_arrow_line(line)
+        if parsed:
+            name, old_ver, new_ver = parsed
+            updates.append({"name": name, "old": old_ver, "new": new_ver, "repo": "aur"})
+
     # Flatpak
     for line in flat_raw:
-        try:
-            parts = line.split()
-            if parts:
-                name = parts[0]
-                ver = parts[1] if len(parts) > 1 else ""
-                updates.append({"name": name, "old": "", "new": ver, "repo": "flatpak"})
-        except: continue
-            
-    updates.sort(key=lambda x: REPOS.get(x["repo"], REPOS["unknown"])["prio"])
+        parts = line.split()
+        if parts:
+            name = parts[0]
+            ver = parts[1] if len(parts) > 1 else ""
+            updates.append({"name": name, "old": "", "new": ver, "repo": "flatpak"})
+
+    updates.sort(key=lambda x: (REPOS.get(x["repo"], REPOS["unknown"])["prio"], x["name"]))
     return updates
 
-def get_category(repo):
-    if repo == "flatpak": return "Flatpak"
-    if repo == "aur": return "AUR"
-    return "Pacman"
 
 def print_summary_box(updates):
     """Prints a summary box at the top."""
-    pac_len = len([u for u in updates if get_category(u['repo']) == "Pacman"])
-    aur_len = len([u for u in updates if get_category(u['repo']) == "AUR"])
-    flt_len = len([u for u in updates if get_category(u['repo']) == "Flatpak"])
+    counts = Counter(get_category(u["repo"]) for u in updates)
+    items = [
+        (cat, f"{cat}:{' ' * meta['pad']}{counts[cat]}", meta["color"])
+        for cat, meta in CATEGORIES.items()
+        if counts[cat] > 0
+    ]
 
-    items = []
-    if pac_len > 0: items.append(f"Pacman:  {pac_len}")
-    if aur_len > 0: items.append(f"AUR:     {aur_len}")
-    if flt_len > 0: items.append(f"Flatpak: {flt_len}")
-    
-    if not items: return
+    if not items:
+        return
 
-    width = max(len(i) for i in items) + 4
-    
-    click.secho("\n╭" + "─" * width + "╮", fg="bright_white", bold=True)
-    for item in items:
-        text = item.ljust(width - 4)
+    width = max(len(text) for _, text, _ in items) + 4
+
+    click.secho(f"\n╭{'─' * width}╮", fg="bright_white", bold=True)
+    for _, text, color in items:
         click.secho("│  ", fg="bright_white", bold=True, nl=False)
-        
-        if "Pacman" in item: col = "blue"
-        elif "AUR" in item: col = "cyan"
-        else: col = "magenta"
-        
-        click.secho(text, fg=col, bold=True, nl=False)
+        click.secho(text.ljust(width - 4), fg=color, bold=True, nl=False)
         click.secho("  │", fg="bright_white", bold=True)
-    click.secho("╰" + "─" * width + "╯", fg="bright_white", bold=True)
+    click.secho(f"╰{'─' * width}╯", fg="bright_white", bold=True)
+
+
+def parse_ignore_indices(user_input):
+    """Parse space or comma-separated indices and ranges (e.g. 1 3 5-8)."""
+    indices = set()
+    for part in user_input.replace(",", " ").split():
+        if "-" in part:
+            start, _, end = part.partition("-")
+            if start.isdigit() and end.isdigit():
+                indices.update(range(int(start), int(end) + 1))
+        elif part.isdigit():
+            indices.add(int(part))
+    return indices
+
 
 @click.command()
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation and update all")
 def main(yes):
-    # 1. Sync Databases First (Fixes incorrect repo tagging)
     try:
-        # This refreshes the local DB so pacman -Sl is accurate
-        click.secho(":: Synchronizing package databases...", fg="cyan", bold=True)
-        subprocess.run(["sudo", "pacman", "-Sy"], check=True)
-        print("") # Newline for cleanliness
-    except subprocess.CalledProcessError:
-        click.secho("Authentication failed or sync error.", fg="red")
-        sys.exit(1)
+        # 1. Sync Databases First (Fixes incorrect repo tagging)
+        try:
+            click.secho(":: Synchronizing package databases...", fg="cyan", bold=True)
+            subprocess.run(["sudo", "pacman", "-Sy"], check=True)
+            print("")  # Newline for cleanliness
+        except subprocess.CalledProcessError:
+            click.secho("Authentication failed or sync error.", fg="red")
+            sys.exit(1)
 
-    # 2. Fetch Updates (Now using fresh DB)
-    click.secho(":: Fetching updates...", fg="cyan", bold=True)
-    version_map, pac, aur, flat = fetch_updates()
-    all_updates = parse_updates(version_map, pac, aur, flat)
-    
-    if not all_updates:
-        click.secho("System is up to date!", fg="green", bold=True)
-        sys.exit(0)
+        # 2. Fetch Updates (Now using fresh DB)
+        click.secho(":: Fetching updates...", fg="cyan", bold=True)
+        version_map, pac, aur, flat = fetch_updates()
+        all_updates = parse_updates(version_map, pac, aur, flat)
 
-    click.clear()
-    
-    # 3. Print Summary
-    print_summary_box(all_updates)
-    
-    max_name = max(len(u["name"]) for u in all_updates)
-    idx_width = len(str(len(all_updates))) 
-    prev_cat = None
-    
-    # 4. Print List
-    for idx, u in enumerate(all_updates, 1):
-        cat = get_category(u["repo"])
-        if cat != prev_cat:
-            if prev_cat: click.echo("") 
-            head_col = "blue" if cat == "Pacman" else "magenta" if cat == "Flatpak" else "cyan"
-            click.secho(f"── {cat} ──", fg=head_col, bold=True)
-            prev_cat = cat
-
-        repo_key = u["repo"]
-        if repo_key not in REPOS: repo_key = "unknown"
-        style = REPOS[repo_key]
-        
-        idx_str = click.style(f"[{idx:0{idx_width}d}]", fg="bright_black")
-        repo_str = click.style(f"{style['abbr']}", fg=style['color'], bold=True)
-        name_str = click.style(u["name"].ljust(max_name), bold=True)
-        
-        if u["repo"] == "flatpak":
-            ver_str = click.style(u["new"], fg="magenta") if u["new"] else ""
-        else:
-            ver_str = f"{u['old']} -> {click.style(u['new'], fg='green')}"
-        
-        click.echo(f"{idx_str} {repo_str:<3}  {name_str}  {ver_str}")
-
-    # 5. Interactive Selection
-    updates_to_run = list(all_updates)
-    ignored_names = []
-
-    if not yes:
-        click.echo("")
-        ignore_input = click.prompt(
-            click.style("Enter numbers to ignore (space separated), 'q' to quit, or Enter to update all", fg="cyan"), 
-            default="", 
-            show_default=False
-        )
-        
-        if ignore_input.strip().lower() in ['q', 'quit', 'exit']:
-            click.secho("Exiting.", fg="red")
+        if not all_updates:
+            click.secho("System is up to date!", fg="green", bold=True)
             sys.exit(0)
 
-        if ignore_input.strip():
-            indices = set()
-            for part in ignore_input.split():
-                if part.isdigit(): indices.add(int(part))
-            
-            updates_to_run = []
-            for idx, u in enumerate(all_updates, 1):
-                if idx in indices: ignored_names.append(u["name"])
-                else: updates_to_run.append(u)
+        click.clear()
 
-            if not updates_to_run:
-                click.secho("All updates ignored. Exiting.", fg="yellow")
+        # 3. Print Summary
+        print_summary_box(all_updates)
+
+        max_name = max(len(u["name"]) for u in all_updates)
+        idx_width = len(str(len(all_updates)))
+        prev_cat = None
+
+        # 4. Print List
+        for idx, u in enumerate(all_updates, 1):
+            cat = get_category(u["repo"])
+            if cat != prev_cat:
+                if prev_cat:
+                    click.echo("")
+                head_col = CATEGORIES.get(cat, {}).get("color", "white")
+                click.secho(f"── {cat} ──", fg=head_col, bold=True)
+                prev_cat = cat
+
+            style = REPOS.get(u["repo"], REPOS["unknown"])
+            idx_str = click.style(f"[{idx:0{idx_width}d}]", fg="bright_black")
+            repo_str = click.style(f"{style['abbr']:<3}", fg=style["color"], bold=True)
+            name_str = click.style(u["name"].ljust(max_name), bold=True)
+
+            if u["repo"] == "flatpak":
+                ver_str = click.style(u["new"], fg="magenta") if u["new"] else ""
+            else:
+                ver_str = f"{u['old']} -> {click.style(u['new'], fg='green')}"
+
+            click.echo(f"{idx_str} {repo_str}  {name_str}  {ver_str}")
+
+        # 5. Interactive Selection
+        updates_to_run = list(all_updates)
+        ignored = []
+
+        if not yes:
+            click.echo("")
+            ignore_input = click.prompt(
+                click.style("Enter numbers to ignore (space separated), 'q' to quit, or Enter to update all", fg="cyan"),
+                default="",
+                show_default=False,
+            )
+
+            if ignore_input.strip().lower() in ["q", "quit", "exit"]:
+                click.secho("Exiting.", fg="red")
                 sys.exit(0)
 
-        if not click.confirm(click.style("\nProceed with update?", bold=True), default=True):
-            click.secho("Aborted.", fg="red")
-            sys.exit(0)
+            if ignore_input.strip():
+                indices = parse_ignore_indices(ignore_input)
+                ignored = [u for idx, u in enumerate(all_updates, 1) if idx in indices]
+                updates_to_run = [u for idx, u in enumerate(all_updates, 1) if idx not in indices]
 
-    # 6. Execution
-    sys_pkg_names = [u["name"] for u in updates_to_run if u["repo"] != "flatpak"]
-    
-    if sys_pkg_names or ignored_names:
-        # yay -Syu will see the fresh sync we just did, so it won't redownload DBs unnecessarily
-        cmd = ["yay", "-Syu", "--noconfirm"]
-        
-        if ignored_names:
-            click.secho(f"\n:: Ignoring: {', '.join(ignored_names)}", fg="yellow")
-            cmd.extend(["--ignore", ",".join(ignored_names)])
-        
-        if sys_pkg_names:
-            click.secho(f"\n:: Updating {len(sys_pkg_names)} packages...", fg="blue", bold=True)
-            subprocess.call(cmd)
+                if not updates_to_run:
+                    click.secho("All updates ignored. Exiting.", fg="yellow")
+                    sys.exit(0)
 
-    if any(u["repo"] == "flatpak" for u in updates_to_run):
-        click.secho(f"\n:: Updating Flatpaks...", fg="magenta", bold=True)
-        subprocess.call(["flatpak", "update", "--noninteractive"])
+            if not click.confirm(click.style("\nProceed with update?", bold=True), default=True):
+                click.secho("Aborted.", fg="red")
+                sys.exit(0)
 
-    if any("linux" in u["name"] for u in updates_to_run):
-        click.secho("\n!!! Kernel updated. Reboot recommended. !!!", fg="red", blink=True, bold=True)
+        # 6. Execution
+        sys_updates = [u["name"] for u in updates_to_run if u["repo"] != "flatpak"]
+        ignored_sys = [u["name"] for u in ignored if u["repo"] != "flatpak"]
+
+        if sys_updates or ignored_sys:
+            cmd = ["yay", "-Syu", "--noconfirm"]
+            if ignored_sys:
+                click.secho(f"\n:: Ignoring: {', '.join(ignored_sys)}", fg="yellow")
+                cmd.extend(["--ignore", ",".join(ignored_sys)])
+
+            if sys_updates:
+                click.secho(f"\n:: Updating {len(sys_updates)} packages...", fg="blue", bold=True)
+                subprocess.run(cmd)
+
+        flatpak_updates = [u["name"] for u in updates_to_run if u["repo"] == "flatpak"]
+        if flatpak_updates:
+            click.secho("\n:: Updating Flatpaks...", fg="magenta", bold=True)
+            ignored_flatpak = any(u["repo"] == "flatpak" for u in ignored)
+            flatpak_cmd = ["flatpak", "update"] + (["-y"] + flatpak_updates if ignored_flatpak else ["--noninteractive"])
+            subprocess.run(flatpak_cmd)
+
+    except (KeyboardInterrupt, click.Abort):
+        click.secho("\nAborted.", fg="red")
+        sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

@@ -1,7 +1,7 @@
 # My dotfiles
 
 
-Based on [ML4W](https://github.com/mylinuxforwork/dotfiles/)from [@mylinuxforwork](https://github.com/mylinuxforwork) (Thanks for great job), also use it if you want something stable(mine isn't). I only made it work on my arch install (AMD gpu/cpu) so if something doesnt work I warned you.
+My personal dotfiles. Hyprland + Quickshell bar. I only made it work on my arch install (AMD gpu/cpu) so if something doesnt work I warned you.
 
 Also I have (very WIP) [NixOs flake-based dots](https://github.com/tymon3310/flakes.nix)
 
@@ -9,6 +9,4 @@ Also I have (very WIP) [NixOs flake-based dots](https://github.com/tymon3310/fla
 
 ## Installation
 
-[Packages](PACKAGES.md)
-
-Installation script is ``install.sh``
+Run ``install.sh`` as target user (not root)

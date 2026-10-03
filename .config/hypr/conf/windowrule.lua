@@ -157,6 +157,8 @@ hl.window_rule {
   float = true,
   workspace = "special:btop",
   size = "1200 750",
+  center = true,
+  suppress_event = "maximize",
 }
 
 hl.window_rule {

@@ -1,247 +1,116 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Dotfiles Installation & Configuration Script
-# ==============================================================================
-# 0. Check / Install yay (AUR helper)
-# 1. Backup existing configurations
-# 2. Install packages from 'install' file
-# 3. Symlink all folders from .config, plus .zshrc and .bashrc
-# 4. Setup pacman (10 parallel downloads, Color, VerbosePkgLists, ILoveCandy)
-# 5. Setup Zsh (Oh-My-Zsh, plugins, default shell)
-# 6. Verification & Health Check
+# Dotfiles Installation & Setup Script
 # ==============================================================================
 
 set -eo pipefail
 
-# ------------------------------------------------------------------------------
-# Colors & Helpers
-# ------------------------------------------------------------------------------
-CLR_RESET="\033[0m"
-CLR_BOLD="\033[1m"
-CLR_RED="\033[1;31m"
-CLR_GREEN="\033[1;32m"
-CLR_YELLOW="\033[1;33m"
-CLR_BLUE="\033[1;34m"
-CLR_CYAN="\033[1;36m"
-
-print_header() {
-    echo -e "\n${CLR_BLUE}==============================================================================${CLR_RESET}"
-    echo -e "${CLR_CYAN}${CLR_BOLD}  $1${CLR_RESET}"
-    echo -e "${CLR_BLUE}==============================================================================${CLR_RESET}\n"
-}
-
-print_info() {
-    echo -e "${CLR_CYAN}[i]${CLR_RESET} $1"
-}
-
-print_success() {
-    echo -e "${CLR_GREEN}[✓]${CLR_RESET} $1"
-}
-
-print_warning() {
-    echo -e "${CLR_YELLOW}[!]${CLR_RESET} $1"
-}
-
-print_error() {
-    echo -e "${CLR_RED}[✗]${CLR_RESET} $1"
-}
-
-# ------------------------------------------------------------------------------
-# Paths & Variables
-# ------------------------------------------------------------------------------
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PACKAGES_FILE="${DOTFILES_DIR}/install"
+PACKAGES_FILE="${DOTFILES_DIR}/packages"
 BACKUP_DIR="${HOME}/.dotfiles_backup/$(date +%Y%m%d_%H%M%S)"
-ZSH_CUSTOM_DIR="${HOME}/.oh-my-zsh/custom"
+ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
 
-# Ensure script is not run directly as root
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+msg() { echo -e "${BLUE}==>${NC} $1"; }
+ok()  { echo -e "${GREEN}[✓]${NC} $1"; }
+warn(){ echo -e "${YELLOW}[!]${NC} $1"; }
+err() { echo -e "${RED}[✗]${NC} $1" >&2; }
+
 if [ "$EUID" -eq 0 ]; then
-    print_error "Please do not run this script as root / with sudo. Sudo privileges will be requested when needed."
+    err "Please run this script as a normal user, not root. Sudo will be prompted when needed."
     exit 1
 fi
 
-# Ask for sudo upfront and keep-alive
-print_info "Requesting sudo permissions for system setup..."
+# Request sudo upfront
 sudo -v
-while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
 
-# ------------------------------------------------------------------------------
-# Step 0: Ensure yay (AUR helper) is installed
-# ------------------------------------------------------------------------------
-print_header "Step 0: Checking AUR Helper (yay)"
+# 1. Configure pacman
+if [ -f /etc/pacman.conf ]; then
+    msg "Configuring /etc/pacman.conf..."
+    sudo sed -i -E '
+        s/^#?\s*(Color)$/\1/;
+        s/^#?\s*(VerbosePkgLists)$/\1/;
+        s/^#?\s*(ParallelDownloads)\s*=.*/\1 = 10/
+    ' /etc/pacman.conf
+    grep -q "^ParallelDownloads" /etc/pacman.conf || sudo sed -i '/^\[options\]/a ParallelDownloads = 10' /etc/pacman.conf
+    grep -q "^ILoveCandy" /etc/pacman.conf || sudo sed -i '/^Color/a ILoveCandy' /etc/pacman.conf
+    ok "Pacman configured."
+fi
 
-if command -v yay &>/dev/null; then
-    print_success "yay is already installed: $(yay --version | head -n 1)"
-else
-    print_info "yay is not installed. Installing yay..."
+# 2. Check / install yay (AUR helper)
+if ! command -v yay &>/dev/null; then
+    msg "Installing yay..."
     sudo pacman -S --needed --noconfirm base-devel git
-
-    TMP_YAY_DIR="$(mktemp -d)"
-    print_info "Cloning yay into temporary directory: ${TMP_YAY_DIR}..."
-    git clone https://aur.archlinux.org/yay.git "${TMP_YAY_DIR}/yay"
-    
-    (
-        cd "${TMP_YAY_DIR}/yay"
-        makepkg -si --noconfirm
-    )
-    
-    rm -rf "${TMP_YAY_DIR}"
-
-    if command -v yay &>/dev/null; then
-        print_success "yay installed successfully!"
-    else
-        print_error "Failed to install yay. Exiting."
-        exit 1
-    fi
+    tmp="$(mktemp -d)"
+    git clone https://aur.archlinux.org/yay.git "$tmp/yay"
+    (cd "$tmp/yay" && makepkg -si --noconfirm)
+    rm -rf "$tmp"
+    ok "yay installed."
+else
+    ok "yay is already installed."
 fi
 
-# ------------------------------------------------------------------------------
-# Step 1: Backup Existing Configurations
-# ------------------------------------------------------------------------------
-print_header "Step 1: Backing up Existing Configurations"
-
-mkdir -p "${BACKUP_DIR}/.config"
-backup_count=0
-
-# Backup shell configuration files
-for rcfile in .zshrc .bashrc .tmux.conf .gtkrc-2.0 .Xresources; do
-    target="${HOME}/${rcfile}"
-    if [ -e "${target}" ] || [ -L "${target}" ]; then
-        print_info "Backing up ${target} -> ${BACKUP_DIR}/${rcfile}"
-        mv "${target}" "${BACKUP_DIR}/${rcfile}"
-        ((backup_count++))
+# 3. Install & update packages
+if [ -f "$PACKAGES_FILE" ]; then
+    msg "Installing and updating packages from $PACKAGES_FILE..."
+    mapfile -t pkgs < <(grep -vE '^\s*(#|$)' "$PACKAGES_FILE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+    if [ ${#pkgs[@]} -gt 0 ]; then
+        yay -Syu --needed --noconfirm "${pkgs[@]}"
+        ok "Packages up to date."
     fi
-done
+else
+    warn "Package file not found at $PACKAGES_FILE, skipping package installation."
+fi
 
-# Backup .config directories matching dotfiles .config
-if [ -d "${DOTFILES_DIR}/.config" ]; then
-    for item in "${DOTFILES_DIR}/.config"/*; do
-        [ -e "${item}" ] || continue
-        name="$(basename "${item}")"
-        target="${HOME}/.config/${name}"
-        if [ -e "${target}" ] || [ -L "${target}" ]; then
-            print_info "Backing up ${target} -> ${BACKUP_DIR}/.config/${name}"
-            mv "${target}" "${BACKUP_DIR}/.config/${name}"
-            ((backup_count++))
+# 4. Symlink dotfiles
+msg "Symlinking dotfiles..."
+link_file() {
+    local src="$1"
+    local dst="$2"
+    if [ -e "$dst" ] || [ -L "$dst" ]; then
+        if [ "$(readlink -f "$dst")" = "$src" ]; then
+            return
         fi
-    done
-fi
-
-if [ "${backup_count}" -gt 0 ]; then
-    print_success "Backed up ${backup_count} item(s) to ${BACKUP_DIR}"
-else
-    print_info "No conflicting configuration files found to backup."
-    rm -rf "${BACKUP_DIR}"
-fi
-
-# ------------------------------------------------------------------------------
-# Step 2: Install Packages from 'install' file
-# ------------------------------------------------------------------------------
-print_header "Step 2: Installing Packages"
-
-if [ -f "${PACKAGES_FILE}" ]; then
-    # Read packages, stripping comments and blank lines
-    mapfile -t PACKAGES < <(grep -v '^[[:space:]]*#' "${PACKAGES_FILE}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -v '^$')
-    
-    print_info "Found ${#PACKAGES[@]} packages listed in ${PACKAGES_FILE}."
-    
-    # Update system package database first
-    yay -Sy
-
-    # Install packages
-    print_info "Installing packages via yay..."
-    if yay -S --needed --noconfirm "${PACKAGES[@]}"; then
-        print_success "All packages installed or already up to date!"
-    else
-        print_warning "Some packages may have failed to install. Continuing with setup..."
+        local rel="${dst#$HOME/}"
+        mkdir -p "$BACKUP_DIR/$(dirname "$rel")"
+        mv "$dst" "$BACKUP_DIR/$rel"
+        warn "Existing file backed up to $BACKUP_DIR/$rel"
     fi
-else
-    print_error "Package list file '${PACKAGES_FILE}' not found. Skipping package installation."
-fi
-
-# ------------------------------------------------------------------------------
-# Step 3: Symlink Configurations
-# ------------------------------------------------------------------------------
-print_header "Step 3: Creating Symlinks"
-
-mkdir -p "${HOME}/.config"
+    mkdir -p "$(dirname "$dst")"
+    ln -sfn "$src" "$dst"
+    ok "Linked $dst -> $src"
+}
 
 # Symlink .config subdirectories
-if [ -d "${DOTFILES_DIR}/.config" ]; then
-    for item in "${DOTFILES_DIR}/.config"/*; do
-        [ -e "${item}" ] || continue
-        name="$(basename "${item}")"
-        target="${HOME}/.config/${name}"
-        
-        # Ensure any leftover file/directory at target is removed before linking
-        rm -rf "${target}"
-        ln -sfn "${item}" "${target}"
-        print_success "Symlinked: ${target} -> ${item}"
-    done
-fi
-
-# Symlink individual dotfiles
-for file in .zshrc .bashrc; do
-    src="${DOTFILES_DIR}/${file}"
-    target="${HOME}/${file}"
-    if [ -f "${src}" ]; then
-        rm -f "${target}"
-        ln -sf "${src}" "${target}"
-        print_success "Symlinked: ${target} -> ${src}"
-    fi
+for item in "$DOTFILES_DIR/.config"/*; do
+    [ -e "$item" ] || continue
+    link_file "$item" "$HOME/.config/$(basename "$item")"
 done
 
-# ------------------------------------------------------------------------------
-# Step 4: Configure Pacman (Parallel = 10, Color, VerbosePkgLists, ILoveCandy)
-# ------------------------------------------------------------------------------
-print_header "Step 4: Configuring Pacman (/etc/pacman.conf)"
+# Symlink root dotfiles
+for file in .zshrc .bashrc .tmux.conf .tmux.conf.local .gtkrc-2.0 .Xresources; do
+    [ -f "$DOTFILES_DIR/$file" ] || continue
+    link_file "$DOTFILES_DIR/$file" "$HOME/$file"
+done
 
-PACMAN_CONF="/etc/pacman.conf"
-
-if [ -f "${PACMAN_CONF}" ]; then
-    print_info "Updating ${PACMAN_CONF}..."
-
-    # Enable Color
-    sudo sed -i 's/^#\?Color/Color/' "${PACMAN_CONF}"
-    
-    # Enable VerbosePkgLists
-    sudo sed -i 's/^#\?VerbosePkgLists/VerbosePkgLists/' "${PACMAN_CONF}"
-    
-    # Set ParallelDownloads = 10
-    if grep -q "^#\?ParallelDownloads" "${PACMAN_CONF}"; then
-        sudo sed -i 's/^#\?ParallelDownloads.*/ParallelDownloads = 10/' "${PACMAN_CONF}"
-    else
-        # If ParallelDownloads is not present, add it under [options]
-        sudo sed -i '/^\[options\]/a ParallelDownloads = 10' "${PACMAN_CONF}"
-    fi
-
-    # Add ILoveCandy under Color if not already present
-    if ! grep -q "^ILoveCandy" "${PACMAN_CONF}"; then
-        sudo sed -i '/^Color/a ILoveCandy' "${PACMAN_CONF}"
-    fi
-
-    print_success "Pacman configured with: Color, VerbosePkgLists, ParallelDownloads = 10, ILoveCandy"
+# 5. Install / update Oh My Zsh and plugins (official online method)
+if [ ! -d "$HOME/.oh-my-zsh" ]; then
+    msg "Installing Oh My Zsh..."
+    RUNZSH=no CHSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended --keep-zshrc
+    ok "Oh My Zsh installed."
 else
-    print_error "${PACMAN_CONF} not found!"
+    msg "Updating Oh My Zsh..."
+    git -C "$HOME/.oh-my-zsh" pull --quiet || true
+    ok "Oh My Zsh up to date."
 fi
 
-# ------------------------------------------------------------------------------
-# Step 5: Setup Zsh
-# ------------------------------------------------------------------------------
-print_header "Step 5: Setting Up Zsh"
-
-# 1. Install Oh-My-Zsh if not already present
-if [ ! -d "${HOME}/.oh-my-zsh" ]; then
-    print_info "Installing Oh-My-Zsh..."
-    git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git "${HOME}/.oh-my-zsh"
-    print_success "Oh-My-Zsh installed."
-else
-    print_success "Oh-My-Zsh is already installed."
-fi
-
-# 2. Install Zsh Custom Plugins
-mkdir -p "${ZSH_CUSTOM_DIR}/plugins"
-
+msg "Installing / updating Zsh custom plugins..."
+mkdir -p "$ZSH_CUSTOM/plugins"
 declare -A PLUGINS=(
     ["zsh-autosuggestions"]="https://github.com/zsh-users/zsh-autosuggestions.git"
     ["zsh-syntax-highlighting"]="https://github.com/zsh-users/zsh-syntax-highlighting.git"
@@ -250,107 +119,26 @@ declare -A PLUGINS=(
 )
 
 for plugin in "${!PLUGINS[@]}"; do
-    plugin_path="${ZSH_CUSTOM_DIR}/plugins/${plugin}"
-    if [ ! -d "${plugin_path}" ]; then
-        print_info "Cloning plugin: ${plugin}..."
-        git clone --depth=1 "${PLUGINS[$plugin]}" "${plugin_path}"
-        print_success "Installed plugin: ${plugin}"
+    target="$ZSH_CUSTOM/plugins/$plugin"
+    if [ ! -d "$target" ]; then
+        msg "Cloning $plugin..."
+        git clone --depth=1 "${PLUGINS[$plugin]}" "$target"
+        ok "Installed $plugin"
     else
-        print_success "Plugin already present: ${plugin}"
+        git -C "$target" pull --quiet || true
+        ok "Updated $plugin"
     fi
 done
 
-# 3. Set Zsh as default shell
-ZSH_BIN="$(command -v zsh || which zsh || echo "/bin/zsh")"
-CURRENT_SHELL="$(getent passwd "${USER}" | cut -d: -f7)"
-
-if [ "${CURRENT_SHELL}" != "${ZSH_BIN}" ]; then
-    print_info "Changing default shell to ${ZSH_BIN}..."
-    if sudo chsh -s "${ZSH_BIN}" "${USER}"; then
-        print_success "Default shell changed to ${ZSH_BIN}."
-    else
-        print_warning "Could not change default shell automatically. Please run 'chsh -s ${ZSH_BIN}' manually."
-    fi
+# 6. Set default shell to zsh
+zsh_bin="$(command -v zsh || echo "/bin/zsh")"
+current_shell="$(getent passwd "$USER" | cut -d: -f7)"
+if [ "$current_shell" != "$zsh_bin" ]; then
+    msg "Setting default shell to $zsh_bin..."
+    chsh -s "$zsh_bin" || sudo chsh -s "$zsh_bin" "$USER" || warn "Could not set default shell automatically. Run: chsh -s $zsh_bin"
+    ok "Default shell set to $zsh_bin."
 else
-    print_success "Zsh is already the default shell (${CURRENT_SHELL})."
+    ok "Zsh is already the default shell."
 fi
 
-# ------------------------------------------------------------------------------
-# Step 6: Verification & Health Check
-# ------------------------------------------------------------------------------
-print_header "Step 6: Verification & Health Check"
-
-total_checks=0
-passed_checks=0
-
-check_status() {
-    local label="$1"
-    local condition="$2"
-    ((total_checks++))
-    if eval "${condition}"; then
-        print_success "${label}"
-        ((passed_checks++))
-    else
-        print_error "${label}"
-    fi
-}
-
-echo -e "${CLR_BOLD}Checking Core Dependencies:${CLR_RESET}"
-check_status "AUR Helper (yay) installed" "command -v yay &>/dev/null"
-check_status "Zsh shell binary installed" "command -v zsh &>/dev/null"
-check_status "Oh-My-Zsh directory exists" "[ -d '${HOME}/.oh-my-zsh' ]"
-
-echo -e "\n${CLR_BOLD}Checking Zsh Plugins:${CLR_RESET}"
-for plugin in "${!PLUGINS[@]}"; do
-    check_status "Plugin '${plugin}' installed" "[ -d '${ZSH_CUSTOM_DIR}/plugins/${plugin}' ]"
-done
-
-echo -e "\n${CLR_BOLD}Checking Symlinks:${CLR_RESET}"
-check_status "~/.zshrc symlink points to dotfiles" "[ -L '${HOME}/.zshrc' ] && [ '$(readlink -f "${HOME}/.zshrc")' = '${DOTFILES_DIR}/.zshrc' ]"
-check_status "~/.bashrc symlink points to dotfiles" "[ -L '${HOME}/.bashrc' ] && [ '$(readlink -f "${HOME}/.bashrc")' = '${DOTFILES_DIR}/.bashrc' ]"
-
-if [ -d "${DOTFILES_DIR}/.config" ]; then
-    for item in "${DOTFILES_DIR}/.config"/*; do
-        [ -e "${item}" ] || continue
-        name="$(basename "${item}")"
-        target="${HOME}/.config/${name}"
-        check_status "~/.config/${name} symlink valid" "[ -L '${target}' ] && [ '$(readlink -f "${target}")' = '${item}' ]"
-    done
-fi
-
-echo -e "\n${CLR_BOLD}Checking Pacman Configuration (/etc/pacman.conf):${CLR_RESET}"
-check_status "ParallelDownloads = 10 set" "grep -q '^ParallelDownloads = 10' '${PACMAN_CONF}'"
-check_status "Color option enabled" "grep -q '^Color' '${PACMAN_CONF}'"
-check_status "VerbosePkgLists enabled" "grep -q '^VerbosePkgLists' '${PACMAN_CONF}'"
-check_status "ILoveCandy enabled" "grep -q '^ILoveCandy' '${PACMAN_CONF}'"
-
-echo -e "\n${CLR_BOLD}Checking Package Installation Progress:${CLR_RESET}"
-if [ -f "${PACKAGES_FILE}" ]; then
-    missing_pkgs=()
-    for pkg in "${PACKAGES[@]}"; do
-        if ! pacman -Q "${pkg}" &>/dev/null; then
-            missing_pkgs+=("${pkg}")
-        fi
-    done
-
-    installed_count=$(( ${#PACKAGES[@]} - ${#missing_pkgs[@]} ))
-    print_info "${installed_count}/${#PACKAGES[@]} packages from install file are currently installed on the system."
-    if [ ${#missing_pkgs[@]} -eq 0 ]; then
-        print_success "All packages from '${PACKAGES_FILE}' are installed!"
-    else
-        print_warning "${#missing_pkgs[@]} packages are not currently installed: ${missing_pkgs[*]:0:10}$([ ${#missing_pkgs[@]} -gt 10 ] && echo '...')"
-    fi
-fi
-
-# ------------------------------------------------------------------------------
-# Final Summary
-# ------------------------------------------------------------------------------
-print_header "Installation Summary"
-echo -e "Checks Passed: ${CLR_BOLD}${passed_checks}/${total_checks}${CLR_RESET}"
-
-if [ "${passed_checks}" -eq "${total_checks}" ]; then
-    echo -e "\n${CLR_GREEN}${CLR_BOLD}✨ Installation & Configuration completed successfully! ✨${CLR_RESET}"
-    echo -e "You can now start a new terminal session or run ${CLR_CYAN}zsh${CLR_RESET} to enjoy your setup.\n"
-else
-    echo -e "\n${CLR_YELLOW}${CLR_BOLD}⚠️  Installation completed with some warnings/checks failing. Review the logs above. ⚠️${CLR_RESET}\n"
-fi
+echo -e "\n${GREEN}==> Dotfiles setup completed successfully!${NC}\n"
