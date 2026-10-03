@@ -5,7 +5,7 @@ My personal dotfiles. Hyprland + Quickshell bar. I only made it work on my arch 
 
 Also I have (very WIP) [NixOs flake-based dots](https://github.com/tymon3310/flakes.nix)
 
-![image](https://github.com/user-attachments/assets/f46ae441-14c6-4db5-a722-3b634d89e7c0)
+<img width="2560" height="1440" alt="showcase" src="https://github.com/user-attachments/assets/eb968fa3-8b55-4cac-b497-8034809f8776" />
 
 ## Installation
 
