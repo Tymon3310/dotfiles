@@ -57,7 +57,7 @@ Item {
                     root._activeWsId = JSON.parse(this.text).id
                     _clientsQuery.running = true
                 } catch (e) {
-                    console.log("WindowSelector: failed to parse active workspace:", e)
+                    console.warn("WindowSelector: failed to parse active workspace:", e)
                 }
             }
         }
@@ -80,7 +80,7 @@ Item {
                     }
                     root.windows = windows
                 } catch (e) {
-                    console.log("WindowSelector: failed to parse clients:", e)
+                    console.warn("WindowSelector: failed to parse clients:", e)
                 }
             }
         }

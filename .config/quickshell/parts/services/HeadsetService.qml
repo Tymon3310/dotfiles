@@ -35,7 +35,7 @@ Singleton {
         running: true
 
         onExited: exitCode => {
-            console.log("headset_monitor.py exited with code", exitCode)
+            console.warn("headset_monitor.py exited with code", exitCode)
             root.restartAttempts++
             root.restartTimer.start()
         }
@@ -43,7 +43,7 @@ Singleton {
         stderr: StdioCollector {
             onStreamFinished: {
                 if (text && text.trim().length > 0)
-                    console.log("headset_monitor.py stderr:", text.trim())
+                    console.warn("headset_monitor.py stderr:", text.trim())
             }
         }
 
@@ -84,7 +84,7 @@ Singleton {
                         root.headsetConnectionChanged(evt.connected)
                     }
                 } catch (e) {
-                    console.log("headset_monitor parse error:", e)
+                    console.warn("headset_monitor parse error:", e)
                 }
             }
         }

@@ -68,7 +68,7 @@ Singleton {
                 if (Array.isArray(parsed))
                     return { instanceId: "", entries: parsed }
             } catch (e) {
-                console.log("[NotificationService] Failed to parse history cache:", e)
+                console.warn("[NotificationService] Failed to parse history cache:", e)
             }
         }
         return { instanceId: Quickshell.instanceId, entries: [] }
@@ -90,7 +90,7 @@ Singleton {
                 deadlines: root.deadlines
             }))
         } catch (e) {
-            console.log("[NotificationService] Failed to save history cache:", e)
+            console.warn("[NotificationService] Failed to save history cache:", e)
         }
     }
 

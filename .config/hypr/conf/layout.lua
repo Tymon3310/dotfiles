@@ -9,96 +9,63 @@ hl.config({
     }
 })
 
-HYPR_SPLIT_WORKSPACES = {
-    per_monitor = 20,
-    monitor_order = {
-        "DP-1",
-        "DP-2",
-    },
-}
+local split_workspaces = { per_monitor = 20, monitor_order = { "DP-1", "DP-2" } }
+local per_monitor = split_workspaces.per_monitor
+local monitor_slots = {}
 
-local split_workspaces = HYPR_SPLIT_WORKSPACES
+local function dispatcher_map(factory)
+    return setmetatable({}, {
+        __index = function(t, id)
+            t[id] = factory(id)
+            return t[id]
+        end
+    })
+end
 
+local focus_dsp = dispatcher_map(function(id) return hl.dsp.focus({ workspace = id }) end)
+local move_dsp = dispatcher_map(function(id) return hl.dsp.window.move({ workspace = id, follow = false }) end)
+local move_follow_dsp = dispatcher_map(function(id) return hl.dsp.window.move({ workspace = id, follow = true }) end)
 
-for monitor_index, monitor_name in ipairs(split_workspaces.monitor_order) do
-    local base_workspace = (monitor_index - 1) * split_workspaces.per_monitor
-
-    for local_workspace = 1, split_workspaces.per_monitor do
-        hl.workspace_rule({
-            workspace = tostring(base_workspace + local_workspace),
-            monitor = monitor_name,
-            persistent = true,
-        })
+for index, name in ipairs(split_workspaces.monitor_order) do
+    monitor_slots[name] = index
+    local base = (index - 1) * per_monitor
+    for ws = 1, per_monitor do
+        local id = base + ws
+        hl.workspace_rule({ workspace = tostring(id), monitor = name, persistent = true })
+        local _, __, ___ = focus_dsp[id], move_dsp[id], move_follow_dsp[id]
     end
 end
 
-local per_monitor = split_workspaces.per_monitor
-local num_monitors = #split_workspaces.monitor_order
-
--- Pre-indexed monitor slots: name -> 1-based index
-local monitor_slots = {}
-for index, monitor_name in ipairs(split_workspaces.monitor_order) do
-    monitor_slots[monitor_name] = index
-end
-
--- Pre-allocated dispatchers for all workspaces (zero runtime allocations)
-local focus_dispatchers = {}
-local move_dispatchers = {}
-local move_follow_dispatchers = {}
-
-for id = 1, num_monitors * per_monitor do
-    focus_dispatchers[id] = hl.dsp.focus({ workspace = id })
-    move_dispatchers[id] = hl.dsp.window.move({ workspace = id, follow = false })
-    move_follow_dispatchers[id] = hl.dsp.window.move({ workspace = id, follow = true })
+local function monitor_slot(mon)
+    return mon and mon.name and monitor_slots[mon.name]
 end
 
 local function get_current_slot()
-    local mon = hl.get_active_monitor()
-    if mon and mon.name and monitor_slots[mon.name] then
-        return monitor_slots[mon.name]
-    end
-    local cur = hl.get_monitor_at_cursor()
-    if cur and cur.name and monitor_slots[cur.name] then
-        return monitor_slots[cur.name]
-    end
     local win = hl.get_active_window()
-    if win and win.monitor and win.monitor.name and monitor_slots[win.monitor.name] then
-        return monitor_slots[win.monitor.name]
-    end
-    return 1
+    return monitor_slot(hl.get_active_monitor())
+        or monitor_slot(hl.get_monitor_at_cursor())
+        or monitor_slot(win and win.monitor)
+        or 1
 end
 
-local function get_monitor_slot(monitor)
-    if not monitor then
-        return get_current_slot()
-    end
-    return monitor_slots[monitor.name] or (monitor.id + 1)
+local function get_monitor_slot(mon)
+    return mon and (monitor_slot(mon) or ((mon.id or 0) + 1)) or get_current_slot()
 end
 
-local function get_workspace_id(local_workspace, monitor)
-    local slot = monitor and get_monitor_slot(monitor) or get_current_slot()
-    return ((slot - 1) * per_monitor) + local_workspace
+local function workspace_id(slot, local_ws)
+    return (slot - 1) * per_monitor + local_ws
 end
 
-local function focus_local_workspace(local_workspace)
+local function focus_local_workspace(ws)
     return function()
-        local slot = get_current_slot()
-        local ws_id = ((slot - 1) * per_monitor) + local_workspace
-        local dsp = focus_dispatchers[ws_id]
-        if dsp then
-            hl.dispatch(dsp)
-        end
+        hl.dispatch(focus_dsp[workspace_id(get_current_slot(), ws)])
     end
 end
 
-local function move_to_local_workspace(local_workspace, follow)
+local function move_to_local_workspace(ws, follow)
+    local dsp = follow and move_follow_dsp or move_dsp
     return function()
-        local slot = get_current_slot()
-        local ws_id = ((slot - 1) * per_monitor) + local_workspace
-        local dsp = follow and move_follow_dispatchers[ws_id] or move_dispatchers[ws_id]
-        if dsp then
-            hl.dispatch(dsp)
-        end
+        hl.dispatch(dsp[workspace_id(get_current_slot(), ws)])
     end
 end
 
@@ -106,135 +73,70 @@ local function cycle_local_workspace(step)
     return function()
         local slot = get_current_slot()
         local mon = hl.get_active_monitor()
-        local active_workspace = hl.get_active_workspace(mon and mon.name or nil)
-        local local_workspace = 1
-
-        if active_workspace then
-            local monitor_base = (slot - 1) * per_monitor
-            local candidate = active_workspace.id - monitor_base
-
-            if candidate >= 1 and candidate <= per_monitor then
-                local_workspace = candidate
-            end
-        end
-
-        local next_workspace = ((local_workspace - 1 + step) % per_monitor) + 1
-        local ws_id = ((slot - 1) * per_monitor) + next_workspace
-        local dsp = focus_dispatchers[ws_id]
-        if dsp then
-            hl.dispatch(dsp)
-        end
+        local active = hl.get_active_workspace(mon and mon.name)
+        local cur = (active and active.id and (active.id - (slot - 1) * per_monitor)) or 1
+        local local_ws = (cur >= 1 and cur <= per_monitor) and cur or 1
+        local next_ws = ((local_ws - 1 + step) % per_monitor) + 1
+        hl.dispatch(focus_dsp[workspace_id(slot, next_ws)])
     end
-end
-
--- Workspace recovery
-local recovery_delay_ms = 150
-
-local function get_xy(vec)
-    if type(vec) ~= "table" then return 0, 0 end
-    return vec.x or vec[1] or 0, vec.y or vec[2] or 0
 end
 
 local function get_monitor_slots()
     local slots = {}
-
-    for _, monitor in ipairs(hl.get_monitors()) do
-        slots[get_monitor_slot(monitor)] = true
+    for _, mon in ipairs(hl.get_monitors()) do
+        slots[get_monitor_slot(mon)] = true
     end
-
     return slots
 end
 
-local function is_workspace_rogue(workspace, valid_slots)
-    if not workspace or workspace.special or workspace.id < 1 then return false end
-    local slot = math.floor((workspace.id - 1) / split_workspaces.per_monitor) + 1
-    return not valid_slots[slot]
+local function is_workspace_rogue(ws, valid_slots)
+    return ws and not ws.special and ws.id and ws.id >= 1
+        and not valid_slots[math.floor((ws.id - 1) / per_monitor) + 1]
 end
 
-local function move_window_to_workspace(window, workspace_id)
-    if not window or not workspace_id then return false end
-    hl.dispatch(hl.dsp.window.move({ workspace = workspace_id }))
-    return true
-end
-
-local function center_window_if_needed(window)
-    if not window or not window.monitor or not window.floating then return false end
-    local win_x, win_y = get_xy(window.at)
-    local win_w, win_h = get_xy(window.size)
-    local mon_x, mon_y = window.monitor.x, window.monitor.y
-    local mon_w, mon_h = window.monitor.width, window.monitor.height
-    local min_x, min_y = mon_x - math.max(win_w, mon_w), mon_y - math.max(win_h, mon_h)
-    local max_x, max_y = mon_x + mon_w, mon_y + mon_h
-    if win_x < min_x or win_y < min_y or win_x > max_x or win_y > max_y then
-        hl.dispatch(hl.dsp.window.center(window.address))
-        return true
+local function center_window_if_needed(win)
+    if not win or not win.floating or not win.monitor then return end
+    local at, sz, m = win.at or {}, win.size or {}, win.monitor
+    local wx, wy = at.x or at[1] or 0, at.y or at[2] or 0
+    local ww, wh = sz.x or sz[1] or 0, sz.y or sz[2] or 0
+    local mx, my, mw, mh = m.x or 0, m.y or 0, m.width or 0, m.height or 0
+    if wx < mx - math.max(ww, mw) or wy < my - math.max(wh, mh) or wx > mx + mw or wy > my + mh then
+        hl.dispatch(hl.dsp.window.center(win.address))
     end
-    return false
 end
 
-local function recover_rogue_windows()
-    local active_workspace = hl.get_active_workspace()
-    if not active_workspace then
-        return 0
-    end
-
+local function recover_windows(center)
+    local active_ws = hl.get_active_workspace()
+    if not active_ws then return end
     local valid_slots = get_monitor_slots()
-    local recovered = 0
-
-    for _, window in ipairs(hl.get_windows()) do
-        if is_workspace_rogue(window.workspace, valid_slots) then
-            if move_window_to_workspace(window, active_workspace.id) then
-                recovered = recovered + 1
-            end
+    for _, win in ipairs(hl.get_windows()) do
+        if is_workspace_rogue(win.workspace, valid_slots) then
+            hl.dispatch(hl.dsp.window.move({ workspace = active_ws.id, window = win }))
+        elseif center and win.floating then
+            center_window_if_needed(win)
         end
     end
-
-    return recovered
 end
 
+local function recover_rogue_windows() return recover_windows(false) end
+local function recover_all_windows() return recover_windows(true) end
+
 local function recover_active_window()
-    local window = hl.get_active_window()
-    local active_workspace = hl.get_active_workspace()
-    if not window or not active_workspace then return end
-    local valid_slots = get_monitor_slots()
-    if is_workspace_rogue(window.workspace, valid_slots) or (window.workspace and window.workspace.id ~= active_workspace.id) then
-        move_window_to_workspace(window, active_workspace.id)
+    local win, active_ws = hl.get_active_window(), hl.get_active_workspace()
+    if not win or not active_ws then return end
+    if is_workspace_rogue(win.workspace, get_monitor_slots()) or (win.workspace and win.workspace.id ~= active_ws.id) then
+        hl.dispatch(hl.dsp.window.move({ workspace = active_ws.id, window = win }))
     end
-    center_window_if_needed(window)
+    center_window_if_needed(win)
 end
 
 local function schedule_workspace_recovery()
-    hl.timer(function()
-        recover_rogue_windows()
-    end, { timeout = recovery_delay_ms, type = "oneshot" })
-end
-
-local function recover_all_windows()
-    local valid_slots = get_monitor_slots()
-    local recovered = 0
-
-    for _, window in ipairs(hl.get_windows()) do
-        if is_workspace_rogue(window.workspace, valid_slots) then
-            move_window_to_workspace(window, hl.get_active_workspace().id)
-            recovered = recovered + 1
-        elseif window.floating then
-            center_window_if_needed(window)
-        end
-    end
-
-    return recovered
-end
-
-local function schedule_window_recovery()
-    hl.timer(function()
-        recover_all_windows()
-    end, { timeout = recovery_delay_ms, type = "oneshot" })
+    hl.timer(recover_rogue_windows, { timeout = 150, type = "oneshot" })
 end
 
 local function setup_events()
     hl.on("monitor.removed", schedule_workspace_recovery)
     hl.on("monitor.added", schedule_workspace_recovery)
-    hl.on("window.open", schedule_window_recovery)
 end
 
 return {
@@ -246,5 +148,5 @@ return {
     recover_rogue_windows = recover_rogue_windows,
     recover_all_windows = recover_all_windows,
     split_workspaces = split_workspaces,
-    per_monitor = split_workspaces.per_monitor,
+    per_monitor = per_monitor,
 }

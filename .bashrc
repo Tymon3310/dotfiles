@@ -1,3 +1,6 @@
+# Do nothing for non-interactive shells (scp, scripts, ...)
+[[ $- != *i* ]] && return
+
 # -----------------------------------------------------
 # Exports
 # -----------------------------------------------------
@@ -14,8 +17,8 @@ echo "YOU ARE IN BASH, TYPE ZSH FOR MORE FULL FEATURED SHELL"
 #aliases
 # -----------------------------------------------------
 
-source ~/.config/zshrc/aliases.zsh
-source "$HOME/.cargo/env"
+[ -f ~/.config/zshrc/aliases.zsh ] && source ~/.config/zshrc/aliases.zsh
+[ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"
 
 
 # Added by Antigravity CLI installer

@@ -127,7 +127,7 @@ Singleton {
         running: true
 
         onExited: exitCode => {
-            console.log("lockMonitorProcess exited with code", exitCode)
+            console.warn("lockMonitorProcess exited with code", exitCode)
             root.restartAttempts++
             root.restartTimer.start()
         }
@@ -135,7 +135,7 @@ Singleton {
         stderr: StdioCollector {
             onStreamFinished: {
                 if (text && text.trim().length > 0)
-                    console.log("lockMonitorProcess stderr:", text.trim())
+                    console.warn("lockMonitorProcess stderr:", text.trim())
             }
         }
 

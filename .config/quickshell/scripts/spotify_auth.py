@@ -9,7 +9,9 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_DIR = os.path.dirname(SCRIPT_DIR)
+CONFIG_DIR = os.path.join(
+    os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "quickshell-spotify"
+)
 CONFIG_PATH = os.path.join(CONFIG_DIR, "spotify_config.json")
 TOKENS_PATH = os.path.join(CONFIG_DIR, "spotify_tokens.json")
 KEY_PATH = os.path.join(CONFIG_DIR, "key.pem")
@@ -72,7 +74,7 @@ class CallbackHandler(BaseHTTPRequestHandler):
 
 def main():
     if not os.path.exists(CONFIG_DIR):
-        os.makedirs(CONFIG_DIR)
+        os.makedirs(CONFIG_DIR, mode=0o700)
 
     client_id = ""
     client_secret = ""

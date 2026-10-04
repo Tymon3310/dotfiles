@@ -1,7 +1,7 @@
 return {
   {
     "folke/snacks.nvim",
-    opts = function()
+    opts = function(_, opts)
       -- 1. Calculate the greeting BEFORE building the config
       local datetime = os.date(" %Y-%m-%d   %H:%M:%S")
       local hour = tonumber(os.date("%H"))
@@ -31,12 +31,11 @@ return {
       vim.api.nvim_set_hl(0, "SnacksDashboardHeader", { link = "MyDashboardBlue" })
 
       -- 3. Return the snacks configuration
-      return {
-        dashboard = {
+      opts.dashboard = vim.tbl_deep_extend("force", opts.dashboard or {}, {
           enabled = true,
           preset = {
             header = [[
-    NeoVim
+    Neovim
     ┌───────────────────────────────────────────────────────────────────────────────┐
     │ ████████╗██╗   ██╗███╗   ███╗ ██████╗ ███╗   ██╗██████╗ ██████╗  ██╗ ██████╗  │
     │ ╚══██╔══╝╚██╗ ██╔╝████╗ ████║██╔═══██╗████╗  ██║╚════██╗╚════██╗███║██╔═████╗ │
@@ -65,8 +64,8 @@ return {
             { section = "keys",   gap = 1, padding = 1 },
             { section = "startup" },
           },
-        },
-      }
+      })
+      return opts
     end,
   },
 }

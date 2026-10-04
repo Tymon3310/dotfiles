@@ -1,5 +1,6 @@
 local pref = require("conf.pref")
 local layout = require("conf.layout")
+local misc = require("conf.misc")
 
 hl.config({
     input = {
@@ -89,11 +90,7 @@ hl.bind("SUPER + mouse_up", layout.cycle_local_workspace(-1))
 hl.bind("SUPER + G", layout.recover_active_window)
 hl.bind("SUPER + CTRL + G", layout.recover_rogue_windows)
 
-hl.define_submap("clean", function()
-    hl.bind("SUPER + Escape", hl.dsp.submap("reset"))
-end)
-
-hl.bind("SUPER + SHIFT + F", toggle_btop_special)
+hl.bind("SUPER + SHIFT + F", misc.toggle_btop_special)
 
 --Custom media keys
 local player = "spotify"
@@ -116,13 +113,10 @@ hl.bind("XF86Back", hl.dsp.exec_cmd("playerctl -p " .. player .. " position 1-")
 hl.bind("XF86HomePage", hl.dsp.exec_cmd("playerctl -p " .. player .. " next"))
 hl.bind("XF86Search", hl.dsp.exec_cmd("playerctl -p " .. player .. " previous"))
 hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("playerctl -p " .. player .. " shuffle toggle"))
-hl.bind("XF86MonBrightnessDown",
-    hl.dsp.exec_cmd("playerctl -p " ..
-        player ..
-        " loop $(if [[ \"$(playerctl -p " ..
-        player ..
-        " loop)\" == \"Track\" ]]; then echo \"Playlist\"; elif [[ \"$(playerctl -p " ..
-        player .. " loop)\" == \"Playlist\" ]]; then echo \"None\"; else echo \"Track\"; fi)"))
+local loop_cycle = string.format(
+    'p=%s; case "$(playerctl -p "$p" loop)" in Track) n=Playlist;; Playlist) n=None;; *) n=Track;; esac; playerctl -p "$p" loop "$n"',
+    player)
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("bash -c '" .. loop_cycle .. "'"))
 -- bind = , Cancel, exec, wpctl set-mute @DEFAULT_SOURCE@ toggle
 -- bind = , XF86Reload, exec, wpctl set-volume @DEFAULT_SOURCE@ 5%+
 -- bind = , XF86Favorites, exec, wpctl set-volume @DEFAULT_SOURCE@ 5%-

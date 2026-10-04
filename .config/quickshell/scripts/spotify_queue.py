@@ -17,7 +17,9 @@ import gi
 gi.require_version("Playerctl", "2.0")
 from gi.repository import GLib, Playerctl
 
-CONFIG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CONFIG_DIR = os.path.join(
+    os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "quickshell-spotify"
+)
 CONFIG_PATH = os.path.join(CONFIG_DIR, "spotify_config.json")
 TOKENS_PATH = os.path.join(CONFIG_DIR, "spotify_tokens.json")
 

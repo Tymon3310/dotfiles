@@ -13,7 +13,7 @@ hl.config({
 })
 
 -- Btop Window Management
-function find_btop_window()
+local function find_btop_window()
     for _, window in ipairs(hl.get_windows()) do
         if window.class == "btop" then
             return window
@@ -21,7 +21,7 @@ function find_btop_window()
     end
 end
 
-function toggle_btop_special()
+local function toggle_btop_special()
     local window = find_btop_window()
     if window then
         hl.dispatch(hl.dsp.workspace.toggle_special("btop"))
@@ -46,3 +46,6 @@ hl.on("window.title", function(client)
     end
 end)
 
+return {
+    toggle_btop_special = toggle_btop_special,
+}

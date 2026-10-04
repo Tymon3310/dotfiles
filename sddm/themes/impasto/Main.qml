@@ -290,7 +290,7 @@ Rectangle {
                 let endpoint = (action === "reboot-uefi") ? "reboot-uefi"
                              : (action === "shutdown") ? "shutdown" : "reboot-normal"
                 let url = "http://127.0.0.1:18293/" + endpoint
-                req.open("GET", url, true)
+                req.open("POST", url, true)
                 if (token)
                     req.setRequestHeader("X-Helper-Token", token)
                 req.send()

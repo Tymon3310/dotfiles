@@ -13,15 +13,19 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# 1. Double check backup exists (back up per file so newly added files are captured)
-mkdir -p "$DOTFILES_DIR/system_backups/sddm_pam_backup"
-[ -f /etc/sddm.conf ] && [ ! -f "$DOTFILES_DIR/system_backups/sddm_pam_backup/sddm.conf" ] && cp -pv /etc/sddm.conf "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
-[ -d /etc/sddm.conf.d ] && [ ! -d "$DOTFILES_DIR/system_backups/sddm_pam_backup/sddm.conf.d" ] && cp -rpv /etc/sddm.conf.d "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
-for pamf in /etc/pam.d/sddm*; do
-    [ -f "$pamf" ] && [ ! -f "$DOTFILES_DIR/system_backups/sddm_pam_backup/$(basename "$pamf")" ] && cp -pv "$pamf" "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
-done
-[ -f /usr/share/sddm/scripts/Xsetup ] && [ ! -f "$DOTFILES_DIR/system_backups/sddm_pam_backup/Xsetup" ] && cp -pv /usr/share/sddm/scripts/Xsetup "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
-[ -f /usr/share/sddm/scripts/Xstop ] && [ ! -f "$DOTFILES_DIR/system_backups/sddm_pam_backup/Xstop" ] && cp -pv /usr/share/sddm/scripts/Xstop "$DOTFILES_DIR/system_backups/sddm_pam_backup/" || true
+# 1. Back up existing config once (never overwrite an earlier backup)
+BACKUP_DIR="$DOTFILES_DIR/system_backups/sddm_pam_backup"
+mkdir -p "$BACKUP_DIR"
+backup() {
+    local src="$1"
+    [ -e "$src" ] || return 0
+    [ -e "$BACKUP_DIR/$(basename "$src")" ] || cp -rpv "$src" "$BACKUP_DIR/"
+}
+backup /etc/sddm.conf
+backup /etc/sddm.conf.d
+for pamf in /etc/pam.d/sddm*; do backup "$pamf"; done
+backup /usr/share/sddm/scripts/Xsetup
+backup /usr/share/sddm/scripts/Xstop
 
 # Provide restore script in system_backups
 cp -pv "$DOTFILES_DIR/sddm/scripts/restore_sddm_backup.sh" "$DOTFILES_DIR/system_backups/restore_sddm_backup.sh"
@@ -43,14 +47,8 @@ chmod 755 /var/lib/impasto/faces
 # 4. Install UEFI helper script and integrate into SDDM Xsetup / Xstop
 echo "Installing SDDM UEFI reboot helper & password validation helper..."
 mkdir -p /usr/share/sddm/scripts
-if [ -f "$DOTFILES_DIR/sddm/scripts/sddm-uefi-helper.py" ]; then
-    cp -pv "$DOTFILES_DIR/sddm/scripts/sddm-uefi-helper.py" /usr/share/sddm/scripts/sddm-uefi-helper.py
-    chmod 755 /usr/share/sddm/scripts/sddm-uefi-helper.py
-fi
-if [ -f "$DOTFILES_DIR/sddm/scripts/check_empty_password.sh" ]; then
-    cp -pv "$DOTFILES_DIR/sddm/scripts/check_empty_password.sh" /usr/share/sddm/scripts/check_empty_password.sh
-    chmod 755 /usr/share/sddm/scripts/check_empty_password.sh
-fi
+install -m 755 -v "$DOTFILES_DIR/sddm/scripts/sddm-uefi-helper.py" /usr/share/sddm/scripts/
+install -m 755 -v "$DOTFILES_DIR/sddm/scripts/check_empty_password.sh" /usr/share/sddm/scripts/
 
 if [ -f /usr/share/sddm/scripts/Xsetup ]; then
     if ! grep -q "sddm-uefi-helper" /usr/share/sddm/scripts/Xsetup; then
@@ -81,17 +79,9 @@ mkdir -p /etc/sddm.conf.d
 # Clean up older numbered config
 rm -f /etc/sddm.conf.d/90-impasto.conf
 
-# Use zz-impasto.conf so it sorts after all other .conf files alphabetically
-# AMD_DEBUG=nodcc prevents Delta Color Compression (DCC) tile corruption (red blocks/snow) on AMD Radeon GPUs under X11
-cat << 'CONF' > /etc/sddm.conf.d/zz-impasto.conf
-[General]
-GreeterEnvironment=QML_XHR_ALLOW_FILE_READ=1,AMD_DEBUG=nodcc
-
-[Theme]
-Current=impasto
-FacesDir=/var/lib/impasto/faces
-CONF
-chmod 644 /etc/sddm.conf.d/zz-impasto.conf
+# zz- prefix sorts after all other .conf files so our settings win.
+# (AMD_DEBUG=nodcc in the file avoids DCC tile corruption on AMD GPUs under X11.)
+install -m 644 -v "$DOTFILES_DIR/sddm/etc/sddm.conf.d/zz-impasto.conf" /etc/sddm.conf.d/zz-impasto.conf
 
 # Disable competing Current= lines in existing configuration files
 if [ -f /etc/sddm.conf.d/sddm.conf ]; then
@@ -124,39 +114,7 @@ fi
 
 # 7. Configure PAM for SDDM Face Unlock (with faillock-safe empty password check)
 echo "Configuring PAM (/etc/pam.d/sddm) with biopass face unlock and faillock protection..."
-cat << 'PAM' > /etc/pam.d/sddm
-#%PAM-1.0
-
-# 1. Enforce preauth check: locked accounts cannot authenticate via face or password
-auth            required        pam_faillock.so preauth
-
-# 2. Check if password is empty (face attempt) or non-empty (password attempt).
-#    If empty (success): continue to biopass.
-#    If non-empty (default): skip biopass and deny rules (jump 2 lines to system-login).
-auth            [success=ignore default=2] pam_exec.so quiet expose_authtok /usr/share/sddm/scripts/check_empty_password.sh
-
-# 3. Biopass biometric face auth (only executed when password is empty)
--auth           [success=done default=ignore]   /usr/lib/security/libbiopass_pam.so
-
-# 4. If face auth failed on empty password, terminate auth immediately
-#    without falling through to pam_unix or faillock authfail.
-auth            [default=die]   pam_deny.so
-
-# 5. Standard password login (only reached for non-empty typed passwords)
-auth            include         system-login
-
-# Note: pam_kwallet5 does not receive a password during biometric face logins;
-# manual wallet unlock on first access is expected.
-auth            optional        pam_kwallet5.so
-
-account         include         system-login
-
-password        include         system-login
-
-session         include         system-login
-session         optional        pam_kwallet5.so
-PAM
-chmod 644 /etc/pam.d/sddm
+install -m 644 -v "$DOTFILES_DIR/sddm/etc/pam.d/sddm" /etc/pam.d/sddm
 
 # 8. Add sddm user to video group
 if id sddm >/dev/null 2>&1; then
