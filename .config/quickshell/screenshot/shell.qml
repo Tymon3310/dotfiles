@@ -23,6 +23,8 @@ Scope {
     property string tempPath: ""
     property string cropPath: ""
     property bool saveToDisk: true
+    property bool recordSystemAudio: true
+    property bool recordMic: false
     property string mode: "region"
     property string externalGeom: ""
     property bool ready: false
@@ -33,13 +35,17 @@ Scope {
         { mode: "region", icon: "region", label: "Region" },
         { mode: "window", icon: "window", label: "Window" },
         { mode: "screen", icon: "screen", label: "Screen" },
-        { mode: "ocr", icon: "ocr", label: "OCR" },
-        { mode: "lens", icon: "lens", label: "Lens" },
-        { mode: "ai", icon: "ai", label: "AI" }
+        { mode: "analyze", icon: "analyze", label: "Analyze" },
+        { mode: "record", icon: "record", label: "Record" }
     ]
+    // Analyze engine radio: "text" (OCR) | "ai" (Gemini) | "lens" (upload)
+    property string analyzeEngine: "text"
     property string aiPrompt: "Briefly describe this image in 2-3 sentences."
     property bool shiftHeld: false
     property bool promptFocused: false
+    // Live modifier state for record-mode pick layers (Ctrl = monitors, Shift = window)
+    property bool shiftDown: false
+    property bool ctrlDown: false
 
     // Application-wide shortcut: Escape always closes the screenshot tool
     Shortcut {
@@ -125,9 +131,17 @@ Scope {
         const envMode = root.isLoadedDynamically ? "" : (Quickshell.env("QS_MODE") || "")
         const envInstant = root.isLoadedDynamically ? "" : (Quickshell.env("QS_INSTANT") || "")
         const envId = root.isLoadedDynamically ? "" : (Quickshell.env("QS_ID") || "")
-        const validModes = ["region", "window", "screen", "ocr", "lens", "ai"]
+        const validModes = ["region", "window", "screen", "analyze", "record"]
+        const legacyEngines = { ocr: "text", lens: "lens", ai: "ai" }
         if (envMode && validModes.includes(envMode)) {
             root.mode = envMode
+        } else if (envMode && envMode in legacyEngines) {
+            root.mode = "analyze"
+            root.analyzeEngine = legacyEngines[envMode]
+        }
+        const envEngine = root.isLoadedDynamically ? "" : (Quickshell.env("QS_ENGINE") || "")
+        if (root.mode === "analyze" && ["text", "ai", "lens"].includes(envEngine)) {
+            root.analyzeEngine = envEngine
         }
         root.instantCapture = root.instantCapture || envInstant === "1"
         if (root.instantCapture && !root.externalGeom && (root.mode === "screen" || root.mode === "window")) {
@@ -432,6 +446,55 @@ Scope {
         }
     }
 
+    // Screen recording: region (or bounding box of a multi-selection) is
+    // handed to ScreenRecorderService in the main shell via IPC. Coords are
+    // global compositor coords, matching `slurp` output for gsr -w.
+    function startRecording(x, y, width, height) {
+        if (selectedWindows.length > 0 || selectedScreens.length > 0) {
+            var items = []
+            if (selectedWindows.length > 0) {
+                for (var i = 0; i < selectedWindows.length; i++) {
+                    var w = selectedWindows[i]
+                    items.push({
+                        x: w.x, y: w.y, width: w.width, height: w.height
+                    })
+                }
+            } else if (selectedScreens.length > 0) {
+                for (var j = 0; j < selectedScreens.length; j++) {
+                    var name = selectedScreens[j]
+                    for (var s = 0; s < Quickshell.screens.length; s++) {
+                        if (Quickshell.screens[s].name === name) {
+                            var scr = Quickshell.screens[s]
+                            items.push({
+                                x: scr.x, y: scr.y, width: scr.width, height: scr.height
+                            })
+                            break
+                        }
+                    }
+                }
+            }
+            if (items.length > 0) {
+                var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+                for (var k = 0; k < items.length; k++) {
+                    minX = Math.min(minX, items[k].x)
+                    minY = Math.min(minY, items[k].y)
+                    maxX = Math.max(maxX, items[k].x + items[k].width)
+                    maxY = Math.max(maxY, items[k].y + items[k].height)
+                }
+                x = minX
+                y = minY
+                width = maxX - minX
+                height = maxY - minY
+            }
+        }
+        if (width < 10 || height < 10) return
+        const region = `${Math.round(width)}x${Math.round(height)}+${Math.round(x)}+${Math.round(y)}`
+        const sys = root.recordSystemAudio ? "1" : "0"
+        const mic = root.recordMic ? "1" : "0"
+        Quickshell.execDetached(["quickshell", "ipc", "call", "recorder", "start", region, sys, mic])
+        root.scheduleExit()
+    }
+
     function processScreenshot(x, y, width, height, openEditor) {
         if (!root.ready) {
             root.pendingAction = {
@@ -485,10 +548,8 @@ Scope {
                 y = minY
                 width = maxX - minX
                 height = maxY - minY
-                // If we are just saving/copying, use stitching. For AI/OCR/Lens, use bounding box.
-                // Actually, stitching is better for visuals, bounding box better for context.
-                // Let's implement stitching for standard save/copy mode
-                if (mode !== "ai" && mode !== "ocr" && mode !== "lens") {
+                // If we are just saving/copying, use stitching. For analyze, use bounding box.
+                if (mode !== "analyze") {
                      const picturesDir = Quickshell.env("SCREENSHOT_DIR") || Quickshell.env("XDG_SCREENSHOTS_DIR") || Quickshell.env("XDG_PICTURES_DIR") || (Quickshell.env("HOME") + "/Pictures")
                     const now = new Date()
                     const timestamp = Qt.formatDateTime(now, "yyyy-MM-dd_hh-mm-ss")
@@ -566,7 +627,7 @@ Scope {
             return
         }
 
-        if (mode === "ai") {
+        if (mode === "analyze" && analyzeEngine === "ai") {
             const timestamp = Date.now()
             cropPath = Quickshell.cachePath(`screenshot-crop-${timestamp}.png`)
             const jsonPath = Quickshell.cachePath(`gemini-request-${timestamp}.json`)
@@ -597,7 +658,7 @@ Scope {
             root.requestFlash()
             quitTimer.start()
 
-        } else if (mode === "ocr") {
+        } else if (mode === "analyze" && analyzeEngine === "text") {
             const cmd = `text=$(magick "${tempPath}" -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} - | tesseract - - -l eng) && echo -n "$text" | wl-copy && ( if [ "$(notify-send 'OCR Complete' "$text" --action=default=Open --wait)" = "default" ]; then printf '%s' "$text" > /tmp/qs-ocr.txt && xdg-open /tmp/qs-ocr.txt; fi ) & paplay /usr/share/sounds/freedesktop/stereo/camera-shutter.oga && rm "${tempPath}"`
             Quickshell.execDetached(["sh", "-c", cmd])
 
@@ -605,7 +666,7 @@ Scope {
             root.requestFlash()
             quitTimer.start()
 
-        } else if (mode === "lens") {
+        } else if (mode === "analyze" && analyzeEngine === "lens") {
             const timestamp = Date.now()
             cropPath = Quickshell.cachePath(`screenshot-crop-${timestamp}.png`)
             const cmd = `magick "${tempPath}" -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} "${cropPath}" && ` +

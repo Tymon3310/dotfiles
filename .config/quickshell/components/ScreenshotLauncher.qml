@@ -7,13 +7,23 @@ import Quickshell.Io
 Scope {
     id: root
 
-    function request(timestamp: string, mode: string, instant: string, geometry: string): void {
-        const validModes = ["region", "window", "screen", "ocr", "lens", "ai"]
+    // Legacy single-purpose modes map onto analyze engines.
+    readonly property var legacyEngines: ({ ocr: "text", lens: "lens", ai: "ai" })
+
+    function request(timestamp: string, mode: string, instant: string, geometry: string, engine: string): void {
+        const validModes = ["region", "window", "screen", "analyze", "record"]
+        let effMode = validModes.includes(mode) ? mode : "region"
+        let effEngine = ["text", "ai", "lens"].includes(engine) ? engine : "text"
+        if (mode in root.legacyEngines) {
+            effMode = "analyze"
+            effEngine = root.legacyEngines[mode]
+        }
         loader.active = false
         loader.setSource(Qt.resolvedUrl("../screenshot/shell.qml"), {
             isLoadedDynamically: true,
             externalTimestamp: timestamp || "",
-            mode: validModes.includes(mode) ? mode : "region",
+            mode: effMode,
+            analyzeEngine: effEngine,
             instantCapture: instant === "1",
             externalGeom: geometry || ""
         })
@@ -47,8 +57,10 @@ Scope {
         function instant(geometry: string): void { root.request("", "region", "1", geometry) }
         function window(): void { root.request("", "window", "0", "") }
         function screen(): void { root.request("", "screen", "0", "") }
-        function ocr(): void { root.request("", "ocr", "0", "") }
-        function lens(): void { root.request("", "lens", "0", "") }
-        function ai(): void { root.request("", "ai", "0", "") }
+        function ocr(): void { root.request("", "ocr", "0", "", "") }
+        function lens(): void { root.request("", "lens", "0", "", "") }
+        function ai(): void { root.request("", "ai", "0", "", "") }
+        function analyze(): void { root.request("", "analyze", "0", "", "") }
+        function record(): void { root.request("", "record", "0", "") }
     }
 }

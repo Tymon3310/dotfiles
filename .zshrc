@@ -118,3 +118,7 @@ fi
 if command -v terminal-wakatime >/dev/null 2>&1; then
     eval "$(terminal-wakatime init)"
 fi
+
+if [ -z "$WAYLAND_DISPLAY" ] && [ "$(tty 2>/dev/null)" = "/dev/tty8" ]; then
+	exec start-hyprland
+fi

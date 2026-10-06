@@ -69,6 +69,7 @@ hypr-kdeconnect-fix-git
 
 # Screen Capture, OCR & Barcode
 grim
+gpu-screen-recorder
 satty
 imagemagick
 sound-theme-freedesktop

@@ -26,6 +26,8 @@ Item {
     property real borderRadius: Theme.radiusMedium
     property real outlineThickness: 2.0
     property url fragmentShader: Qt.resolvedUrl("../shaders/dimming.frag.qsb")
+    // Record mode hides the wash (the region layer already dims).
+    property bool dimBackground: true
 
     // Hover state (screen-local coords for display)
     property real selectionX: 0
@@ -120,6 +122,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         color: Theme.captureWash
+        visible: root.dimBackground
         z: 0
     }
 

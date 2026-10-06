@@ -50,6 +50,7 @@ PanelWindow {
         || (SettingsService.notificationHeadsUpMode === "fullscreen" && bar.isFullscreen)
 
     readonly property bool notifying: NotificationService.active && !bar.expanded && !bar.headsUpActive
+    readonly property bool recording: ScreenRecorderService.recording
 
     function toggle(id: string): void {
         bar.openId = bar.openId === id ? "" : id
@@ -190,9 +191,11 @@ PanelWindow {
             ? bar.belowSize.width + 2 * bar.pad
             : bar.osdActive
                 ? Math.max(260, osdLayerItem.implicitWidth + 36)
-                : bar.isDemorphed
-                    ? 72
-                    : IslandMetrics.notchWidth
+                : bar.recording
+                    ? Math.max(230, recordingItem.implicitWidth + 28)
+                    : bar.isDemorphed
+                        ? 72
+                        : IslandMetrics.notchWidth
 
         height: bar.below !== ""
             ? bar.belowSize.height + 2 * bar.pad
@@ -244,7 +247,21 @@ PanelWindow {
             anchors.topMargin: bar.barTopMargin
             anchors.horizontalCenter: parent.horizontalCenter
 
-            opacity: (bar.below !== "" || bar.osdActive || bar.isDemorphed) ? 0 : 1
+            opacity: (bar.below !== "" || bar.osdActive || bar.isDemorphed || bar.recording) ? 0 : 1
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+        }
+
+        // ── RECORDING INDICATOR (replaces rest row while capturing) ───
+        // z above the capsule mouse so pause/stop stay clickable.
+        RecordingIndicator {
+            id: recordingItem
+            z: 11
+            anchors.top: parent.top
+            anchors.topMargin: bar.barTopMargin
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            opacity: (bar.recording && bar.below === "" && !bar.osdActive && !bar.isDemorphed) ? 1 : 0
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
         }

@@ -235,94 +235,264 @@ Rectangle {
                 }
             }
 
-            // OCR/Lens hint
-            Column {
-                opacity: (bottomNotch.controller.mode === "ocr" || bottomNotch.controller.mode === "lens") ? 1 : 0
-                visible: opacity > 0
-                spacing: 3
-                anchors.verticalCenter: parent.verticalCenter
-
-                Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
-
-                Text {
-                    text: bottomNotch.controller.mode === "ocr" ? "Select text to extract" : "Select area to search"
-                    color: Theme.textMuted
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeSmall
-                }
-
-                Text {
-                    visible: bottomNotch.controller.mode === "lens"
-                    text: bottomNotch.controller.detectedQRCodes.length > 0
-                        ? bottomNotch.controller.detectedQRCodes.length + " QR code" + (bottomNotch.controller.detectedQRCodes.length > 1 ? "s" : "") + " detected"
-                        : "No QR codes detected"
-                    color: bottomNotch.controller.detectedQRCodes.length > 0 ? Theme.accent : Theme.textMuted
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeLabel
-                    font.weight: bottomNotch.controller.detectedQRCodes.length > 0 ? Font.DemiBold : Font.Normal
-                }
-            }
-
-            // AI Prompt input
+            // Record options: audio sources
             Row {
-                opacity: bottomNotch.controller.mode === "ai" ? 1 : 0
+                opacity: bottomNotch.controller.mode === "record" ? 1 : 0
                 visible: opacity > 0
-                spacing: 8
+                spacing: 10
                 anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.right: parent.right
 
                 Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
-                Text {
-                    text: "Prompt:"
-                    color: Theme.textMuted
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeSmall
+                Row {
+                    spacing: 6
                     anchors.verticalCenter: parent.verticalCenter
-                }
 
-                Rectangle {
-                    id: promptBox
-                    width: parent.width - 65
-                    height: 34
-                    radius: Theme.radiusSmall
-                    color: promptInput.activeFocus ? Theme.islandSurfaceHover : Theme.islandSurface
-                    border.color: promptInput.activeFocus ? Theme.accent : Theme.islandBorder
-                    border.width: 1
-
-                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                    TextInput {
-                        id: promptInput
-                        anchors.fill: parent
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 10
-                        verticalAlignment: TextInput.AlignVCenter
+                    Text {
+                        text: "System"
                         color: Theme.text
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeSmall
-                        text: bottomNotch.controller.aiPrompt
-                        clip: true
-                        selectByMouse: true
-                        selectedTextColor: Theme.accentText
-                        selectionColor: Theme.accent
-                        onTextChanged: bottomNotch.controller.aiPrompt = text
-                        onActiveFocusChanged: bottomNotch.controller.promptFocused = activeFocus
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
 
-                        Text {
+                    Rectangle {
+                        width: 36
+                        height: 20
+                        radius: height / 2
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: bottomNotch.controller.recordSystemAudio ? Theme.accent : Theme.islandSurfaceHover
+                        border.color: bottomNotch.controller.recordSystemAudio ? Theme.accent : Theme.islandBorder
+                        border.width: 1
+
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                        Rectangle {
+                            width: 14
+                            height: 14
+                            radius: 7
+                            anchors.verticalCenter: parent.verticalCenter
+                            x: bottomNotch.controller.recordSystemAudio ? parent.width - width - 3 : 3
+                            color: bottomNotch.controller.recordSystemAudio ? Theme.accentText : Theme.textMuted
+
+                            Behavior on x { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        }
+
+                        MouseArea {
                             anchors.fill: parent
-                            verticalAlignment: Text.AlignVCenter
-                            text: "Describe what to analyze..."
-                            color: Theme.textMuted
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSmall
-                            visible: !promptInput.text && !promptInput.activeFocus
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: bottomNotch.controller.recordSystemAudio = !bottomNotch.controller.recordSystemAudio
                         }
                     }
                 }
+
+                Row {
+                    spacing: 6
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    Text {
+                        text: "Mic"
+                        color: Theme.text
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    Rectangle {
+                        width: 36
+                        height: 20
+                        radius: height / 2
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: bottomNotch.controller.recordMic ? Theme.accent : Theme.islandSurfaceHover
+                        border.color: bottomNotch.controller.recordMic ? Theme.accent : Theme.islandBorder
+                        border.width: 1
+
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                        Rectangle {
+                            width: 14
+                            height: 14
+                            radius: 7
+                            anchors.verticalCenter: parent.verticalCenter
+                            x: bottomNotch.controller.recordMic ? parent.width - width - 3 : 3
+                            color: bottomNotch.controller.recordMic ? Theme.accentText : Theme.textMuted
+
+                            Behavior on x { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: bottomNotch.controller.recordMic = !bottomNotch.controller.recordMic
+                        }
+                    }
+                }
+
+                Rectangle {
+                    width: 1
+                    height: 18
+                    color: Theme.islandBorder
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 2
+
+                    Text {
+                        text: "Drag area · click = screen"
+                        color: Theme.textMuted
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeLabel
+                    }
+
+                    Text {
+                        text: "Ctrl = monitors · Shift = window"
+                        color: Theme.textMuted
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeLabel
+                        opacity: 0.7
+                    }
+                }
             }
+
+            // Analyze options: engine radio + prompt/hint
+            Row {
+                opacity: bottomNotch.controller.mode === "analyze" ? 1 : 0
+                visible: opacity > 0
+                spacing: 8
+                anchors.verticalCenter: parent.verticalCenter
+
+                Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+
+                Row {
+                    spacing: 2
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    Repeater {
+                        model: [
+                            { id: "text", label: "Text" },
+                            { id: "ai", label: "AI" },
+                            { id: "lens", label: "Lens" }
+                        ]
+
+                        Rectangle {
+                            id: segBtn
+                            required property var modelData
+                            required property int index
+                            readonly property bool active: bottomNotch.controller.analyzeEngine === modelData.id
+
+                            width: 44
+                            height: 26
+                            topLeftRadius: index === 0 ? 8 : 0
+                            bottomLeftRadius: index === 0 ? 8 : 0
+                            topRightRadius: index === 2 ? 8 : 0
+                            bottomRightRadius: index === 2 ? 8 : 0
+                            color: active
+                                ? Theme.accent
+                                : (segMouse.containsMouse ? Theme.islandSurfaceHover : Theme.islandSurface)
+                            border.color: active
+                                ? Theme.accent
+                                : (segMouse.containsMouse ? Theme.islandBorder : Theme.islandBorder)
+                            border.width: 1
+
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: segBtn.modelData.label
+                                color: segBtn.active ? Theme.accentText : (segMouse.containsMouse ? Theme.text : Theme.textMuted)
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.weight: segBtn.active ? Font.DemiBold : Font.Normal
+                            }
+
+                            MouseArea {
+                                id: segMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: bottomNotch.controller.analyzeEngine = segBtn.modelData.id
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    width: 1
+                    height: 18
+                    color: Theme.islandBorder
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Item {
+                    width: 167
+                    height: 40
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    Rectangle {
+                        visible: bottomNotch.controller.analyzeEngine === "ai"
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width
+                        height: 32
+                        radius: Theme.radiusSmall
+                        color: analyzePromptInput.activeFocus ? Theme.islandSurfaceHover : Theme.islandSurface
+                        border.color: analyzePromptInput.activeFocus ? Theme.accent : Theme.islandBorder
+                        border.width: 1
+
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                        TextInput {
+                            id: analyzePromptInput
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            verticalAlignment: TextInput.AlignVCenter
+                            color: Theme.text
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeSmall
+                            text: bottomNotch.controller.aiPrompt
+                            clip: true
+                            selectByMouse: true
+                            selectedTextColor: Theme.accentText
+                            selectionColor: Theme.accent
+                            onTextChanged: bottomNotch.controller.aiPrompt = text
+                            onActiveFocusChanged: bottomNotch.controller.promptFocused = activeFocus
+
+                            Text {
+                                anchors.fill: parent
+                                verticalAlignment: Text.AlignVCenter
+                                text: "Describe what to analyze..."
+                                color: Theme.textMuted
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeSmall
+                                visible: !analyzePromptInput.text && !analyzePromptInput.activeFocus
+                            }
+                        }
+                    }
+
+                    Text {
+                        visible: bottomNotch.controller.analyzeEngine !== "ai"
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width
+                        elide: Text.ElideRight
+                        text: bottomNotch.controller.analyzeEngine === "lens"
+                            ? (bottomNotch.controller.detectedQRCodes.length > 0
+                                ? bottomNotch.controller.detectedQRCodes.length + " QR found · select area"
+                                : "Select area to search")
+                            : "Select text to extract"
+                        color: Theme.textMuted
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
+                    }
+                }
+            }
+
         }
     }
 }

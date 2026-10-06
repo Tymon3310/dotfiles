@@ -8,7 +8,7 @@ Item {
     required property var controller
     required property real screenX
     required property real screenY
-    visible: crossScreenSelector.controller.mode === "region" || crossScreenSelector.controller.mode === "ocr" || crossScreenSelector.controller.mode === "lens" || crossScreenSelector.controller.mode === "ai"
+    visible: crossScreenSelector.controller.mode === "region" || crossScreenSelector.controller.mode === "analyze" || crossScreenSelector.controller.mode === "record"
     anchors.fill: parent
 
     // Calculate local selection rect for this screen
@@ -150,21 +150,58 @@ Item {
         }
 
         onReleased: (mouse) => {
-            const openEditor = (mouse.modifiers & Qt.ShiftModifier) || crossScreenSelector.controller.shiftHeld
-            crossScreenSelector.controller.isSelecting = false
-            crossScreenSelector.controller.processScreenshot(
-                crossScreenSelector.controller.selectionX,
-                crossScreenSelector.controller.selectionY,
-                crossScreenSelector.controller.selectionWidth,
-                crossScreenSelector.controller.selectionHeight,
+            const ctrl = crossScreenSelector.controller
+            ctrl.isSelecting = false
+            if (ctrl.mode === "record") {
+                const w = ctrl.selectionWidth
+                const h = ctrl.selectionHeight
+                if (w < 5 && h < 5) {
+                    // Plain click: selected screen = record the whole
+                    // multi-selection, otherwise fullscreen this screen.
+                    const gx = ctrl.selectionX
+                    const gy = ctrl.selectionY
+                    let clickedName = ""
+                    let sx = crossScreenSelector.screenX
+                    let sy = crossScreenSelector.screenY
+                    let sw = crossScreenSelector.width
+                    let sh = crossScreenSelector.height
+                    for (var i = 0; i < Quickshell.screens.length; i++) {
+                        const s = Quickshell.screens[i]
+                        if (gx >= s.x && gx < s.x + s.width && gy >= s.y && gy < s.y + s.height) {
+                            clickedName = s.name
+                            sx = s.x
+                            sy = s.y
+                            sw = s.width
+                            sh = s.height
+                            break
+                        }
+                    }
+                    if (clickedName !== "" && ctrl.selectedScreens.length > 0 && ctrl.selectedScreens.indexOf(clickedName) !== -1) {
+                        ctrl.startRecording(0, 0, 0, 0)
+                    } else {
+                        ctrl.selectedWindows = []
+                        ctrl.selectedScreens = []
+                        ctrl.startRecording(sx, sy, sw, sh)
+                    }
+                } else {
+                    ctrl.startRecording(ctrl.selectionX, ctrl.selectionY, w, h)
+                }
+                return
+            }
+            const openEditor = (mouse.modifiers & Qt.ShiftModifier) || ctrl.shiftHeld
+            ctrl.processScreenshot(
+                ctrl.selectionX,
+                ctrl.selectionY,
+                ctrl.selectionWidth,
+                ctrl.selectionHeight,
                 openEditor
             )
         }
     }
 
-    // QR Code overlays - visible in lens mode
+    // QR Code overlays - visible in analyze mode (lens engine)
     Repeater {
-        model: crossScreenSelector.controller.mode === "lens" ? crossScreenSelector.controller.detectedQRCodes : []
+        model: crossScreenSelector.controller.mode === "analyze" ? crossScreenSelector.controller.detectedQRCodes : []
 
         Rectangle {
             id: qrOverlay
