@@ -40,7 +40,6 @@ alias guncommit='git reset --soft HEAD~1'
 # -----------------------------------------------------
 # Scripts
 # -----------------------------------------------------
-alias ascii='~/.config/hypr/scripts/ascii-text.sh'
 alias matrix='unimatrix -a -f -s 95'
 
 # -----------------------------------------------------

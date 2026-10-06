@@ -11,7 +11,12 @@ function gaa() {
 }
 
 _installlibs() {
-    /usr/bin/cat ~/.personal/commonlibs.txt | \
+    local libfile="$HOME/.personal/commonlibs.txt"
+    if [ ! -f "$libfile" ]; then
+        echo "No common library list found at $libfile"
+        return 1
+    fi
+    /usr/bin/cat "$libfile" | \
   gum choose --cursor.foreground '#09F' --selected.foreground '#0FF' --no-limit --header 'Which libs do You need?' | \
   xargs -d '\n' -r -- \
   sh -c 'gum spin --spinner dot --title "Installing selected packages..." --spinner.foreground "#09F" -- uv pip install "$@"' sh
@@ -47,7 +52,7 @@ _makevenv() {
         rm -rf venv
     fi
 
-    gum spin --title "Creating venv..." --spinner.foreground "#09F" -- uv venv venv .venv
+    gum spin --title "Creating venv..." --spinner.foreground "#09F" -- uv venv .venv
     source .venv/bin/activate
     gum spin --title "Upgrading pip..." --spinner.foreground "#09F" -- uv pip install --upgrade pip
 
@@ -66,8 +71,7 @@ _makevenv() {
 }
 
 mkcd() {
-    mkdir $1
-    cd $1
+    mkdir -p "$1" && cd "$1"
 }
 
 tomp3 () {

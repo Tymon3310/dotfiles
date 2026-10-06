@@ -7,13 +7,10 @@ return {
   -- Configure LazyVim to load vscode
   {
     "LazyVim/LazyVim",
-    requires = { "Mofiqul/vscode.nvim" },
+    dependencies = { "Mofiqul/vscode.nvim" },
     opts = {
       colorscheme = "vscode",
     },
-  },
-  {
-    "kevinoid/vim-jsonc",
   },
   {
     "nvim-neo-tree/neo-tree.nvim",

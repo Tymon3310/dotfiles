@@ -26,7 +26,6 @@ fastfetch
 tmux
 yazi
 btop
-htop
 uv
 grub
 
@@ -42,14 +41,12 @@ hyprlock
 hypridle
 hyprsunset
 hyprpicker
-hyprshot
 hyprpolkitagent
 hyprtoolkit
 hyprqt6engine
 brightnessctl
 xdg-desktop-portal-hyprland
 xdg-desktop-portal-kde
-xdg-desktop-portal-wlr
 xdg-terminal-exec
 xdg-user-dirs
 xdg-utils
@@ -100,10 +97,7 @@ ffmpeg
 # Python Environment & Libraries
 python-pip
 python-gobject
-python-pillow
 python-numpy
-python-screeninfo
-python-psutil
 python-click
 python-evdev
 python-opencv
@@ -125,7 +119,6 @@ qt5-svg
 qt6ct
 xsettingsd
 nwg-look
-nwg-bar
 breeze
 breeze-plus
 bibata-cursor-git
@@ -151,16 +144,16 @@ zsh
 zsh-completions
 oh-my-posh
 neovim
-zen-browser-bin
+zen-twilight-bin
 dolphin
 vicinae-bin
-qalculate-gtk
+visual-studio-code-insiders-bin
+qalculate-qt
 bitwarden
 pinta
 tumbler
 gvfs
 fuse2
-conky
 
 # Terminal Toys
 unimatrix-git

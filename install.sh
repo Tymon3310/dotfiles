@@ -97,6 +97,7 @@ for file in .zshrc .bashrc .tmux.conf .tmux.conf.local .gtkrc-2.0 .Xresources; d
     [ -f "$DOTFILES_DIR/$file" ] || continue
     link_file "$DOTFILES_DIR/$file" "$HOME/$file"
 done
+[ -f "$DOTFILES_DIR/.config/vim/vimrc" ] && link_file "$DOTFILES_DIR/.config/vim/vimrc" "$HOME/.vimrc"
 
 # 5. Install / update Oh My Zsh and plugins (official online method)
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
@@ -113,7 +114,6 @@ msg "Installing / updating Zsh custom plugins..."
 mkdir -p "$ZSH_CUSTOM/plugins"
 declare -A PLUGINS=(
     ["zsh-autosuggestions"]="https://github.com/zsh-users/zsh-autosuggestions.git"
-    ["zsh-syntax-highlighting"]="https://github.com/zsh-users/zsh-syntax-highlighting.git"
     ["fast-syntax-highlighting"]="https://github.com/zdharma-continuum/fast-syntax-highlighting.git"
     ["zsh-autocomplete"]="https://github.com/marlonrichert/zsh-autocomplete.git"
 )

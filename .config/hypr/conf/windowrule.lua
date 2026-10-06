@@ -59,7 +59,7 @@ hl.window_rule({
 hl.window_rule({
   name = "qalculate_float",
   match = {
-    class = "(.*qalculate-gtk.*)",
+    class = "(.*qalculate.*)",
   },
   float = true,
 })

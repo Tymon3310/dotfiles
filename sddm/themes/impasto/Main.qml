@@ -531,8 +531,6 @@ Rectangle {
     Component.onCompleted: {
         root.forceActiveFocus()
         root.readHelperToken()
-        if (root.isPrimary)
-            Qt.callLater(root.wakeUp)
     }
     Keys.onPressed: event => {
         if (event.key === Qt.Key_Space && !account.hasText) {

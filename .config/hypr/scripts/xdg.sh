@@ -1,34 +1,11 @@
 #!/bin/bash
-
-sleep 1
-
-# kill all possible running xdg-desktop-portals
-killall -e xdg-desktop-portal-hyprland
-killall -e xdg-desktop-portal-gnome
-killall -e xdg-desktop-portal-kde
-killall -e xdg-desktop-portal-lxqt
-killall -e xdg-desktop-portal-wlr
-killall -e xdg-desktop-portal-gtk
-killall -e xdg-desktop-portal
-sleep 1
-
-# start xdg-desktop-portal-hyprland
-/usr/lib/xdg-desktop-portal-hyprland &
-sleep 2
-
-# start xdg-desktop-portal-kde
-if [ -f /usr/lib/xdg-desktop-portal-kde ]; then
-  /usr/lib/xdg-desktop-portal-kde &
-  # sleep 1
+# Restart XDG desktop portals cleanly via systemd with imported Wayland environment.
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl --user restart xdg-desktop-portal-hyprland 2>/dev/null || true
+    systemctl --user restart xdg-desktop-portal 2>/dev/null || true
+else
+    killall -q xdg-desktop-portal-hyprland xdg-desktop-portal 2>/dev/null || true
+    /usr/lib/xdg-desktop-portal-hyprland &
+    sleep 0.5
+    /usr/lib/xdg-desktop-portal &
 fi
-
-# start xdg-desktop-portal-wlr
-if [ -f /usr/lib/xdg-desktop-portal-wlr ]; then
-  /usr/lib/xdg-desktop-portal-wlr &
-  # sleep 1
-fi
-
-# start xdg-desktop-portal
-/usr/lib/xdg-desktop-portal &
-# sleep 1
-
