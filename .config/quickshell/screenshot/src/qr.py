@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Find QR codes and barcodes in an image. Prints x|y|width|height|data per code."""
 import json
+import queue
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 from PIL import Image, ImageFilter
@@ -48,15 +50,18 @@ class Variant:
 
 def dominant_background_mask(rgb):
     """Mask of pixels close to the most common colour, if it covers enough of the image."""
-    q = (rgb >> 3).astype(np.int32)
+    q = (rgb[::3, ::3] >> 3).astype(np.int32)  # subsample: the mode survives
     key = (q[..., 0] << 10) | (q[..., 1] << 5) | q[..., 2]
     counts = np.bincount(key.ravel(), minlength=1 << 15)
     bg = int(counts.argmax())
     if counts[bg] < 0.08 * key.size:
         return None, None
-    color = np.array([(bg >> 10) * 8 + 4, ((bg >> 5) & 31) * 8 + 4, (bg & 31) * 8 + 4])
-    dist = np.abs(rgb.astype(np.int16) - color).max(axis=2)
-    return dist <= 10, color
+    color = [(bg >> 10) * 8 + 4, ((bg >> 5) & 31) * 8 + 4, (bg & 31) * 8 + 4]
+    mask = np.ones(rgb.shape[:2], dtype=bool)
+    for c in range(3):
+        ch = rgb[..., c]
+        mask &= (ch >= color[c] - 10) & (ch <= color[c] + 10)
+    return mask, np.array(color)
 
 
 def pad_white(arr, pad):
@@ -208,33 +213,36 @@ def barcode_spam(gray, box, idx):
     return out
 
 
-def build_variants(rgb):
+def variant_stages(rgb):
+    """Yield (stage name, variants), cheapest/most productive first.
+
+    Variants are built lazily so the first results print before the
+    expensive region finding even starts.
+    """
     gray = np.asarray(Image.fromarray(rgb).convert("L"))
     h, w = gray.shape
-    variants = [
-        Variant("gray", gray, binarizers=("local", "global", "fixed")),
-    ]
+    yield "fast", [Variant("gray", gray)]
 
     bg_mask, bg_color = dominant_background_mask(rgb)
     if bg_mask is not None:
         log(f"dominant background {bg_color.tolist()} covers {bg_mask.mean():.0%}")
         whitened = gray.copy()
         whitened[bg_mask] = 255
-        variants.append(Variant("bg_white", whitened, binarizers=("local", "global")))
     else:
         whitened = gray
-
+    full = [Variant("gray_alt", gray, binarizers=("global", "fixed"))]
+    if bg_mask is not None:
+        full.append(Variant("bg_white", whitened, binarizers=("local", "global")))
     # Coloured codes: darkest channel separates saturated modules from white,
     # brightest channel separates light-on-saturated (e.g. white on blue).
-    variants.append(Variant("min_chan", rgb.min(axis=2)))
-    variants.append(Variant("max_chan", rgb.max(axis=2)))
+    r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+    full.append(Variant("min_chan", np.minimum(np.minimum(r, g), b)))
+    full.append(Variant("max_chan", np.maximum(np.maximum(r, g), b)))
+    yield "full", full
 
-    if max(h, w) <= 2600:
-        variants.append(Variant("up2", nearest_upscale(gray, 2), scale=2.0))
-
-    # Candidate crops
     boxes = find_candidate_boxes(gray)
     log(f"{len(boxes)} candidate regions")
+    blobs = []
     for i, (x, y, bw, bh) in enumerate(boxes):
         m = max(4, min(bw, bh) // 12)
         x0, y0 = max(0, x - m), max(0, y - m)
@@ -246,19 +254,21 @@ def build_variants(rgb):
         factor = 3 if side < 80 else 2 if side < 350 else 1
         if factor > 1:
             crop = nearest_upscale(crop, factor)
-        variants.append(Variant(f"blob{i}", crop, scale=float(factor),
-                                ox=x0 - pad, oy=y0 - pad,
-                                binarizers=("local", "global")))
+        blobs.append(Variant(f"blob{i}", crop, scale=float(factor),
+                             ox=x0 - pad, oy=y0 - pad, binarizers=("local", "global")))
+    yield "blobs", blobs
 
     bars = find_bar_boxes(gray)
     log(f"{len(bars)} barcode regions")
-    for i, box in enumerate(bars):
-        variants.extend(barcode_spam(gray, box, i))
-    return variants
+    yield "bars", [v for i, box in enumerate(bars) for v in barcode_spam(gray, box, i)]
+
+    if max(h, w) <= 2600:
+        yield "upscale", [Variant("up2", nearest_upscale(gray, 2), scale=2.0)]
 
 
 # --- Decoders ------------------------------------------------------------------
-# Each returns a list of (xs[4], ys[4], text, format) in variant coordinates.
+# Each is (name, decode_all) where decode_all(variants) yields
+# (variant, xs, ys, text, format) in variant coordinates as soon as found.
 
 def zxing_module_decoder():
     try:
@@ -308,18 +318,16 @@ def zxing_cli_decoder():
                 for (i, v), path in zip(enumerate(variants), ex.map(save, enumerate(variants))):
                     paths[path] = v
 
-            # One ZXingReader process per (binarizer, format set, chunk of files)
+            # One ZXingReader process per (binarizer, format set, small chunk of files);
+            # small chunks so results trickle out instead of arriving all at once
             jobs = []
             for b in ("local", "global", "fixed"):
                 for linear in (False, True):
                     files = [p for p, v in paths.items()
                              if b in v.binarizers and v.linear == linear]
                     fmt = ["-formats", "AllLinear"] if linear else []
-                    n = max(1, min(WORKERS, len(files) // 8 or 1))
-                    for k in range(n):
-                        chunk = files[k::n]
-                        if chunk:
-                            jobs.append([exe, "-json", "-binarizer", b, *fmt, *chunk])
+                    for k in range(0, len(files), 6):
+                        jobs.append([exe, "-json", "-binarizer", b, *fmt, *files[k:k + 6]])
 
             def run(cmd):
                 try:
@@ -328,10 +336,9 @@ def zxing_cli_decoder():
                     log(f"ZXingReader failed: {e}")
                     return ""
 
-            results = []
             with ThreadPoolExecutor(WORKERS) as ex:
-                for stdout in ex.map(run, jobs):
-                    for line in stdout.splitlines():
+                for fut in as_completed([ex.submit(run, j) for j in jobs]):
+                    for line in fut.result().splitlines():
                         try:
                             r = json.loads(line)
                         except ValueError:
@@ -344,9 +351,7 @@ def zxing_cli_decoder():
                             pts = [tuple(map(int, p.split("x"))) for p in r["Position"].split()]
                         except (KeyError, ValueError):
                             continue
-                        results.append((v, [p[0] for p in pts], [p[1] for p in pts],
-                                        text, r.get("Format", "")))
-            return results
+                        yield v, [p[0] for p in pts], [p[1] for p in pts], text, r.get("Format", "")
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
@@ -354,12 +359,11 @@ def zxing_cli_decoder():
 
 
 def run_parallel(decode, variants):
-    results = []
     with ThreadPoolExecutor(WORKERS) as ex:
-        for v, res in zip(variants, ex.map(decode, variants)):
-            for xs, ys, text, fmt in res:
-                results.append((v, xs, ys, text, fmt))
-    return results
+        futures = {ex.submit(decode, v): v for v in variants}
+        for fut in as_completed(futures):
+            for xs, ys, text, fmt in fut.result():
+                yield futures[fut], xs, ys, text, fmt
 
 
 def wechat_decoder():
@@ -440,42 +444,56 @@ def zbar_decoder():
     return "zbarimg", lambda variants: run_parallel(decode, variants)
 
 
-# --- Merging -------------------------------------------------------------------
+def prefetch(gen):
+    """Run a generator one item ahead in a background thread."""
+    q = queue.Queue(maxsize=1)
+    done = object()
 
-def merge(detections, img_w, img_h):
-    """Deduplicate by text + overlap. Keeps the tightest box per code."""
-    boxes = []
-    for v, xs, ys, text, fmt in detections:
+    def worker():
+        try:
+            for item in gen:
+                q.put(item)
+        finally:
+            q.put(done)
+
+    threading.Thread(target=worker, daemon=True).start()
+    while (item := q.get()) is not done:
+        yield item
+
+
+# --- Output --------------------------------------------------------------------
+
+class Emitter:
+    """Prints each code the first time it's seen; drops repeats (same text, overlapping box)."""
+
+    def __init__(self, img_w, img_h):
+        self.w, self.h = img_w, img_h
+        self.seen = []
+
+    def add(self, v, xs, ys, text, fmt):
         oxs, oys = v.to_original(xs, ys)
-        x0, x1 = max(0, min(oxs)), min(img_w, max(oxs))
-        y0, y1 = max(0, min(oys)), min(img_h, max(oys))
+        x0, x1 = max(0, min(oxs)), min(self.w, max(oxs))
+        y0, y1 = max(0, min(oys)), min(self.h, max(oys))
         # Linear barcodes report a thin line; give them some height
         if y1 - y0 < 6:
             cy = (y0 + y1) / 2
-            y0, y1 = max(0, cy - 8), min(img_h, cy + 8)
+            y0, y1 = max(0, cy - 8), min(self.h, cy + 8)
         if x1 - x0 < 6:
             cx = (x0 + x1) / 2
-            x0, x1 = max(0, cx - 8), min(img_w, cx + 8)
-        boxes.append([x0, y0, x1, y1, text, fmt])
-
-    # Area ascending so the tightest box for a code wins
-    boxes.sort(key=lambda b: (b[2] - b[0]) * (b[3] - b[1]))
-    unique = []
-    for b in boxes:
-        dupe = False
-        for u in unique:
-            if u[4] != b[4]:
+            x0, x1 = max(0, cx - 8), min(self.w, cx + 8)
+        area = (x1 - x0) * (y1 - y0)
+        if area <= 0:
+            return
+        for ux0, uy0, ux1, uy1, utext in self.seen:
+            if utext != text:
                 continue
-            ix = max(0, min(b[2], u[2]) - max(b[0], u[0]))
-            iy = max(0, min(b[3], u[3]) - max(b[1], u[1]))
-            small = min((b[2] - b[0]) * (b[3] - b[1]), (u[2] - u[0]) * (u[3] - u[1]))
-            if ix * iy > 0.4 * small:
-                dupe = True
-                break
-        if not dupe:
-            unique.append(b)
-    unique.sort(key=lambda b: (b[1], b[0]))
-    return unique
+            ix = max(0, min(x1, ux1) - max(x0, ux0))
+            iy = max(0, min(y1, uy1) - max(y0, uy0))
+            if ix * iy > 0.4 * min(area, (ux1 - ux0) * (uy1 - uy0)):
+                return
+        self.seen.append((x0, y0, x1, y1, text))
+        print(f"{int(x0)}|{int(y0)}|{int(round(x1 - x0))}|{int(round(y1 - y0))}|{escape(text)}",
+              flush=True)
 
 
 def escape(text):
@@ -502,9 +520,6 @@ def main():
     rgb = np.asarray(img.convert("RGB"))
     h, w = rgb.shape[:2]
 
-    variants = build_variants(rgb)
-    log(f"{len(variants)} variants built in {time.time() - t0:.2f}s ({w}x{h})")
-
     primary = zxing_module_decoder() or zxing_cli_decoder()
     decoders = [d for d in (primary, wechat_decoder()) if d]
     if not primary:
@@ -516,18 +531,14 @@ def main():
               file=sys.stderr)
         return 1
 
-    detections = []
-    for name, decode_all in decoders:
+    out = Emitter(w, h)
+    for stage, variants in prefetch(variant_stages(rgb)):
         t = time.time()
-        res = decode_all(variants)
-        log(f"{name}: {len(res)} raw detections in {time.time() - t:.2f}s")
-        detections.extend(res)
-
-    codes = merge(detections, w, h)
-    log(f"{len(codes)} unique codes, total {time.time() - t0:.2f}s")
-    for x0, y0, x1, y1, text, fmt in codes:
-        print(f"{int(x0)}|{int(y0)}|{int(round(x1 - x0))}|{int(round(y1 - y0))}|{escape(text)}",
-              flush=True)
+        for name, decode_all in decoders:
+            for det in decode_all(variants):
+                out.add(*det)
+        log(f"stage {stage}: {len(variants)} variants, {len(out.seen)} codes so far, "
+            f"{time.time() - t:.2f}s (at {time.time() - t0:.2f}s)")
     return 0
 
 

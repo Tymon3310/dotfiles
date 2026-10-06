@@ -301,34 +301,23 @@ Scope {
         id: qrScanProcess
         running: false
 
-        stdout: StdioCollector {
-            onStreamFinished: {
-                var output = this.text.trim()
-                if (!output) {
-                    root.detectedQRCodes = []
-                    return
-                }
-                var codes = []
-                var lines = output.split('\n')
-                for (var i = 0; i < lines.length; i++) {
-                    var line = lines[i].trim()
-                    if (!line) continue
-                    if (line.startsWith("[ WARN")) continue // Skip OpenCV warnings
-                    var parts = line.split('|')
-                    if (parts.length >= 5) {
-                        codes.push({
-                            x: parseInt(parts[0]),
-                            y: parseInt(parts[1]),
-                            width: parseInt(parts[2]),
-                            height: parseInt(parts[3]),
-                            // qr.py escapes \\, \n, \r so each code stays on one line
-                            data: parts.slice(4).join('|').replace(/\\(\\|n|r)/g, function(m, c) {
-                                return c === 'n' ? '\n' : c === 'r' ? '\r' : '\\'
-                            })
-                        })
-                    }
-                }
-                root.detectedQRCodes = codes
+        // qr.py prints each code as soon as it's found, so add them as they arrive
+        stdout: SplitParser {
+            onRead: data => {
+                var line = data.trim()
+                if (!line || line.startsWith("[ WARN")) return // Skip OpenCV warnings
+                var parts = line.split('|')
+                if (parts.length < 5) return
+                root.detectedQRCodes = root.detectedQRCodes.concat([{
+                    x: parseInt(parts[0]),
+                    y: parseInt(parts[1]),
+                    width: parseInt(parts[2]),
+                    height: parseInt(parts[3]),
+                    // qr.py escapes \\, \n, \r so each code stays on one line
+                    data: parts.slice(4).join('|').replace(/\\(\\|n|r)/g, function(m, c) {
+                        return c === 'n' ? '\n' : c === 'r' ? '\r' : '\\'
+                    })
+                }])
             }
         }
         stderr: StdioCollector {
@@ -345,6 +334,7 @@ Scope {
         }
         var scanScript = Qt.resolvedUrl("src/qr.py").toString().replace("file://", "")
         var cmd = "/usr/bin/python3 '" + scanScript + "' '" + tempPath + "'"
+        root.detectedQRCodes = []
         qrScanProcess.command = ["sh", "-c", cmd]
         qrScanProcess.running = true
     }
