@@ -1,30 +1,5 @@
 #!/usr/bin/env python3
-"""Find QR codes and other barcodes in a screenshot.
-
-Usage: qr.py <image>
-
-Prints one line per code to stdout: x|y|width|height|data
-Data is escaped so it stays on one line (backslash -> \\\\, LF -> \\n, CR -> \\r).
-Set QR_DEBUG=1 for timing/diagnostics on stderr.
-
-Decoders, used when available (best first):
-  - zxing-cpp Python module (in-memory, all formats)
-  - ZXingReader CLI from the zxing-cpp package (batched, all formats)
-  - OpenCV WeChat QR (CNN detector, good on photos) if cv2 has contrib
-  - pyzbar / zbarimg as a last resort if nothing above exists
-
-Only numpy + Pillow are required for preprocessing.
-
-Detection strategy. A whole-image pass alone misses a lot on real screenshots:
-  1. Full image with several binarizers, plus the same with the dominant
-     background colour painted white. This restores the quiet zone for codes
-     that sit flush against a dark UI, which is the most common failure.
-  2. Max-of-channels / min-of-channels so coloured codes are picked up.
-  3. Candidate crops: high-contrast blobs are cropped, padded with white,
-     and upscaled when small (thumbnails, chips, codes inside photos).
-  4. A 2x nearest-neighbour upscale for small images, since screen-rendered
-     codes often have 1-2px modules.
-"""
+"""Find QR codes and barcodes in an image. Prints x|y|width|height|data per code."""
 import json
 import os
 import shutil
@@ -48,23 +23,27 @@ def log(msg):
 
 
 # --- Variants ----------------------------------------------------------------
-# A variant is (name, gray uint8 array, scale, offset_x, offset_y, binarizers).
-# A point p in the variant maps back to the original as p / scale + offset.
+# A variant is a gray uint8 image plus how to map points back to the original:
+# p / scale + offset (sx/sy allow non-uniform scaling for stretched barcodes).
+# linear=True restricts decoding to 1D barcodes.
 
 class Variant:
-    __slots__ = ("name", "img", "scale", "ox", "oy", "binarizers")
+    __slots__ = ("name", "img", "sx", "sy", "ox", "oy", "binarizers", "linear")
 
-    def __init__(self, name, img, scale=1.0, ox=0, oy=0, binarizers=("local",)):
+    def __init__(self, name, img, scale=1.0, ox=0, oy=0, binarizers=("local",),
+                 sx=None, sy=None, linear=False):
         self.name = name
         self.img = np.ascontiguousarray(img, dtype=np.uint8)
-        self.scale = scale
+        self.sx = sx or scale
+        self.sy = sy or scale
         self.ox = ox
         self.oy = oy
         self.binarizers = binarizers
+        self.linear = linear
 
     def to_original(self, xs, ys):
-        return ([x / self.scale + self.ox for x in xs],
-                [y / self.scale + self.oy for y in ys])
+        return ([x / self.sx + self.ox for x in xs],
+                [y / self.sy + self.oy for y in ys])
 
 
 def dominant_background_mask(rgb):
@@ -88,35 +67,16 @@ def nearest_upscale(arr, factor):
     return np.repeat(np.repeat(arr, factor, axis=0), factor, axis=1)
 
 
-def find_candidate_boxes(gray, cell=4):
-    """Locate dense, high-contrast blobs (barcode-like regions).
-
-    Morphological gradient -> threshold -> coarse grid -> connected components.
-    Pure numpy/PIL so it works without OpenCV/scipy.
-    """
-    h, w = gray.shape
-    pil = Image.fromarray(gray)
-    grad = (np.asarray(pil.filter(ImageFilter.MaxFilter(3))).astype(np.int16)
-            - np.asarray(pil.filter(ImageFilter.MinFilter(3))))
-    edges = grad > 60
-
-    # Edge density per cell
-    gh, gw = h // cell, w // cell
-    dens = edges[:gh * cell, :gw * cell].reshape(gh, cell, gw, cell).mean(axis=(1, 3))
-    occ = dens > 0.25
-    # Close small gaps between modules / bars
-    occ_img = Image.fromarray((occ * 255).astype(np.uint8))
-    occ_img = occ_img.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MinFilter(3))
-    occ = np.asarray(occ_img) > 0
-
-    labels = np.zeros(occ.shape, dtype=np.int32)
+def connected_boxes(occ, cell):
+    """Bounding boxes (x, y, w, h, filled_area) of 4-connected regions in a cell grid."""
+    gh, gw = occ.shape
+    labels = np.zeros(occ.shape, dtype=bool)
     boxes = []
     ys, xs = np.nonzero(occ)
     for sy, sx in zip(ys.tolist(), xs.tolist()):
         if labels[sy, sx]:
             continue
-        lab = len(boxes) + 1
-        labels[sy, sx] = lab
+        labels[sy, sx] = True
         stack = [(sy, sx)]
         y0 = y1 = sy
         x0 = x1 = sx
@@ -130,13 +90,39 @@ def find_candidate_boxes(gray, cell=4):
             if cx > x1: x1 = cx
             for ny, nx in ((cy - 1, cx), (cy + 1, cx), (cy, cx - 1), (cy, cx + 1)):
                 if 0 <= ny < gh and 0 <= nx < gw and occ[ny, nx] and not labels[ny, nx]:
-                    labels[ny, nx] = lab
+                    labels[ny, nx] = True
                     stack.append((ny, nx))
-        bw, bh = (x1 - x0 + 1) * cell, (y1 - y0 + 1) * cell
-        boxes.append((x0 * cell, y0 * cell, bw, bh, n * cell * cell))
+        boxes.append((x0 * cell, y0 * cell, (x1 - x0 + 1) * cell, (y1 - y0 + 1) * cell,
+                      n * cell * cell))
+    return boxes
+
+
+def cell_sum(arr, cell):
+    gh, gw = arr.shape[0] // cell, arr.shape[1] // cell
+    return arr[:gh * cell, :gw * cell].reshape(gh, cell, gw, cell).sum(axis=(1, 3))
+
+
+def morph(mask, *ops):
+    """Apply 3x3 'max'/'min' filters in sequence to a boolean grid."""
+    img = Image.fromarray((mask * 255).astype(np.uint8))
+    for op in ops:
+        img = img.filter(ImageFilter.MaxFilter(3) if op == "max" else ImageFilter.MinFilter(3))
+    return np.asarray(img) > 0
+
+
+def find_candidate_boxes(gray, cell=4):
+    """Locate dense, high-contrast blobs (code-like regions)."""
+    h, w = gray.shape
+    pil = Image.fromarray(gray)
+    grad = (np.asarray(pil.filter(ImageFilter.MaxFilter(3))).astype(np.int16)
+            - np.asarray(pil.filter(ImageFilter.MinFilter(3))))
+    occ = cell_sum(grad > 60, cell) > 0.25 * cell * cell
+    # Close gaps between modules, then open to cut thin card borders/underlines
+    # that would merge a code into a big sparse blob
+    occ = morph(occ, "max", "min", "min", "max")
 
     out = []
-    for x, y, bw, bh, area in boxes:
+    for x, y, bw, bh, area in connected_boxes(occ, cell):
         if bw < 16 or bh < 10:
             continue
         if area < 0.3 * bw * bh:
@@ -145,9 +131,81 @@ def find_candidate_boxes(gray, cell=4):
         if bw * bh > 0.25 * w * h:
             continue
         out.append((x, y, bw, bh))
-    # Prefer mid-sized blobs, cap the count
     out.sort(key=lambda b: -min(b[2], b[3]))
     return out[:MAX_CANDIDATES]
+
+
+def find_bar_boxes(gray, cell=4):
+    """Locate 1D barcode regions: cells where edges run strongly in one direction.
+
+    QR/DataMatrix modules have edges both ways, so barcodes don't merge into them.
+    Returns (x, y, w, h, orientation) with orientation 'v' (vertical bars) or 'h'.
+    """
+    g = gray.astype(np.int16)
+    dx = np.zeros_like(g)
+    dy = np.zeros_like(g)
+    dx[:, 1:] = np.abs(np.diff(g, axis=1))
+    dy[1:, :] = np.abs(np.diff(g, axis=0))
+    sx, sy = cell_sum(dx, cell), cell_sum(dy, cell)
+    strong = cell * cell * 25
+    out = []
+    for orient, a, b in (("v", sx, sy), ("h", sy, sx)):
+        occ = (a > strong) & (a > 3 * b)
+        # Bridge wide bars/gaps across the bar direction only
+        occ = morph(occ, "max", "min")
+        for x, y, bw, bh, area in connected_boxes(occ, cell):
+            along, across = (bw, bh) if orient == "v" else (bh, bw)
+            if along < 24 or across < 8 or area < 0.4 * bw * bh:
+                continue
+            # Whole region must be directional too (2D code modules can look
+            # one-directional per cell, but not over the whole box)
+            bx, by = sx[y // cell:(y + bh) // cell, x // cell:(x + bw) // cell].sum(), \
+                sy[y // cell:(y + bh) // cell, x // cell:(x + bw) // cell].sum()
+            ratio = bx / max(by, 1) if orient == "v" else by / max(bx, 1)
+            if ratio < 4:
+                continue
+            out.append((x, y, bw, bh, orient))
+    out.sort(key=lambda b: -b[2] * b[3])
+    return out[:MAX_CANDIDATES // 4]
+
+
+def barcode_spam(gray, box, idx):
+    """Throw a pile of 1D-specific variants at a barcode region.
+
+    Bars are made vertical (transposing if needed), then the crop is stretched
+    at several scales/interpolations and decoded with linear formats only.
+    Column-averaging collapses noise/JPEG/overlapping text into a clean
+    synthetic barcode.
+    """
+    x, y, bw, bh, orient = box
+    h, w = gray.shape
+    m = 6
+    x0, y0, x1, y1 = max(0, x - m), max(0, y - m), min(w, x + bw + m), min(h, y + bh + m)
+    crop = gray[y0:y1, x0:x1]
+    transposed = orient == "h"
+    if transposed:
+        crop = crop.T
+
+    ch, cw = crop.shape
+    col_avg = np.tile(crop.mean(axis=0), (max(24, ch), 1))
+    out = []
+    pad = 30
+    for kind, src in (("raw", crop), ("avg", col_avg)):
+        src_img = Image.fromarray(np.clip(src, 0, 255).astype(np.uint8))
+        for fx in (2, 3, 4, 6):
+            for interp_name, interp in (("n", Image.NEAREST), ("c", Image.BICUBIC)):
+                tw, th = cw * fx, max(48, src.shape[0] * 2)
+                big = pad_white(np.asarray(src_img.resize((tw, th), interp)), pad)
+                ry = th / src.shape[0]
+                if transposed:
+                    big = big.T
+                    sx, sy, ox, oy = ry, fx, x0 - pad / ry, y0 - pad / fx
+                else:
+                    sx, sy, ox, oy = fx, ry, x0 - pad / fx, y0 - pad / ry
+                out.append(Variant(f"bar{idx}_{kind}{fx}{interp_name}", big, sx=sx, sy=sy,
+                                   ox=ox, oy=oy, linear=True,
+                                   binarizers=("local", "global", "fixed")))
+    return out
 
 
 def build_variants(rgb):
@@ -191,6 +249,11 @@ def build_variants(rgb):
         variants.append(Variant(f"blob{i}", crop, scale=float(factor),
                                 ox=x0 - pad, oy=y0 - pad,
                                 binarizers=("local", "global")))
+
+    bars = find_bar_boxes(gray)
+    log(f"{len(bars)} barcode regions")
+    for i, box in enumerate(bars):
+        variants.extend(barcode_spam(gray, box, i))
     return variants
 
 
@@ -204,12 +267,15 @@ def zxing_module_decoder():
         return None
     B = zxingcpp.Binarizer
     bmap = {"local": B.LocalAverage, "global": B.GlobalHistogram, "fixed": B.FixedThreshold}
+    F = zxingcpp.BarcodeFormat
+    linear = getattr(F, "AllLinear", None) or getattr(F, "LinearCodes", None)
 
     def decode(variant):
         out = []
+        kw = {"formats": linear} if variant.linear and linear is not None else {}
         for b in variant.binarizers:
             try:
-                results = zxingcpp.read_barcodes(variant.img, binarizer=bmap[b])
+                results = zxingcpp.read_barcodes(variant.img, binarizer=bmap[b], **kw)
             except Exception as e:
                 log(f"zxingcpp error on {variant.name}: {e}")
                 continue
@@ -242,15 +308,18 @@ def zxing_cli_decoder():
                 for (i, v), path in zip(enumerate(variants), ex.map(save, enumerate(variants))):
                     paths[path] = v
 
-            # One ZXingReader process per (binarizer, chunk of files)
+            # One ZXingReader process per (binarizer, format set, chunk of files)
             jobs = []
             for b in ("local", "global", "fixed"):
-                files = [p for p, v in paths.items() if b in v.binarizers]
-                n = max(1, min(WORKERS, len(files) // 8 or 1))
-                for k in range(n):
-                    chunk = files[k::n]
-                    if chunk:
-                        jobs.append([exe, "-json", "-binarizer", b, *chunk])
+                for linear in (False, True):
+                    files = [p for p, v in paths.items()
+                             if b in v.binarizers and v.linear == linear]
+                    fmt = ["-formats", "AllLinear"] if linear else []
+                    n = max(1, min(WORKERS, len(files) // 8 or 1))
+                    for k in range(n):
+                        chunk = files[k::n]
+                        if chunk:
+                            jobs.append([exe, "-json", "-binarizer", b, *fmt, *chunk])
 
             def run(cmd):
                 try:
