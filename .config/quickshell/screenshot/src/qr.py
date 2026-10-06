@@ -1,735 +1,466 @@
 #!/usr/bin/env python3
-import sys
+"""Find QR codes and other barcodes in a screenshot.
+
+Usage: qr.py <image>
+
+Prints one line per code to stdout: x|y|width|height|data
+Data is escaped so it stays on one line (backslash -> \\\\, LF -> \\n, CR -> \\r).
+Set QR_DEBUG=1 for timing/diagnostics on stderr.
+
+Decoders, used when available (best first):
+  - zxing-cpp Python module (in-memory, all formats)
+  - ZXingReader CLI from the zxing-cpp package (batched, all formats)
+  - OpenCV WeChat QR (CNN detector, good on photos) if cv2 has contrib
+  - pyzbar / zbarimg as a last resort if nothing above exists
+
+Only numpy + Pillow are required for preprocessing.
+
+Detection strategy. A whole-image pass alone misses a lot on real screenshots:
+  1. Full image with several binarizers, plus the same with the dominant
+     background colour painted white. This restores the quiet zone for codes
+     that sit flush against a dark UI, which is the most common failure.
+  2. Max-of-channels / min-of-channels so coloured codes are picked up.
+  3. Candidate crops: high-contrast blobs are cropped, padded with white,
+     and upscaled when small (thumbnails, chips, codes inside photos).
+  4. A 2x nearest-neighbour upscale for small images, since screen-rendered
+     codes often have 1-2px modules.
+"""
+import json
 import os
+import shutil
 import subprocess
-import cv2
+import sys
+import tempfile
+import time
+from concurrent.futures import ThreadPoolExecutor
+
 import numpy as np
+from PIL import Image, ImageFilter
 
-def detect_zbar_cli(image_path):
-    results = []
-    try:
-        # Enable all symbologies. 
-        # By default zbar might enable only some. 
-        # --set enable=1 turns on everything. (Check manually if this works, otherwise use specific list?)
-        # zbarimg --help says: --set <symbology>.enable --enable <symbology>
-        # Let's try --set enable=1 to switch all on.
-        # Actually zbarimg man page says "enable" is a config for "decoder".
-        cmd = ["/usr/bin/zbarimg", "-q", "--xml", "--set", "enable=1", image_path]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        xml_data = result.stdout
-        
-        if not xml_data.strip():
-            return []
+DEBUG = bool(os.environ.get("QR_DEBUG"))
+MAX_CANDIDATES = 400
+WORKERS = min(8, os.cpu_count() or 4)
 
-        import xml.etree.ElementTree as ET
-        import re
-        
-        try:
-            root = ET.fromstring(xml_data)
-            ns = {"zbar": "http://zbar.sourceforge.net/2008/barcode"}
-            for symbol in root.findall(".//zbar:symbol", ns):
-                data_elem = symbol.find("zbar:data", ns)
-                data = data_elem.text if data_elem is not None and data_elem.text else ""
-                if not data: continue
-                
-                polygon = symbol.find("zbar:polygon", ns)
-                if polygon is not None:
-                    points_attr = polygon.get("points", "")
-                    coords = re.findall(r"([+-]?[0-9]+),([+-]?[0-9]+)", points_attr)
-                    if len(coords) >= 2:
-                        xs = [int(c[0]) for c in coords]
-                        ys = [int(c[1]) for c in coords]
-                        x, y = min(xs), min(ys)
-                        w, h = max(xs) - x, max(ys) - y
-                        results.append((x, y, w, h, data))
-        except ET.ParseError:
-            pass
-            
-    except Exception as e:
-        pass
-        
-    return results
 
-def apply_preprocessing_variants(img, lite=False):
-    # Returns list of (name, image, transform_func)
-    variants = []
-    
-    # helper for logging
-    def log(msg):
-        print(f"[DEBUG] {msg}", file=sys.stderr, flush=True)
-    
-    h_img, w_img = img.shape[:2]
-    log(f"Assuming image size: {w_img}x{h_img}. Lite mode: {lite}")
-    
-    # helper for offset
-    def add_offset(name, image, offx, offy):
-        def tr(pts):
-            pts[:, 0] += offx
-            pts[:, 1] += offy
-            return pts
-        variants.append((name, image, tr))
-    
-    # helper for simple add
-    def add(name, image):
-        add_offset(name, image, 0, 0)
-    
-    # 0. Tiles (Original) - Crucial for localizing small codes
-    # User might have small image with MANY codes (e.g. 300x200). 
-    # Tiling helps isolate them. Lowering threshold to 100.
-    if h_img > 100 or w_img > 100:
-        th = int(h_img * 0.6)
-        tw = int(w_img * 0.6)
-        
-        add_offset("tile_tl", img[0:th, 0:tw], 0, 0)
-        add_offset("tile_tr", img[0:th, w_img-tw:w_img], w_img-tw, 0)
-        add_offset("tile_bl", img[h_img-th:h_img, 0:tw], 0, h_img-th)
-        add_offset("tile_br", img[h_img-th:h_img, w_img-tw:w_img], w_img-tw, h_img-th)
-        
-        cy, cx = h_img//2, w_img//2
-        stx, sty = cx - tw//2, cy - th//2
-        add_offset("tile_center", img[sty:sty+th, stx:stx+tw], stx, sty)
+def log(msg):
+    if DEBUG:
+        print(f"[qr] {msg}", file=sys.stderr, flush=True)
 
-    # 1. Original (if color) and Grayscale
-    if len(img.shape) == 3:
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        
-        # In Lite mode, Fast Pass already scanned the full image (likely Original/Inverted).
-        # So we SKIP Original/Gray/Channels/Inverted in Lite mode to save massive time.
-        # We ONLY want Tiles (generated above) for MicroQR.
-        if not lite:
-            add("original", img)
-            add("gray", gray)
-            
-            # Channel Split Removed for Speed. 
-            # ZBar prefers Grayscale (added above). 
-            # Splitting adds 3 full-res variants with low ROI.
+
+# --- Variants ----------------------------------------------------------------
+# A variant is (name, gray uint8 array, scale, offset_x, offset_y, binarizers).
+# A point p in the variant maps back to the original as p / scale + offset.
+
+class Variant:
+    __slots__ = ("name", "img", "scale", "ox", "oy", "binarizers")
+
+    def __init__(self, name, img, scale=1.0, ox=0, oy=0, binarizers=("local",)):
+        self.name = name
+        self.img = np.ascontiguousarray(img, dtype=np.uint8)
+        self.scale = scale
+        self.ox = ox
+        self.oy = oy
+        self.binarizers = binarizers
+
+    def to_original(self, xs, ys):
+        return ([x / self.scale + self.ox for x in xs],
+                [y / self.scale + self.oy for y in ys])
+
+
+def dominant_background_mask(rgb):
+    """Mask of pixels close to the most common colour, if it covers enough of the image."""
+    q = (rgb >> 3).astype(np.int32)
+    key = (q[..., 0] << 10) | (q[..., 1] << 5) | q[..., 2]
+    counts = np.bincount(key.ravel(), minlength=1 << 15)
+    bg = int(counts.argmax())
+    if counts[bg] < 0.08 * key.size:
+        return None, None
+    color = np.array([(bg >> 10) * 8 + 4, ((bg >> 5) & 31) * 8 + 4, (bg & 31) * 8 + 4])
+    dist = np.abs(rgb.astype(np.int16) - color).max(axis=2)
+    return dist <= 10, color
+
+
+def pad_white(arr, pad):
+    return np.pad(arr, pad, mode="constant", constant_values=255)
+
+
+def nearest_upscale(arr, factor):
+    return np.repeat(np.repeat(arr, factor, axis=0), factor, axis=1)
+
+
+def find_candidate_boxes(gray, cell=4):
+    """Locate dense, high-contrast blobs (barcode-like regions).
+
+    Morphological gradient -> threshold -> coarse grid -> connected components.
+    Pure numpy/PIL so it works without OpenCV/scipy.
+    """
+    h, w = gray.shape
+    pil = Image.fromarray(gray)
+    grad = (np.asarray(pil.filter(ImageFilter.MaxFilter(3))).astype(np.int16)
+            - np.asarray(pil.filter(ImageFilter.MinFilter(3))))
+    edges = grad > 60
+
+    # Edge density per cell
+    gh, gw = h // cell, w // cell
+    dens = edges[:gh * cell, :gw * cell].reshape(gh, cell, gw, cell).mean(axis=(1, 3))
+    occ = dens > 0.25
+    # Close small gaps between modules / bars
+    occ_img = Image.fromarray((occ * 255).astype(np.uint8))
+    occ_img = occ_img.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MinFilter(3))
+    occ = np.asarray(occ_img) > 0
+
+    labels = np.zeros(occ.shape, dtype=np.int32)
+    boxes = []
+    ys, xs = np.nonzero(occ)
+    for sy, sx in zip(ys.tolist(), xs.tolist()):
+        if labels[sy, sx]:
+            continue
+        lab = len(boxes) + 1
+        labels[sy, sx] = lab
+        stack = [(sy, sx)]
+        y0 = y1 = sy
+        x0 = x1 = sx
+        n = 0
+        while stack:
+            cy, cx = stack.pop()
+            n += 1
+            if cy < y0: y0 = cy
+            if cy > y1: y1 = cy
+            if cx < x0: x0 = cx
+            if cx > x1: x1 = cx
+            for ny, nx in ((cy - 1, cx), (cy + 1, cx), (cy, cx - 1), (cy, cx + 1)):
+                if 0 <= ny < gh and 0 <= nx < gw and occ[ny, nx] and not labels[ny, nx]:
+                    labels[ny, nx] = lab
+                    stack.append((ny, nx))
+        bw, bh = (x1 - x0 + 1) * cell, (y1 - y0 + 1) * cell
+        boxes.append((x0 * cell, y0 * cell, bw, bh, n * cell * cell))
+
+    out = []
+    for x, y, bw, bh, area in boxes:
+        if bw < 16 or bh < 10:
+            continue
+        if area < 0.3 * bw * bh:
+            continue
+        # Whole-screen sized blobs are just busy UI; the full-image passes cover them
+        if bw * bh > 0.25 * w * h:
+            continue
+        out.append((x, y, bw, bh))
+    # Prefer mid-sized blobs, cap the count
+    out.sort(key=lambda b: -min(b[2], b[3]))
+    return out[:MAX_CANDIDATES]
+
+
+def build_variants(rgb):
+    gray = np.asarray(Image.fromarray(rgb).convert("L"))
+    h, w = gray.shape
+    variants = [
+        Variant("gray", gray, binarizers=("local", "global", "fixed")),
+    ]
+
+    bg_mask, bg_color = dominant_background_mask(rgb)
+    if bg_mask is not None:
+        log(f"dominant background {bg_color.tolist()} covers {bg_mask.mean():.0%}")
+        whitened = gray.copy()
+        whitened[bg_mask] = 255
+        variants.append(Variant("bg_white", whitened, binarizers=("local", "global")))
     else:
-        gray = img
-        if not lite:
-             add("gray", gray)
-            
-    # Lite Mode Pruning
-    if lite:
-        # Balanced Mode: Speed + Thoroughness
-        # Tiles (Step 0) + Inverted (Step 1) + CLAHE (Step 2)
-        # We skip only the very slow filters (Adaptive/Eroded).
-        
-        inverted = cv2.bitwise_not(gray)
-        add("inverted", inverted)
-        
-        # CLAHE (Contrast) - Crucial for "thoroughness" on poor quality images
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-        enhanced = clahe.apply(gray)
-        add("clahe", enhanced)
-        
-        # Sharpening (Helpful for fuzzy barcodes)
-        kernel = np.array([[0, -1, 0], 
-                           [-1, 5,-1], 
-                           [0, -1, 0]])
-        sharpened = cv2.filter2D(gray, -1, kernel)
-        add("sharpened", sharpened)
-        
-        log(f"Generated {len(variants)} variants (Lite: Tiles + Inv + CLAHE + Sharp)")
-        return variants
+        whitened = gray
 
-    # --- Full Mode Only ---
-    
-    # 2. Inverted
-    inverted = cv2.bitwise_not(gray)
-    add("inverted", inverted)
-        
-    # 3. CLAHE
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-    enhanced = clahe.apply(gray)
-    add("clahe", enhanced)
-    
-    # 4. Binary Thresholding
-    _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    add("binary", binary)
-    
-    # 5. Adaptive Thresholding (Crucial for borderless codes on dark/busy backgrounds)
-    # This creates artificial white quiet zones around dark modules by locally thresholding
-    adaptive = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 51, 2)
-    add("adaptive", adaptive)
-    
-    # 6. Morphological Black Hat (Extracts dark modules from dark backgrounds)
-    kernel_size = 15
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
-    blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, kernel)
-    # Blackhat returns the dark spots on a black background. We need dark on white, so we invert.
-    blackhat_inv = cv2.bitwise_not(blackhat)
-    add("blackhat_inv", blackhat_inv)
-    
-    # 5. Sharpening (Moved from Lite to be available in Full too? It's cheap)
-    kernel = np.array([[0, -1, 0], 
-                       [-1, 5,-1], 
-                       [0, -1, 0]])
-    sharpened = cv2.filter2D(gray, -1, kernel)
-    add("sharpened", sharpened)
+    # Coloured codes: darkest channel separates saturated modules from white,
+    # brightest channel separates light-on-saturated (e.g. white on blue).
+    variants.append(Variant("min_chan", rgb.min(axis=2)))
+    variants.append(Variant("max_chan", rgb.max(axis=2)))
 
-    log(f"Generated {len(variants)} variants")
+    if max(h, w) <= 2600:
+        variants.append(Variant("up2", nearest_upscale(gray, 2), scale=2.0))
+
+    # Candidate crops
+    boxes = find_candidate_boxes(gray)
+    log(f"{len(boxes)} candidate regions")
+    for i, (x, y, bw, bh) in enumerate(boxes):
+        m = max(4, min(bw, bh) // 12)
+        x0, y0 = max(0, x - m), max(0, y - m)
+        x1, y1 = min(w, x + bw + m), min(h, y + bh + m)
+        crop = whitened[y0:y1, x0:x1]
+        pad = max(12, min(x1 - x0, y1 - y0) // 8)
+        crop = pad_white(crop, pad)
+        side = min(x1 - x0, y1 - y0)
+        factor = 3 if side < 80 else 2 if side < 350 else 1
+        if factor > 1:
+            crop = nearest_upscale(crop, factor)
+        variants.append(Variant(f"blob{i}", crop, scale=float(factor),
+                                ox=x0 - pad, oy=y0 - pad,
+                                binarizers=("local", "global")))
     return variants
 
-import time
 
-def main():
-    start_time = time.time()
-    if len(sys.argv) < 2:
-        print("Missing argument", file=sys.stderr)
-        return
-    print("SCRIPT_STARTED", file=sys.stderr)
+# --- Decoders ------------------------------------------------------------------
+# Each returns a list of (xs[4], ys[4], text, format) in variant coordinates.
 
-    # helper for logging
-    def log(msg):
-        print(f"[DEBUG] {msg}", file=sys.stderr, flush=True)
-
-    img_path = sys.argv[1]
-    log(f"Starting improved_qr.py on {img_path}")
-    
-    # Notify user we started
-    # Disabled by user request
-    # try:
-    #     subprocess.Popen(["notify-send", "QR Scan Started", "Searching for codes..."])
-    # except:
-    #     pass
-    
-    if not os.path.exists(img_path):
-        log(f"Image does not exist: {img_path}")
-        return
-
-    # --- FAST PASS ---
-    log("Starting Fast Pass (ZBar)...")
-    candidates_zbar = detect_zbar_cli(img_path)
-    
-    all_candidates = []
-    lite_mode = False
-    
-    if len(candidates_zbar) > 0:
-         log(f"Fast Pass success: {len(candidates_zbar)} codes found. Continuing to Lite Deep Scan for difficult codes...")
-         all_candidates.extend(candidates_zbar)
-         lite_mode = True
-    else:
-         log("Fast Pass found 0 codes. Starting Full Deep Scan...")
-
-    # --- DEEP SCAN ---
-    log("Reading image with OpenCV...")
-    original_img = cv2.imread(img_path)
-    if original_img is None:
-        if not all_candidates:
-             return
-        # If we have zbar results but opencv failed to read, print zbar and exit
-        unique_results = []
-        for r in all_candidates:
-            x, y, w, h, data = r
-            if w <= 0 or h <= 0: continue
-            is_dupe = False
-            for ur in unique_results:
-                ux, uy, uw, uh, udata = ur
-                if udata == data:
-                     is_dupe = True
-                     break
-            if not is_dupe:
-                unique_results.append(r)
-        for r in unique_results:
-            print(f"{r[0]}|{r[1]}|{r[2]}|{r[3]}|{r[4]}", flush=True)
-        return
-
-    variants = []
-    
-    # Upscaling Logic
-    h, w = original_img.shape[:2]
-    
-    # If image is reasonably small, upscale the whole thing
-    # Reverting to size limit for SPEED. 
-    # Upscaling 4K -> 8K takes 4x CPU time, which makes it "slow".
-    # --- Scaling & Tiling Logic ---
-    # --- Scaling & Tiling Logic ---
-    if h < 3500 and w < 3500: 
-        # 1. Standard Single Monitor (e.g. 4K, 1440p)
-        # Apply standard filters (Gray, Inverted, CLAHE, Binary, Sharp)
-        variants = apply_preprocessing_variants(original_img, lite=lite_mode)
-        
-        # 1. Standard Single Monitor (e.g. 4K, 1440p)
-        gray = cv2.cvtColor(original_img, cv2.COLOR_BGR2GRAY) if len(original_img.shape) == 3 else original_img
-        
-        # Micro-Image Handling (e.g. 225px thumbnail)
-        # 2x is not enough. We need 4x.
-        if h < 500 and w < 500:
-             # Cubic for smooth edges
-             upscaled_4 = cv2.resize(gray, (0,0), fx=4.0, fy=4.0, interpolation=cv2.INTER_CUBIC)
-             def tr_scale_4(pts):
-                 return pts * 0.25
-             variants.append(("upscaled_4x_cubic", upscaled_4, tr_scale_4))
-             
-             # Nearest Neighbor for sharp edges (Critical for tiny 1D barcodes)
-             # If the barcode is 1px wide lines, Cubic blurs them. Nearest keeps them sharp.
-             upscaled_4_n = cv2.resize(gray, (0,0), fx=4.0, fy=4.0, interpolation=cv2.INTER_NEAREST)
-             variants.append(("upscaled_4x_nearest", upscaled_4_n, tr_scale_4))
-             
-             # High-Res Threshold (Sharpen + Binarize)
-             # Often critical for "noisy" small text/barcodes
-
-             _, upscaled_bin = cv2.threshold(upscaled_4, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-             variants.append(("upscaled_4x_binary", upscaled_bin, tr_scale_4))
-             
-             # Upscaled Inverted (For tiny inverted codes like test_11)
-             upscaled_4_inv = cv2.bitwise_not(upscaled_4)
-             variants.append(("upscaled_4x_inverted", upscaled_4_inv, tr_scale_4))
-             
-             # Upscaled Adaptive (Final hail mary for weird lighting/circular codes)
-             upscaled_adapt = cv2.adaptiveThreshold(upscaled_4, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 25, 2)
-             variants.append(("upscaled_4x_adaptive", upscaled_adapt, tr_scale_4))
-             
-             # Padded (For Borderless Codes - User Request)
-             # ZBar requires a quiet zone. We artificially add a 20px white border.
-             # We use the upscaled image to rely on its resolution.
-             upscaled_padding = 50 # 50px on 4x upscale = ~12px on original
-             upscaled_padded = cv2.copyMakeBorder(upscaled_4, upscaled_padding, upscaled_padding, upscaled_padding, upscaled_padding, cv2.BORDER_CONSTANT, value=[255,255,255])
-             
-             def make_tr_padded(pts):
-                 # Shift points back by padding, then scale down
-                 pts[:, 0] -= upscaled_padding
-                 pts[:, 1] -= upscaled_padding
-                 return pts * 0.25
-                 
-             variants.append(("upscaled_4x_padded", upscaled_padded, make_tr_padded))
-             
-             # Padded Inverted (For Borderless Inverted Codes)
-             # Invert first, THEN pad with white.
-             # This turns "White on Black (borderless)" into "Black on White (bordered)"
-             upscaled_inv_padded = cv2.copyMakeBorder(upscaled_4_inv, upscaled_padding, upscaled_padding, upscaled_padding, upscaled_padding, cv2.BORDER_CONSTANT, value=[255,255,255])
-             variants.append(("upscaled_4x_inv_padded", upscaled_inv_padded, make_tr_padded))
-        
-        # Standard 2x (Linear = Fast)
-        upscaled = cv2.resize(gray, (0,0), fx=2.0, fy=2.0, interpolation=cv2.INTER_LINEAR)
-        def tr_scale(pts):
-            return pts * 0.5
-        variants.append(("upscaled_2x", upscaled, tr_scale))
-
-
-    elif w > 1800:
-        # 2. Dual Monitor / Ultrawide / Wide Strip
-        #    Optimization: CLEAR global variants. 
-        #    We do NOT want to run AdaptiveThreshold/Rotations on a 5000px empty background.
-        #    Trust the Tiled chunks for detection.
-        variants = [] 
-        
-        gray = cv2.cvtColor(original_img, cv2.COLOR_BGR2GRAY) if len(original_img.shape) == 3 else original_img
-        
-        check_w = 1500
-        n_chunks = int(w / check_w) + 1
-        chunk_w = int(w / n_chunks)
-        overlap = 200
-        
-        for i in range(n_chunks):
-             x1 = max(0, i * chunk_w - overlap)
-             x2 = min(w, (i + 1) * chunk_w + overlap)
-             
-             chunk_img = gray[:, x1:x2]
-             
-             # Add chunk (Original Resolution)
-             # Offset logic inlined:
-             def make_tr_chunk(parent_x):
-                 def tr_c(pts):
-                     pts[:, 0] += parent_x
-                     return pts
-                 return tr_c
-             variants.append((f"chunk_{i}", chunk_img, make_tr_chunk(x1)))
-             
-             # Upscale CHUNK 2x (CUBIC = QUALITY)
-             # Cubic is essential for crisp 1D barcode edges, Linear is too blurry.
-             # OPTIMIZATION: Only upscale if height is small (< 900px).
-             if chunk_img.shape[0] < 900:
-                 chunk_up = cv2.resize(chunk_img, (0,0), fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
-                 
-                 def make_tr_chunk_up(parent_x):
-                     def tr_c_up(pts):
-                         pts = pts * 0.5   # Undo 2x scale
-                         pts[:, 0] += parent_x # Add chunk offset
-                         return pts
-                     return tr_c_up
-                 
-                 variants.append((f"chunk_{i}_up2", chunk_up, make_tr_chunk_up(x1)))
-
-    else:
-        # 3. Huge / Abnormal Ratio (Fallback)
-        #    Upscale the internally generated tiles from Step 0.
-        current_variants = list(variants)
-        for name, v_img, transform in current_variants:
-            if "tile" in name:
-                ht, wt = v_img.shape[:2]
-                if ht < 2500 and wt < 2500:
-                    gray_tile = cv2.cvtColor(v_img, cv2.COLOR_BGR2GRAY) if len(v_img.shape) == 3 else v_img
-                    upscaled_tile = cv2.resize(gray_tile, (wt*2, ht*2), interpolation=cv2.INTER_CUBIC)
-                    
-                    def make_tr(parent_tr):
-                        def tr_tile_upscale(pts):
-                            return parent_tr(pts * 0.5)
-                        return tr_tile_upscale
-                    
-                    variants.append((f"{name}_upscaled", upscaled_tile, make_tr(transform)))
-
-
-    
-    log(f"Running detection on {len(variants)} variants...")
-    
-    # Initialize Detectors
-    wechat_detector = None
-    try:
-        wechat_detector = cv2.wechat_qrcode.WeChatQRCode()
-    except:
-        pass
-        
-    std_detector = cv2.QRCodeDetector()
-    
-    # Check for pyzbar (Fastest)
-    HAS_PYZBAR = False
-    try:
-        from pyzbar import pyzbar
-        HAS_PYZBAR = True
-        log("Native pyzbar library found. Using in-memory detection (Fast).")
-    except ImportError:
-        log("Native pyzbar not found. Falling back to zbarimg subprocess (Slow).")
-
-    # Check for zxing-cpp (The "Omni" Detector - Aztec, DataMatrix, PDF417...)
-    HAS_ZXING = False
+def zxing_module_decoder():
     try:
         import zxingcpp
-        HAS_ZXING = True
-        log("Native zxing-cpp library found. Enabled support for Aztec/DataMatrix/PDF417.")
     except ImportError:
-        log("Native zxing-cpp not found. Aztec/DataMatrix/PDF417 support limited.")
+        return None
+    B = zxingcpp.Binarizer
+    bmap = {"local": B.LocalAverage, "global": B.GlobalHistogram, "fixed": B.FixedThreshold}
 
-
-
-    # Deduplication
-    unique_results = []
-    
-    # Helper to run zxing logic
-    def detect_zxing_variant(image_numpy):
-        res = []
-        if HAS_ZXING:
+    def decode(variant):
+        out = []
+        for b in variant.binarizers:
             try:
-                # zxingcpp.read_barcodes returns list of results
-                results = zxingcpp.read_barcodes(image_numpy)
-                for res_obj in results:
-                     if not res_obj.text: continue
-                     
-                     data = res_obj.text
-                     h, w = image_numpy.shape[:2]
-                     x, y = 0, 0
-                     
-                     # Extract coordinates from position object
-                     # It has top_left, top_right, bottom_left, bottom_right which are Points (x, y)
-                     try:
-                         pos = res_obj.position
-                         # Collect all x and y
-                         xs = [pos.top_left.x, pos.top_right.x, pos.bottom_right.x, pos.bottom_left.x]
-                         ys = [pos.top_left.y, pos.top_right.y, pos.bottom_right.y, pos.bottom_left.y]
-                         
-                         x = min(xs)
-                         y = min(ys)
-                         w = max(xs) - x
-                         h = max(ys) - y
-                         
-                         res.append((int(x), int(y), int(w), int(h), data))
-                     except:
-                         pass
+                results = zxingcpp.read_barcodes(variant.img, binarizer=bmap[b])
+            except Exception as e:
+                log(f"zxingcpp error on {variant.name}: {e}")
+                continue
+            for r in results:
+                if not r.valid or not r.text:
+                    continue
+                p = r.position
+                pts = (p.top_left, p.top_right, p.bottom_right, p.bottom_left)
+                out.append(([q.x for q in pts], [q.y for q in pts], r.text, str(r.format)))
+        return out
+
+    return "zxingcpp", lambda variants: run_parallel(decode, variants)
+
+
+def zxing_cli_decoder():
+    exe = shutil.which("ZXingReader")
+    if not exe:
+        return None
+
+    def decode_all(variants):
+        tmp = tempfile.mkdtemp(prefix="qrscan-")
+        try:
+            paths = {}
+            def save(i_v):
+                i, v = i_v
+                path = os.path.join(tmp, f"{i}.png")
+                Image.fromarray(v.img).save(path, compress_level=0)
+                return path
+            with ThreadPoolExecutor(WORKERS) as ex:
+                for (i, v), path in zip(enumerate(variants), ex.map(save, enumerate(variants))):
+                    paths[path] = v
+
+            # One ZXingReader process per (binarizer, chunk of files)
+            jobs = []
+            for b in ("local", "global", "fixed"):
+                files = [p for p, v in paths.items() if b in v.binarizers]
+                n = max(1, min(WORKERS, len(files) // 8 or 1))
+                for k in range(n):
+                    chunk = files[k::n]
+                    if chunk:
+                        jobs.append([exe, "-json", "-binarizer", b, *chunk])
+
+            def run(cmd):
+                try:
+                    return subprocess.run(cmd, capture_output=True, text=True, timeout=20).stdout
+                except Exception as e:
+                    log(f"ZXingReader failed: {e}")
+                    return ""
+
+            results = []
+            with ThreadPoolExecutor(WORKERS) as ex:
+                for stdout in ex.map(run, jobs):
+                    for line in stdout.splitlines():
+                        try:
+                            r = json.loads(line)
+                        except ValueError:
+                            continue
+                        v = paths.get(r.get("FilePath"))
+                        text = r.get("Text")
+                        if v is None or not text or r.get("Error"):
+                            continue
+                        try:
+                            pts = [tuple(map(int, p.split("x"))) for p in r["Position"].split()]
+                        except (KeyError, ValueError):
+                            continue
+                        results.append((v, [p[0] for p in pts], [p[1] for p in pts],
+                                        text, r.get("Format", "")))
+            return results
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    return "ZXingReader", decode_all
+
+
+def run_parallel(decode, variants):
+    results = []
+    with ThreadPoolExecutor(WORKERS) as ex:
+        for v, res in zip(variants, ex.map(decode, variants)):
+            for xs, ys, text, fmt in res:
+                results.append((v, xs, ys, text, fmt))
+    return results
+
+
+def wechat_decoder():
+    try:
+        import cv2
+        detector = cv2.wechat_qrcode.WeChatQRCode()
+    except Exception:
+        return None
+
+    def decode(variant):
+        try:
+            texts, points = detector.detectAndDecode(variant.img)
+        except Exception:
+            return []
+        out = []
+        for text, pts in zip(texts, points):
+            if text:
+                out.append((pts[:, 0].tolist(), pts[:, 1].tolist(), text, "QRCode"))
+        return out
+
+    # The CNN is slow; only feed it the whole-image views at native scale.
+    def decode_all(variants):
+        return run_parallel(decode, [v for v in variants if v.name in ("gray", "bg_white")])
+
+    return "wechat", decode_all
+
+
+def zbar_decoder():
+    try:
+        from pyzbar import pyzbar
+    except ImportError:
+        pyzbar = None
+
+    if pyzbar is not None:
+        def decode(variant):
+            out = []
+            try:
+                for obj in pyzbar.decode(variant.img):
+                    text = obj.data.decode("utf-8", "replace")
+                    if text and obj.polygon:
+                        out.append(([p.x for p in obj.polygon], [p.y for p in obj.polygon],
+                                    text, obj.type))
             except Exception:
                 pass
-        return res
+            return out
+        return "pyzbar", lambda variants: run_parallel(decode, variants)
 
-    # Helper to run zbar logic (Native or Subprocess)
-    
-    # Helper to run zbar logic (Native or Subprocess)
-    def detect_zbar_variant(image_numpy):
-        # image_numpy is BGR or Grayscale
-        res = []
-        
-        # 1. Native PyZbar (Preferred)
-        if HAS_PYZBAR:
-            try:
-                # pyzbar likes grayscale or RGB. OpenCV is BGR.
-                # If grayscale (2 dims), good. If BGR (3 dims), convert or pass correctly?
-                # pyzbar.decode handles numpy arrays.
-                # It expects [0, 255].
-                decoded_objects = pyzbar.decode(image_numpy)
-                for obj in decoded_objects:
-                    data = obj.data.decode("utf-8")
-                    if not data: continue
-                    
-                    # Rect: obj.rect (left, top, width, height)
-                    x, y, w, h = obj.rect.left, obj.rect.top, obj.rect.width, obj.rect.height
-                    res.append((x, y, w, h, data))
-                return res
-            except Exception as e:
-                # log(f"PyZbar error: {e}")
-                pass
+    exe = shutil.which("zbarimg")
+    if not exe:
+        return None
 
-        # 2. Subprocess Fallback (If pyzbar missing OR if we want to double check? No, pyzbar is zbar wrapper)
-        # Only run fallback if pyzbar is missing.
-        else:
-             try:
-                success, encoded_img = cv2.imencode('.png', image_numpy)
-                if success:
-                    # Reuse the bytes detector we wrote earlier
-                    # But we need to move it or call it? 
-                    # Let's just inline the logic or rely on the previous function definition?
-                    # The previous function `detect_zbar_bytes` is defined inside `main` below.
-                    # Wait, we are inside `main`.
-                    return detect_zbar_bytes(encoded_img.tobytes())
-             except:
-                pass
-        return res
+    import re
+    import xml.etree.ElementTree as ET
+    ns = {"z": "http://zbar.sourceforge.net/2008/barcode"}
 
-    # Helper to run zbar on variant bytes (Legacy Subprocess)
-    def detect_zbar_bytes(img_bytes):
-        res = []
+    def decode(variant):
+        buf = tempfile.SpooledTemporaryFile()
+        Image.fromarray(variant.img).save(buf, format="PNG", compress_level=1)
+        buf.seek(0)
         try:
-            # --set enable=1 to support all codes
-            cmd = ["/usr/bin/zbarimg", "-q", "--xml", "--set", "enable=1", "-"]
-            result = subprocess.run(cmd, input=img_bytes, capture_output=True, text=True)
-            xml_data = result.stdout
-            if not xml_data.strip(): return []
-            
-            import xml.etree.ElementTree as ET
-            import re
-            try:
-                root = ET.fromstring(xml_data)
-                ns = {"zbar": "http://zbar.sourceforge.net/2008/barcode"}
-                for symbol in root.findall(".//zbar:symbol", ns):
-                    data_elem = symbol.find("zbar:data", ns)
-                    data = data_elem.text if data_elem is not None and data_elem.text else ""
-                    if not data: continue
-                    
-                    polygon = symbol.find("zbar:polygon", ns)
-                    if polygon is not None:
-                        points_attr = polygon.get("points", "")
-                        coords = re.findall(r"([+-]?[0-9]+),([+-]?[0-9]+)", points_attr)
-                        if len(coords) >= 2:
-                            xs = [int(c[0]) for c in coords]
-                            ys = [int(c[1]) for c in coords]
-                            x, y = min(xs), min(ys)
-                            w, h = max(xs) - x, max(ys) - y
-                            res.append((x, y, w, h, data))
-            except:
-                pass
-        except:
-            pass
-        return res
-        res = []
-        try:
-            # --set enable=1 to support all codes
-            cmd = ["/usr/bin/zbarimg", "-q", "--xml", "--set", "enable=1", "-"]
-            result = subprocess.run(cmd, input=img_bytes, capture_output=True, text=True)
-            xml_data = result.stdout
-            if not xml_data.strip(): return []
-            
-            import xml.etree.ElementTree as ET
-            import re
-            try:
-                root = ET.fromstring(xml_data)
-                ns = {"zbar": "http://zbar.sourceforge.net/2008/barcode"}
-                for symbol in root.findall(".//zbar:symbol", ns):
-                    data_elem = symbol.find("zbar:data", ns)
-                    data = data_elem.text if data_elem is not None and data_elem.text else ""
-                    if not data: continue
-                    
-                    polygon = symbol.find("zbar:polygon", ns)
-                    if polygon is not None:
-                        points_attr = polygon.get("points", "")
-                        coords = re.findall(r"([+-]?[0-9]+),([+-]?[0-9]+)", points_attr)
-                        if len(coords) >= 2:
-                            xs = [int(c[0]) for c in coords]
-                            ys = [int(c[1]) for c in coords]
-                            x, y = min(xs), min(ys)
-                            w, h = max(xs) - x, max(ys) - y
-                            res.append((x, y, w, h, data))
-            except:
-                pass
-        except:
-            pass
-        return res
-
-    # Parallel Detection
-    import concurrent.futures
-    import threading
-    
-    # Thread-safe collection
-    # Actually, we can just collect results from futures.
-    # But detectors might need to be thread-local or initialized inside?
-    # PyZbar and ZXing are native calls, likely releasing GIL.
-    # OpenCV detectors are objects.
-    
-    # Prepare detectors. 
-    # To be safe, we should perhaps create detectors per thread or rely on them being reentrant.
-    # cv2.QRCodeDetector is generally thread-safe for detectAndDecodeMulti?
-    # cv2.wechat_qrcode.WeChatQRCode documentation says safe? 
-    # Let's share them but put a lock around them if needed?
-    # Or just instantiate them per thread? 
-    # WeChat model loading is heavy, so sharing is preferred.
-    # Let's assume standard opencv usage is thread-safe (it usually is for C++ backend).
-    
-    # We will define a processing function
-    def process_single_variant(args):
-        try:
-            name, v_img, transform = args
-            # log(f"Processing {name}")
-            local_candidates = []
-            
-            # ZBar
-            z_res = detect_zbar_variant(v_img)
-            if z_res:
-                for zr in z_res:
-                     x, y, w, h, data = zr
-                     pts = np.array([[x, y], [x+w, y], [x+w, y+h], [x, y+h]], dtype=float)
-                     if transform: pts = transform(pts)
-                     pts = pts.astype(int)
-                     nx_min = np.min(pts[:, 0])
-                     nx_max = np.max(pts[:, 0])
-                     ny_min = np.min(pts[:, 1])
-                     ny_max = np.max(pts[:, 1])
-                     nw = nx_max - nx_min
-                     nh = ny_max - ny_min
-                     local_candidates.append((int(nx_min), int(ny_min), int(nw), int(nh), data))
-
-            # ZXing
-            zx_res = detect_zxing_variant(v_img)
-            if zx_res:
-                 for zxr in zx_res:
-                     x, y, w, h, data = zxr
-                     pts = np.array([[x, y], [x+w, y], [x+w, y+h], [x, y+h]], dtype=float)
-                     if transform: pts = transform(pts)
-                     pts = pts.astype(int)
-                     nx_min = np.min(pts[:, 0])
-                     nx_max = np.max(pts[:, 0])
-                     ny_min = np.min(pts[:, 1])
-                     ny_max = np.max(pts[:, 1])
-                     nw = nx_max - nx_min
-                     nh = ny_max - ny_min
-                     local_candidates.append((int(nx_min), int(ny_min), int(nw), int(nh), data))
-
-            # WeChat
-            if wechat_detector:
-                try:
-                    h_v, w_v = v_img.shape[:2]
-                    if h_v < 5000 and w_v < 5000:
-                        res, points = wechat_detector.detectAndDecode(v_img)
-                        if res:
-                           for i_r, data in enumerate(res):
-                                if not data: continue
-                                pts = points[i_r].astype(float)
-                                if transform: pts = transform(pts)
-                                pts = pts.astype(int)
-                                x_min, x_max = np.min(pts[:, 0]), np.max(pts[:, 0])
-                                y_min, y_max = np.min(pts[:, 1]), np.max(pts[:, 1])
-                                local_candidates.append((int(x_min), int(y_min), int(x_max-x_min), int(y_max-y_min), data))
-                except: pass
-
-            # Standard
-            try:
-                retval, decoded_info, points, _ = std_detector.detectAndDecodeMulti(v_img)
-                if retval:
-                    for i_r, data in enumerate(decoded_info):
-                        if not data: continue
-                        pts = points[i_r].astype(float)
-                        if transform: pts = transform(pts)
-                        pts = pts.astype(int)
-                        x_min, x_max = np.min(pts[:, 0]), np.max(pts[:, 0])
-                        y_min, y_max = np.min(pts[:, 1]), np.max(pts[:, 1])
-                        local_candidates.append((int(x_min), int(y_min), int(x_max-x_min), int(y_max-y_min), data))
-            except: pass
-            
-
-
-            return local_candidates
-        except Exception as e:
-            # log(f"Thread Error: {e}")
+            xml = subprocess.run([exe, "-q", "--xml", "--set", "enable=1", "-"], stdin=buf,
+                                 capture_output=True, text=True, timeout=10).stdout
+            root = ET.fromstring(xml) if xml.strip() else None
+        except Exception:
             return []
+        out = []
+        for sym in (root.findall(".//z:symbol", ns) if root is not None else []):
+            data = sym.find("z:data", ns)
+            poly = sym.find("z:polygon", ns)
+            if data is None or not data.text or poly is None:
+                continue
+            coords = re.findall(r"([+-]?\d+),([+-]?\d+)", poly.get("points", ""))
+            if coords:
+                out.append(([int(c[0]) for c in coords], [int(c[1]) for c in coords],
+                            data.text, sym.get("type", "")))
+        return out
 
-    # Prepare inputs
-    # variants is list of (name, img, transform)
-    
-    log(f"Running detection on {len(variants)} variants using ThreadPool...")
-    
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-        # Submit all tasks
-        # Keep ORDER deterministic (ZBar variants first, etc)
-        future_to_name = {executor.submit(process_single_variant, v): v[0] for v in variants}
-        
-        # Iterate keys (futures) in insertion order? dict preserves insertion order since Py3.7.
-        # But safest is to iterate list of futures.
-        futures_list = list(future_to_name.keys())
-        
-        for future in futures_list:
-            try:
-                # Wait for each in order
-                res = future.result()
-                all_candidates.extend(res)
-            except Exception as exc:
-                pass
-                
-    # Deduplication starts below...
-    unique_results = []
-    
-    for r in all_candidates:
-        x, y, w, h, data = r
-        if w <= 0 or h <= 0: continue
-        
-        is_dupe = False
-        for ur in unique_results:
-            ux, uy, uw, uh, udata = ur
-            
-            # Text must match
-            if udata == data:
-                # Check center distance
-                cx1 = x + w/2
-                cy1 = y + h/2
-                cx2 = ux + uw/2
-                cy2 = uy + uh/2
-                dist = (cx1 - cx2)**2 + (cy1 - cy2)**2
-                
-                # Check Overlap (IoU-ish)
-                # If one box is roughly inside the other, or centers very close
-                # 50px threshold (2500 sq px)
-                if dist < 2500: 
-                    is_dupe = True
-                    break
-                
-                # Also check intersection
-                # If they intersect significantly, they are the same code
-                ix1 = max(x, ux)
-                iy1 = max(y, uy)
-                ix2 = min(x+w, ux+uw)
-                iy2 = min(y+h, uy+uh)
-                
-                iw = max(0, ix2 - ix1)
-                ih = max(0, iy2 - iy1)
-                intersection = iw * ih
-                
-                area1 = w * h
-                area2 = uw * uh
-                
-                # If overlap > 50% of the smaller box, it's a dupe
-                if intersection > 0.5 * min(area1, area2):
-                    is_dupe = True
-                    break
+    return "zbarimg", lambda variants: run_parallel(decode, variants)
 
-        if not is_dupe:
-            unique_results.append(r)
 
-    elapsed = time.time() - start_time
-    log(f"Deep Scan complete. Found total {len(unique_results)} unique codes. Took {elapsed:.2f}s")
-    
-    # Notify result
-    # Disabled by user request
-    # try:
-    #     subprocess.Popen(["notify-send", "QR Scan Complete", f"Found {len(unique_results)} codes"])
-    # except:
-    #     pass
+# --- Merging -------------------------------------------------------------------
 
-    for r in unique_results:
-        print(f"{r[0]}|{r[1]}|{r[2]}|{r[3]}|{r[4]}", flush=True)
+def merge(detections, img_w, img_h):
+    """Deduplicate by text + overlap. Keeps the tightest box per code."""
+    boxes = []
+    for v, xs, ys, text, fmt in detections:
+        oxs, oys = v.to_original(xs, ys)
+        x0, x1 = max(0, min(oxs)), min(img_w, max(oxs))
+        y0, y1 = max(0, min(oys)), min(img_h, max(oys))
+        # Linear barcodes report a thin line; give them some height
+        if y1 - y0 < 6:
+            cy = (y0 + y1) / 2
+            y0, y1 = max(0, cy - 8), min(img_h, cy + 8)
+        if x1 - x0 < 6:
+            cx = (x0 + x1) / 2
+            x0, x1 = max(0, cx - 8), min(img_w, cx + 8)
+        boxes.append([x0, y0, x1, y1, text, fmt])
+
+    # Area ascending so the tightest box for a code wins
+    boxes.sort(key=lambda b: (b[2] - b[0]) * (b[3] - b[1]))
+    unique = []
+    for b in boxes:
+        dupe = False
+        for u in unique:
+            if u[4] != b[4]:
+                continue
+            ix = max(0, min(b[2], u[2]) - max(b[0], u[0]))
+            iy = max(0, min(b[3], u[3]) - max(b[1], u[1]))
+            small = min((b[2] - b[0]) * (b[3] - b[1]), (u[2] - u[0]) * (u[3] - u[1]))
+            if ix * iy > 0.4 * small:
+                dupe = True
+                break
+        if not dupe:
+            unique.append(b)
+    unique.sort(key=lambda b: (b[1], b[0]))
+    return unique
+
+
+def escape(text):
+    return text.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r")
+
+
+def main():
+    t0 = time.time()
+    if len(sys.argv) < 2:
+        print("usage: qr.py <image>", file=sys.stderr)
+        return 2
+    path = sys.argv[1]
+    try:
+        img = Image.open(path)
+        img.load()
+    except Exception as e:
+        print(f"qr.py: cannot read {path}: {e}", file=sys.stderr)
+        return 1
+    if img.mode in ("RGBA", "LA", "P"):
+        # Composite transparency onto white so transparent quiet zones stay light
+        img = img.convert("RGBA")
+        bg = Image.new("RGBA", img.size, (255, 255, 255, 255))
+        img = Image.alpha_composite(bg, img)
+    rgb = np.asarray(img.convert("RGB"))
+    h, w = rgb.shape[:2]
+
+    variants = build_variants(rgb)
+    log(f"{len(variants)} variants built in {time.time() - t0:.2f}s ({w}x{h})")
+
+    primary = zxing_module_decoder() or zxing_cli_decoder()
+    decoders = [d for d in (primary, wechat_decoder()) if d]
+    if not primary:
+        fallback = zbar_decoder()
+        if fallback:
+            decoders.append(fallback)
+    if not decoders:
+        print("qr.py: no decoder available (install zxing-cpp, opencv-contrib or zbar)",
+              file=sys.stderr)
+        return 1
+
+    detections = []
+    for name, decode_all in decoders:
+        t = time.time()
+        res = decode_all(variants)
+        log(f"{name}: {len(res)} raw detections in {time.time() - t:.2f}s")
+        detections.extend(res)
+
+    codes = merge(detections, w, h)
+    log(f"{len(codes)} unique codes, total {time.time() - t0:.2f}s")
+    for x0, y0, x1, y1, text, fmt in codes:
+        print(f"{int(x0)}|{int(y0)}|{int(round(x1 - x0))}|{int(round(y1 - y0))}|{escape(text)}",
+              flush=True)
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

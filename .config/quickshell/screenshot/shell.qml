@@ -321,7 +321,10 @@ Scope {
                             y: parseInt(parts[1]),
                             width: parseInt(parts[2]),
                             height: parseInt(parts[3]),
-                            data: parts.slice(4).join('|')
+                            // qr.py escapes \\, \n, \r so each code stays on one line
+                            data: parts.slice(4).join('|').replace(/\\(\\|n|r)/g, function(m, c) {
+                                return c === 'n' ? '\n' : c === 'r' ? '\r' : '\\'
+                            })
                         })
                     }
                 }
