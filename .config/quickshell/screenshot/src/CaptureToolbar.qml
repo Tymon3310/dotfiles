@@ -351,7 +351,7 @@ Rectangle {
                     }
 
                     Text {
-                        text: "Ctrl = monitors · Shift = window"
+                        text: "Ctrl = monitor · Shift = window · +Ctrl = multi"
                         color: Theme.textMuted
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeLabel

@@ -441,7 +441,7 @@ Scope {
 
     // Screen recording: region (or bounding box of a multi-selection) is
     // handed to ScreenRecorderService in the main shell via IPC. Coords are
-    // global compositor coords, matching `slurp` output for gsr -w.
+    // global compositor coords, matching `slurp` output for gsr -region.
     function startRecording(x, y, width, height) {
         if (selectedWindows.length > 0 || selectedScreens.length > 0) {
             var items = []
@@ -479,6 +479,32 @@ Scope {
                 width = maxX - minX
                 height = maxY - minY
             }
+        }
+        // gsr region capture can't span outputs: an explicit multi-monitor
+        // selection is refused, anything else is clipped to the monitor it
+        // overlaps most.
+        if (selectedScreens.length > 1) {
+            Quickshell.execDetached(["notify-send", "Screen Recorder", "Recording is limited to a single monitor", "-a", "Screen Recorder"])
+            return
+        }
+        var best = null
+        var bestArea = 0
+        for (var n = 0; n < Quickshell.screens.length; n++) {
+            var sc = Quickshell.screens[n]
+            var ix = Math.max(0, Math.min(x + width, sc.x + sc.width) - Math.max(x, sc.x))
+            var iy = Math.max(0, Math.min(y + height, sc.y + sc.height) - Math.max(y, sc.y))
+            if (ix * iy > bestArea) {
+                bestArea = ix * iy
+                best = sc
+            }
+        }
+        if (best) {
+            var cx = Math.max(x, best.x)
+            var cy = Math.max(y, best.y)
+            width = Math.min(x + width, best.x + best.width) - cx
+            height = Math.min(y + height, best.y + best.height) - cy
+            x = cx
+            y = cy
         }
         if (width < 10 || height < 10) return
         const region = `${Math.round(width)}x${Math.round(height)}+${Math.round(x)}+${Math.round(y)}`

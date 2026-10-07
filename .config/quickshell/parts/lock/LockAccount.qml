@@ -282,7 +282,7 @@ Item {
                     }
                     if (event.key === Qt.Key_Shift || event.key === Qt.Key_CapsLock || event.key === Qt.Key_Escape)
                         return
-                    event.accepted = !LockService.awake
+                    // Let the waking key through so typing works from rest.
                     LockService.rouse()
                 }
             }

@@ -201,7 +201,9 @@ Item {
 
     // QR Code overlays - visible in analyze mode (lens engine)
     Repeater {
-        model: crossScreenSelector.controller.mode === "analyze" ? crossScreenSelector.controller.detectedQRCodes : []
+        model: crossScreenSelector.controller.mode === "analyze" && crossScreenSelector.controller.analyzeEngine === "lens"
+            ? crossScreenSelector.controller.detectedQRCodes
+            : []
 
         Rectangle {
             id: qrOverlay

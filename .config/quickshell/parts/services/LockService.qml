@@ -43,6 +43,7 @@ Singleton {
 
     function rest(): void {
         root.awake = false
+        root.cancelBiopass()
         root.biopassFailed = false
         root.sleep.stop()
     }

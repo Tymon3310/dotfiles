@@ -1,8 +1,7 @@
 local SCRIPTS = os.getenv("HOME") .. "/.config/hypr/scripts"
 
 hl.on("hyprland.start", function()
-    hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
-    hl.exec_cmd("systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
+    -- Imports the session environment before restarting portals (in order).
     hl.exec_cmd(SCRIPTS .. "/xdg.sh")
 
     hl.exec_cmd("xrandr --output DP-1 --primary")

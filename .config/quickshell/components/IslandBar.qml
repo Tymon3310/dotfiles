@@ -261,7 +261,8 @@ PanelWindow {
             anchors.topMargin: bar.barTopMargin
             anchors.horizontalCenter: parent.horizontalCenter
 
-            opacity: (bar.recording && bar.below === "" && !bar.osdActive && !bar.isDemorphed) ? 1 : 0
+            // Recording overrides demorph: the island stays wide to show it.
+            opacity: (bar.recording && bar.below === "" && !bar.osdActive) ? 1 : 0
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
         }

@@ -99,6 +99,15 @@ Item {
     focus: root.isActive
     Keys.onPressed: event => {
         if (!root.isActive) return
+        // Escape dismisses without rousing (rousing would start face auth).
+        if (event.key === Qt.Key_Escape) {
+            if (LockService.awake) {
+                account.clear()
+                LockService.rest()
+            }
+            event.accepted = true
+            return
+        }
         LockService.setActiveScreen(root.screenName)
         const wasAwake = LockService.awake
         LockService.rouse()
@@ -115,13 +124,6 @@ Item {
             return
         }
         account.claim()
-    }
-
-    Keys.onEscapePressed: {
-        if (LockService.awake) {
-            account.clear()
-            LockService.rest()
-        }
     }
 
     TapHandler {

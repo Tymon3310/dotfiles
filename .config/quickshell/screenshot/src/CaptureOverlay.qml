@@ -176,12 +176,15 @@ FreezeScreen {
         }
 
         // Screen mode - click anywhere on this monitor to capture it.
-        // Record mode: hold Ctrl for monitor multi-select (the region layer
-        // already dims, so this layer only highlights on hover).
+        // Record mode: hold Ctrl to pick a monitor (the region layer already
+        // dims, so this layer only highlights on hover). Ctrl+Shift belongs to
+        // the window layer's multi-select, so yield to it then.
         Item {
             id: screenSelector
             visible: freezeWindow.controller.mode === "screen"
-                || (freezeWindow.controller.mode === "record" && freezeWindow.controller.ctrlDown)
+                || (freezeWindow.controller.mode === "record"
+                    && freezeWindow.controller.ctrlDown
+                    && !freezeWindow.controller.shiftDown)
             anchors.fill: parent
 
             property bool isHovered: false
