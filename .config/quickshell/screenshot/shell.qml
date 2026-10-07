@@ -99,6 +99,14 @@ Scope {
     // Multi-selection state
     property var selectedWindows: [] // Array of window objects (address, x, y, width, height)
     property var selectedScreens: [] // Array of screen names
+
+    // Recording is single-target only: drop any multi-selection.
+    onModeChanged: {
+        if (mode === "record") {
+            selectedWindows = []
+            selectedScreens = []
+        }
+    }
     readonly property int windowMultiSelectCount: root.selectedWindows.length
 
     // Computed selection rect (normalized)
@@ -439,54 +447,12 @@ Scope {
         }
     }
 
-    // Screen recording: region (or bounding box of a multi-selection) is
-    // handed to ScreenRecorderService in the main shell via IPC. Coords are
-    // global compositor coords, matching `slurp` output for gsr -region.
+    // Screen recording: a single region, window or monitor is handed to
+    // ScreenRecorderService in the main shell via IPC. Coords are global
+    // compositor coords, matching `slurp` output for gsr -region.
     function startRecording(x, y, width, height) {
-        if (selectedWindows.length > 0 || selectedScreens.length > 0) {
-            var items = []
-            if (selectedWindows.length > 0) {
-                for (var i = 0; i < selectedWindows.length; i++) {
-                    var w = selectedWindows[i]
-                    items.push({
-                        x: w.x, y: w.y, width: w.width, height: w.height
-                    })
-                }
-            } else if (selectedScreens.length > 0) {
-                for (var j = 0; j < selectedScreens.length; j++) {
-                    var name = selectedScreens[j]
-                    for (var s = 0; s < Quickshell.screens.length; s++) {
-                        if (Quickshell.screens[s].name === name) {
-                            var scr = Quickshell.screens[s]
-                            items.push({
-                                x: scr.x, y: scr.y, width: scr.width, height: scr.height
-                            })
-                            break
-                        }
-                    }
-                }
-            }
-            if (items.length > 0) {
-                var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-                for (var k = 0; k < items.length; k++) {
-                    minX = Math.min(minX, items[k].x)
-                    minY = Math.min(minY, items[k].y)
-                    maxX = Math.max(maxX, items[k].x + items[k].width)
-                    maxY = Math.max(maxY, items[k].y + items[k].height)
-                }
-                x = minX
-                y = minY
-                width = maxX - minX
-                height = maxY - minY
-            }
-        }
-        // gsr region capture can't span outputs: an explicit multi-monitor
-        // selection is refused, anything else is clipped to the monitor it
-        // overlaps most.
-        if (selectedScreens.length > 1) {
-            Quickshell.execDetached(["notify-send", "Screen Recorder", "Recording is limited to a single monitor", "-a", "Screen Recorder"])
-            return
-        }
+        // gsr region capture can't span outputs: clip to the monitor the
+        // region overlaps most.
         var best = null
         var bestArea = 0
         for (var n = 0; n < Quickshell.screens.length; n++) {

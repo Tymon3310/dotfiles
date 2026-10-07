@@ -28,6 +28,8 @@ Item {
     property url fragmentShader: Qt.resolvedUrl("../shaders/dimming.frag.qsb")
     // Record mode hides the wash (the region layer already dims).
     property bool dimBackground: true
+    // Ctrl+click multi-select (off in record mode: single window only).
+    property bool multiSelect: true
 
     // Hover state (screen-local coords for display)
     property real selectionX: 0
@@ -352,7 +354,7 @@ Item {
         }
 
         onClicked: (mouse) => {
-            const ctrlHeld = (mouse.modifiers & Qt.ControlModifier)
+            const ctrlHeld = root.multiSelect && (mouse.modifiers & Qt.ControlModifier)
             const shiftHeld = (mouse.modifiers & Qt.ShiftModifier)
 
             // Find topmost window at click position (last in list = on top)
@@ -385,7 +387,7 @@ Item {
             if (ctrlHeld) {
                 root.windowToggled(windowInfo)
             } else {
-                if (globalSelectedWindows.length > 0) {
+                if (root.multiSelect && globalSelectedWindows.length > 0) {
                     if (isWindowSelectedGlobal(windowInfo)) {
                         root.captureRequested(shiftHeld)
                     } else {

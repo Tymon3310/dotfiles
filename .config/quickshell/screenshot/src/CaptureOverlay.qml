@@ -108,10 +108,7 @@ FreezeScreen {
             case Qt.Key_Space:
                 if (freezeWindow.controller.mode === "screen" || freezeWindow.controller.mode === "record") {
                     if (freezeWindow.controller.mode === "record") {
-                        if (freezeWindow.controller.selectedWindows.length > 0 || freezeWindow.controller.selectedScreens.length > 0)
-                            freezeWindow.controller.startRecording(0, 0, 0, 0)
-                        else
-                            freezeWindow.controller.startRecording(freezeWindow.screenX, freezeWindow.screenY, freezeWindow.modelData.width, freezeWindow.modelData.height)
+                        freezeWindow.controller.startRecording(freezeWindow.screenX, freezeWindow.screenY, freezeWindow.modelData.width, freezeWindow.modelData.height)
                     } else {
                         freezeWindow.controller.processScreenshot(freezeWindow.screenX, freezeWindow.screenY, freezeWindow.modelData.width, freezeWindow.modelData.height, false)
                     }
@@ -141,6 +138,7 @@ FreezeScreen {
             visible: freezeWindow.controller.mode === "window"
                 || (freezeWindow.controller.mode === "record" && freezeWindow.controller.shiftDown)
             dimBackground: freezeWindow.controller.mode !== "record"
+            multiSelect: freezeWindow.controller.mode !== "record"
             anchors.fill: parent
             monitor: freezeWindow.hyprlandMonitor
             screenX: freezeWindow.screenX
@@ -165,10 +163,7 @@ FreezeScreen {
             }
             onCaptureRequested: (openEditor) => {
                 // Capture all selected windows (stitching)
-                if (freezeWindow.controller.mode === "record")
-                    freezeWindow.controller.startRecording(0, 0, 0, 0)
-                else
-                    freezeWindow.controller.processScreenshot(0, 0, 0, 0, openEditor)
+                freezeWindow.controller.processScreenshot(0, 0, 0, 0, openEditor)
             }
             onWindowToggled: (windowInfo) => {
                 freezeWindow.controller.toggleWindowSelection(windowInfo)
@@ -177,8 +172,7 @@ FreezeScreen {
 
         // Screen mode - click anywhere on this monitor to capture it.
         // Record mode: hold Ctrl to pick a monitor (the region layer already
-        // dims, so this layer only highlights on hover). Ctrl+Shift belongs to
-        // the window layer's multi-select, so yield to it then.
+        // dims, so this layer only highlights on hover).
         Item {
             id: screenSelector
             visible: freezeWindow.controller.mode === "screen"
@@ -265,27 +259,8 @@ FreezeScreen {
                     // Ignore drags ending here (region selection owns those)
                     if (Math.hypot(mouse.x - screenSelector.pressX, mouse.y - screenSelector.pressY) > 6)
                         return
-                    const rec = screenSelector.recordMode
-                    // Multi-selection with Ctrl
-                    if (mouse.modifiers & Qt.ControlModifier) {
-                        freezeWindow.controller.toggleScreenSelection(freezeWindow.modelData.name)
-                        return
-                    }
-
-                    // If clicking a selected screen, capture all selected screens
-                    if (freezeWindow.controller.selectedScreens.indexOf(freezeWindow.modelData.name) !== -1 && freezeWindow.controller.selectedScreens.length > 0) {
-                        if (rec)
-                            freezeWindow.controller.startRecording(0, 0, 0, 0)
-                        else
-                            freezeWindow.controller.processScreenshot(0, 0, 0, 0, false)
-                        return
-                    }
-
-                    // Otherwise clear selection and capture just this screen
-                    freezeWindow.controller.selectedWindows = []
-                    freezeWindow.controller.selectedScreens = []
-
-                    if (rec) {
+                    // Record mode: Ctrl is only the picker modifier, record this monitor
+                    if (screenSelector.recordMode) {
                         freezeWindow.controller.startRecording(
                             freezeWindow.screenX,
                             freezeWindow.screenY,
@@ -294,6 +269,22 @@ FreezeScreen {
                         )
                         return
                     }
+
+                    // Multi-selection with Ctrl
+                    if (mouse.modifiers & Qt.ControlModifier) {
+                        freezeWindow.controller.toggleScreenSelection(freezeWindow.modelData.name)
+                        return
+                    }
+
+                    // If clicking a selected screen, capture all selected screens
+                    if (freezeWindow.controller.selectedScreens.indexOf(freezeWindow.modelData.name) !== -1 && freezeWindow.controller.selectedScreens.length > 0) {
+                        freezeWindow.controller.processScreenshot(0, 0, 0, 0, false)
+                        return
+                    }
+
+                    // Otherwise clear selection and capture just this screen
+                    freezeWindow.controller.selectedWindows = []
+                    freezeWindow.controller.selectedScreens = []
 
                     const openEditor = (mouse.modifiers & Qt.ShiftModifier)
                     freezeWindow.controller.processScreenshot(

@@ -156,11 +156,9 @@ Item {
                 const w = ctrl.selectionWidth
                 const h = ctrl.selectionHeight
                 if (w < 5 && h < 5) {
-                    // Plain click: selected screen = record the whole
-                    // multi-selection, otherwise fullscreen this screen.
+                    // Plain click: record the clicked monitor.
                     const gx = ctrl.selectionX
                     const gy = ctrl.selectionY
-                    let clickedName = ""
                     let sx = crossScreenSelector.screenX
                     let sy = crossScreenSelector.screenY
                     let sw = crossScreenSelector.width
@@ -168,7 +166,6 @@ Item {
                     for (var i = 0; i < Quickshell.screens.length; i++) {
                         const s = Quickshell.screens[i]
                         if (gx >= s.x && gx < s.x + s.width && gy >= s.y && gy < s.y + s.height) {
-                            clickedName = s.name
                             sx = s.x
                             sy = s.y
                             sw = s.width
@@ -176,13 +173,7 @@ Item {
                             break
                         }
                     }
-                    if (clickedName !== "" && ctrl.selectedScreens.length > 0 && ctrl.selectedScreens.indexOf(clickedName) !== -1) {
-                        ctrl.startRecording(0, 0, 0, 0)
-                    } else {
-                        ctrl.selectedWindows = []
-                        ctrl.selectedScreens = []
-                        ctrl.startRecording(sx, sy, sw, sh)
-                    }
+                    ctrl.startRecording(sx, sy, sw, sh)
                 } else {
                     ctrl.startRecording(ctrl.selectionX, ctrl.selectionY, w, h)
                 }
