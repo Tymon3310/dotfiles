@@ -69,6 +69,8 @@ PanelWindow {
             return notificationLoader.item
                 ? Qt.size(notificationLoader.item.wantWidth, notificationLoader.item.wantHeight)
                 : Qt.size(430, 56)
+        case "glance":
+            return Qt.size(450, 56)
         case "tray":
             return Qt.size(280, Math.min(460, detailLoader.item?.contentHeight ?? 60))
         case "session":
@@ -89,6 +91,27 @@ PanelWindow {
     readonly property Timer osdExpiryTimer: Timer {
         interval: 1800
         onTriggered: bar.osdActive = false
+    }
+
+    // ── HOVER SUMMARY (GLANCE) ────────────────────────────────────────────────
+    readonly property Timer hoverDwellTimer: Timer {
+        interval: 180
+        repeat: false
+        onTriggered: {
+            if (islandCapsuleMouse.containsMouse && bar.openId === "") {
+                bar.openId = "glance"
+            }
+        }
+    }
+
+    readonly property Timer hoverGraceTimer: Timer {
+        interval: 280
+        repeat: false
+        onTriggered: {
+            if (bar.openId === "glance" && !islandHover.hovered) {
+                bar.close()
+            }
+        }
     }
 
     Connections {
@@ -124,7 +147,7 @@ PanelWindow {
 
     readonly property int capsuleH: Theme.capsuleHeight
     readonly property int barTopMargin: Theme.barTopMargin
-    readonly property int pad: 14
+    readonly property int pad: bar.openId === "glance" ? 8 : 14
     readonly property int openRadius: Theme.radiusLarge + 4
 
     implicitHeight: 780
@@ -220,6 +243,17 @@ PanelWindow {
         focus: bar.expanded
         Keys.onEscapePressed: bar.close()
 
+        HoverHandler {
+            id: islandHover
+            enabled: bar.openId === "glance"
+            onHoveredChanged: {
+                if (!hovered && bar.openId === "glance")
+                    bar.hoverGraceTimer.restart()
+                else
+                    bar.hoverGraceTimer.stop()
+            }
+        }
+
         // Click and wheel interaction for the top capsule
         MouseArea {
             id: islandCapsuleMouse
@@ -233,11 +267,23 @@ PanelWindow {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onContainsMouseChanged: {
+                if (containsMouse && bar.openId === "")
+                    bar.hoverDwellTimer.restart()
+                else
+                    bar.hoverDwellTimer.stop()
+            }
             onClicked: mouse => {
+                bar.hoverDwellTimer.stop()
+                bar.hoverGraceTimer.stop()
                 if (mouse.button === Qt.RightButton)
                     MediaService.toggle()
+                else if (bar.openId === "")
+                    bar.openId = "glance"
+                else if (bar.openId === "glance")
+                    bar.openId = "dashboard"
                 else
-                    bar.toggle("dashboard")
+                    bar.close()
             }
             onWheel: event => MediaService.nudgeVolume(event.angleDelta.y > 0 ? 0.05 : -0.05)
         }
@@ -295,11 +341,20 @@ PanelWindow {
 
             sourceComponent: {
                 switch (bar.openId) {
+                case "glance":    return glanceComponent
                 case "dashboard": return dashboardComponent
                 case "session":   return sessionComponent
                 case "tray":      return trayComponent
                 default:          return null
                 }
+            }
+        }
+
+        Component {
+            id: glanceComponent
+            IslandGlance {
+                onExpandRequested: bar.openId = "dashboard"
+                onClosed: bar.close()
             }
         }
 

@@ -56,9 +56,14 @@ QtObject {
         NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing }
     }
 
+    readonly property real agentWidth: AgentService.active ? 22 : 0
+    readonly property real privacyWidth: PrivacyService.active ? (PrivacyService.cameraActive && PrivacyService.micActive ? 22 : 12) : 0
+
     readonly property real rowWidth: root.artSize + Math.ceil(root.clockMetrics.advanceWidth)
         + Math.ceil(root.dividerMetrics.advanceWidth) + Math.ceil(root.dateMetrics.advanceWidth) + 3 * root.spacing
         + (root.songWidth > 0 ? root.songWidth + root.spacing : 0)
         + (root.spectrumWidth > 0 ? root.spectrumWidth + root.spacing : 0)
+        + (root.agentWidth > 0 ? root.agentWidth + root.spacing : 0)
+        + (root.privacyWidth > 0 ? root.privacyWidth + root.spacing : 0)
     readonly property real notchWidth: root.rowWidth + 2 * root.padding
 }

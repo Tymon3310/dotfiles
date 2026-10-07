@@ -103,7 +103,6 @@ Row {
         height: Theme.capsuleHeight
 
         Text {
-            id: clockText
             anchors.centerIn: parent
             text: IslandMetrics.time
             font: IslandMetrics.clockMetrics.font
@@ -133,6 +132,46 @@ Row {
             text: IslandMetrics.date
             font: IslandMetrics.dateMetrics.font
             color: Theme.textMuted
+        }
+    }
+
+    // 5. Agent Status Indicator (resting)
+    Item {
+        anchors.verticalCenter: parent.verticalCenter
+        width: IslandMetrics.agentWidth
+        height: Theme.capsuleHeight
+        visible: AgentService.active
+
+        Text {
+            anchors.centerIn: parent
+            text: AgentService.state === "waiting" ? "󰞋" : AgentService.state === "done" ? "󰄬" : "󱚥"
+            font.family: Theme.fontMono
+            font.pixelSize: 12
+            color: AgentService.state === "waiting" ? Theme.indicatorWarn
+                : AgentService.state === "done" ? Theme.indicatorGood : Theme.accent
+        }
+    }
+
+    // 6. Privacy Radar (resting)
+    Row {
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 4
+        visible: PrivacyService.active
+
+        Rectangle {
+            visible: PrivacyService.cameraActive
+            width: 7
+            height: 7
+            radius: 3.5
+            color: Theme.green
+        }
+
+        Rectangle {
+            visible: PrivacyService.micActive
+            width: 7
+            height: 7
+            radius: 3.5
+            color: Theme.yellow
         }
     }
 }
