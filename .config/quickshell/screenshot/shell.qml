@@ -40,7 +40,13 @@ Scope {
     ]
     // Analyze engine radio: "text" (OCR) | "ai" (Gemini) | "lens" (upload)
     property string analyzeEngine: "text"
-    property string aiPrompt: "Briefly describe this image in 2-3 sentences."
+    property string aiSystemPrompt: "You are a concise desktop assistant. Your output goes directly to a system notification and the clipboard. Rules:
+    - Keep the entire response under 3 to 4 short sentences.
+    - Never use markdown formatting (no asterisks, backticks, bolding, or headers).
+    - Put any exact terminal command, config key, or path on its own line so it is easy to read and copy.
+    - No conversational filler or introductory greetings."
+
+    property string aiPrompt: "Analyze this screenshot. If an error or issue is visible, state the cause and provide the exact fix. Otherwise, provide a short 1-2 sentence summary of what is shown."
     property bool shiftHeld: false
     property bool promptFocused: false
     // Live modifier state for record-mode pick layers (Ctrl = monitors, Shift = window)
@@ -613,19 +619,21 @@ Scope {
         }
 
         if (mode === "analyze" && analyzeEngine === "ai") {
+            const model = "gemini-3.8-flash"
             const timestamp = Date.now()
             cropPath = Quickshell.cachePath(`screenshot-crop-${timestamp}.png`)
             const jsonPath = Quickshell.cachePath(`gemini-request-${timestamp}.json`)
             const b64Path = Quickshell.cachePath(`screenshot-b64-${timestamp}.txt`)
             const responsePath = Quickshell.cachePath(`gemini-response-${timestamp}.json`)
             const apiKey = Quickshell.env("GEMINI_API_KEY") || ""
-            // Escape prompt for JSON
+            // Escape prompts for JSON
             const escapedPrompt = root.aiPrompt.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')
+            const escapedSystem = root.aiSystemPrompt.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')
 
             const cmd = `magick "${tempPath}" -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} "${cropPath}" && ` +
                 `base64 -w0 "${cropPath}" > "${b64Path}" && ` +
-                `{ printf '{"contents":[{"parts":[{"text":"${escapedPrompt}"},{"inline_data":{"mime_type":"image/png","data":"'; cat "${b64Path}"; printf '"}}]}],"generationConfig":{"thinkingConfig":{"thinkingLevel":"low"}}}'; } > "${jsonPath}" && ` +
-                `curl -s --max-time 120 "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent" ` +
+                `{ printf '{"system_instruction":{"parts":[{"text":"${escapedSystem}"}]},"contents":[{"parts":[{"text":"${escapedPrompt}"},{"inline_data":{"mime_type":"image/png","data":"'; cat "${b64Path}"; printf '"}}]}],"generationConfig":{"thinkingConfig":{"thinkingLevel":"low"}}}'; } > "${jsonPath}" && ` +
+                `curl -s --max-time 120 "https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent" ` +
                 `-H "x-goog-api-key: ${apiKey}" ` +
                 `-H "Content-Type: application/json" ` +
                 `-X POST -d @"${jsonPath}" -o "${responsePath}" && ` +

@@ -192,7 +192,7 @@ PanelWindow {
             : bar.osdActive
                 ? Math.max(260, osdLayerItem.implicitWidth + 36)
                 : bar.recording
-                    ? Math.max(230, recordingItem.implicitWidth + 28)
+                    ? recordingItem.implicitWidth + 24
                     : bar.isDemorphed
                         ? 72
                         : IslandMetrics.notchWidth

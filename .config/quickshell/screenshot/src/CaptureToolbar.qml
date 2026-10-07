@@ -18,6 +18,7 @@ Rectangle {
     width: mainRow.implicitWidth + 36
     height: 52
     color: Theme.island
+    clip: true
 
     topLeftRadius: Theme.radiusLarge
     topRightRadius: Theme.radiusLarge
@@ -116,12 +117,26 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
         }
 
-        // Options panel with fixed width to prevent layout shifts
+        // Options panel hugs the active mode block so the notch has no gaps.
         Item {
             id: optionsPanel
-            width: 320
+            width: {
+                const m = bottomNotch.controller.mode
+                if (m === "record")
+                    return recordOptionsRow.implicitWidth
+                if (m === "analyze")
+                    return analyzeOptionsRow.implicitWidth
+                return saveRow.implicitWidth
+            }
             height: 40
             anchors.verticalCenter: parent.verticalCenter
+
+            Behavior on width {
+                NumberAnimation {
+                    duration: Theme.durationFast
+                    easing.type: Theme.easing
+                }
+            }
 
             // Save toggle - for region/window/screen modes
             Row {
@@ -237,6 +252,7 @@ Rectangle {
 
             // Record options: audio sources
             Row {
+                id: recordOptionsRow
                 opacity: bottomNotch.controller.mode === "record" ? 1 : 0
                 visible: opacity > 0
                 spacing: 10
@@ -362,6 +378,7 @@ Rectangle {
 
             // Analyze options: engine radio + prompt/hint
             Row {
+                id: analyzeOptionsRow
                 opacity: bottomNotch.controller.mode === "analyze" ? 1 : 0
                 visible: opacity > 0
                 spacing: 8
@@ -376,8 +393,8 @@ Rectangle {
                     Repeater {
                         model: [
                             { id: "text", label: "Text" },
-                            { id: "ai", label: "AI" },
-                            { id: "lens", label: "Lens" }
+                            { id: "lens", label: "Lens" },
+                            { id: "ai", label: "AI" }
                         ]
 
                         Rectangle {
@@ -430,9 +447,18 @@ Rectangle {
                 }
 
                 Item {
-                    width: 167
+                    id: analyzeFieldBox
+                    width: bottomNotch.controller.analyzeEngine === "ai" ? 260 : analyzeHintText.implicitWidth
                     height: 40
                     anchors.verticalCenter: parent.verticalCenter
+                    clip: true
+
+                    Behavior on width {
+                        NumberAnimation {
+                            duration: Theme.durationFast
+                            easing.type: Theme.easing
+                        }
+                    }
 
                     Rectangle {
                         visible: bottomNotch.controller.analyzeEngine === "ai"
@@ -477,6 +503,7 @@ Rectangle {
                     }
 
                     Text {
+                        id: analyzeHintText
                         visible: bottomNotch.controller.analyzeEngine !== "ai"
                         anchors.verticalCenter: parent.verticalCenter
                         width: parent.width

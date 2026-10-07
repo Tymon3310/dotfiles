@@ -24,12 +24,6 @@ Row {
         font.pixelSize: Theme.fontSizeSmall
         font.weight: Font.DemiBold
     }
-    readonly property TextMetrics timerMetrics: TextMetrics {
-        text: "0:00:00"
-        font.family: Theme.fontMono
-        font.pixelSize: Theme.fontSizeSmall + 1
-        font.weight: Font.DemiBold
-    }
 
     Item {
         width: 10
@@ -86,7 +80,6 @@ Row {
     Text {
         id: timerText
         anchors.verticalCenter: parent.verticalCenter
-        width: Math.max(Math.ceil(root.timerMetrics.advanceWidth), timerText.implicitWidth)
         text: ScreenRecorderService.elapsedText
         font.family: Theme.fontMono
         font.pixelSize: Theme.fontSizeSmall + 1
