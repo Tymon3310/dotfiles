@@ -7,14 +7,9 @@ hl.on("hyprland.start", function()
 
     hl.exec_cmd("xrandr --output DP-1 --primary")
 
-    -- hl.exec_cmd("/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1")
-    -- hl.exec_cmd("systemctl --user start hyprpolkitagent")
     hl.exec_cmd("/usr/lib/polkit-kde-authentication-agent-1")
-    hl.exec_cmd("/usr/bin/kwalletd6 --quiet")
     hl.exec_cmd("/usr/lib/pam_kwallet_init")
-    -- hl.exec_cmd("dbus-update-activation-environment --all && gnome-keyring-daemon --start --components=secrets")
 
-    -- hl.exec_cmd("hyprpaper")
     hl.exec_cmd("linux-wallpaper-engine-ux")
     hl.exec_cmd(SCRIPTS .. "/gtk.sh")
     hl.exec_cmd("hypridle")

@@ -50,7 +50,7 @@ Scope {
                 screenName: (surface.screen && surface.screen.name) ? surface.screen.name : ""
 
                 Component.onCompleted: {
-                    if (isActive)
+                    if (isActive && LockService.awake)
                         claim()
                 }
 

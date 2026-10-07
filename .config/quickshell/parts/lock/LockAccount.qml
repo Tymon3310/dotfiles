@@ -18,6 +18,13 @@ Item {
         field.clear()
     }
 
+    readonly property bool hasText: field.text !== ""
+
+    function append(ch: string): void {
+        field.text += ch
+        field.forceActiveFocus()
+    }
+
     readonly property bool typing: field.text !== ""
         || field.activeFocus
         || LockService.authenticating

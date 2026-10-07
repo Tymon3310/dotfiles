@@ -27,7 +27,7 @@ Singleton {
     property bool secure: false
     property bool leaving: false
 
-    property bool awake: true
+    property bool awake: false
     readonly property Timer sleep: Timer {
         interval: 10000
         onTriggered: root.awake = false
@@ -142,6 +142,7 @@ Singleton {
     function lock(): void {
         if (root.locked || root.settleCaptureTimer.running || root.preparingLock)
             return
+        root.rest()
         root.preparingLock = true
         root.prepareLock()
         settleCaptureTimer.restart()
@@ -158,9 +159,6 @@ Singleton {
             root.preparingLock = false
             root.locked = true
             root.begin()
-            if (root.biopassAvailable && !root.biopassRunning && !root.biopassVerified) {
-                root.triggerBiopass()
-            }
         }
     }
 

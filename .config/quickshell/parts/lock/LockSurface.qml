@@ -100,6 +100,7 @@ Item {
     Keys.onPressed: event => {
         if (!root.isActive) return
         LockService.setActiveScreen(root.screenName)
+        const wasAwake = LockService.awake
         LockService.rouse()
         if (event.key === Qt.Key_Space) {
             if (!LockService.biopassRunning && !LockService.biopassVerified)
@@ -108,7 +109,19 @@ Item {
             event.accepted = true
             return
         }
+        if (!wasAwake && event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32) {
+            account.append(event.text)
+            event.accepted = true
+            return
+        }
         account.claim()
+    }
+
+    Keys.onEscapePressed: {
+        if (LockService.awake) {
+            account.clear()
+            LockService.rest()
+        }
     }
 
     TapHandler {
@@ -234,6 +247,21 @@ Item {
         Behavior on scale { NumberAnimation { duration: Theme.durationMedium; easing.type: Easing.OutCubic } }
 
         onSubmitted: password => root.submitted(password)
+    }
+
+    // Hint on active screen when resting
+    Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 48
+        visible: root.isActive
+        opacity: (1 - root.awake) * root.held * root.clockReveal * 0.65
+        text: "Click anywhere or press any key to unlock"
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeSmall
+        color: Theme.textMuted
+
+        Behavior on opacity { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
     }
 
     // Hint on secondary screen when awake
