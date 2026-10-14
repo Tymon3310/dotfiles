@@ -82,9 +82,6 @@ Rectangle {
     property bool loginCommitted: false
     // Password was accepted for submission (optimistic ✓ in the pill)
     property bool confirmed: false
-    property string queuedPassword: ""
-    property string queuedUser: ""
-    property int queuedSessionIndex: -1
     property string helperToken: ""
     property int helperTokenRetries: 0
 
@@ -160,9 +157,9 @@ Rectangle {
     }
 
     // SDDM accepts only one PAM transaction at a time. A password submitted
-    // during a face scan never waits for the scan: if the face login hasn't been
-    // sent yet it simply replaces it; otherwise the password is queued and the
-    // helper daemon ends the scan, so PAM fails fast and onLoginFailed sends it.
+    // during a face scan replaces it if the face login hasn't been sent yet.
+    // Otherwise the scan is cancelled via the helper so PAM fails fast and
+    // the user can simply press Enter again — nothing is queued.
     function attempt(password: string): void {
         if (root.fadingOut)
             return
@@ -173,27 +170,15 @@ Rectangle {
                     root.beginLogin(password, account.userName, session.currentIndex)
                     return
                 }
-                root.queuedPassword = password
-                root.queuedUser = account.userName
-                root.queuedSessionIndex = session.currentIndex
                 faceTimeout.stop()
                 root.faceScanning = false
+                root.faceFailed = false
                 root.helperPost("face-cancel")
-                queuedHint.restart()
+                root.message = qsTr("Face scan cancelled — press Enter to log in")
             }
             return
         }
         root.beginLogin(password, account.userName, session.currentIndex)
-    }
-
-    // Only mention the queue if cancelling the scan didn't work promptly
-    Timer {
-        id: queuedHint
-        interval: 900
-        onTriggered: {
-            if (root.queuedPassword !== "")
-                root.message = qsTr("Password queued — waiting for face authentication")
-        }
     }
 
     function helperPost(endpoint: string): void {
@@ -212,15 +197,8 @@ Rectangle {
             root.readHelperToken(send)
     }
 
-    function clearQueuedLogin(): void {
-        root.queuedPassword = ""
-        root.queuedUser = ""
-        root.queuedSessionIndex = -1
-    }
-
     function beginLogin(password: string, userName: string, sessionIndex: int): void {
         faceTimeout.stop()
-        root.clearQueuedLogin()
 
         root.faceScanning = false
         // Keep the password input live while PAM performs the face attempt;
@@ -232,7 +210,7 @@ Rectangle {
         root.failed = false
         root.message = ""
 
-        // Queue the login; face attempts stay visible until PAM responds.
+        // Hold the login; face attempts stay visible until PAM responds.
         if (password === "")
             faceTimeout.restart()
         root.pendingPassword = password
@@ -273,7 +251,6 @@ Rectangle {
             if (root.pendingFaceAuth)
                 root.exitFrom = "island"
             faceTimeout.stop()
-            root.clearQueuedLogin()
             root.pendingPassword = ""
             root.authenticating = false
             root.faceScanning = false
@@ -286,11 +263,6 @@ Rectangle {
 
         function onLoginFailed(): void {
             const wasFaceAuth = root.pendingFaceAuth
-            const password = root.queuedPassword
-            const userName = root.queuedUser
-            const sessionIndex = root.queuedSessionIndex
-            root.clearQueuedLogin()
-            queuedHint.stop()
             root.pendingPassword = ""
             root.pendingFaceAuth = false
             root.loginCommitted = false
@@ -300,13 +272,6 @@ Rectangle {
             root.faceScanning = false
             root.confirmed = false
             root.fadingOut = false
-            // Face scan ended (usually cancelled) with a password waiting:
-            // go straight to it without flashing the face failure.
-            if (wasFaceAuth && password !== "") {
-                root.faceFailed = false
-                root.beginLogin(password, userName, sessionIndex)
-                return
-            }
             root.failed = true
             root.faceFailed = wasFaceAuth
             root.message = wasFaceAuth
@@ -355,7 +320,6 @@ Rectangle {
 
     function triggerPowerFade(action: string): void {
         faceTimeout.stop()
-        root.clearQueuedLogin()
         root.pendingPassword = ""
         root.faceScanning = false
         root.pendingFaceAuth = false

@@ -161,7 +161,9 @@ Item {
         source: LockService.shotSourceFor(root.screenName)
         visible: true
         fillMode: Image.PreserveAspectCrop
-        asynchronous: false
+        // Async so the multi-megapixel JPEG decode never blocks the GUI
+        // thread mid-animation. The frost gates on Image.Ready.
+        asynchronous: true
         cache: false
     }
 

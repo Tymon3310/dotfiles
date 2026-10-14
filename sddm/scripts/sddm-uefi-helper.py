@@ -44,8 +44,8 @@ ROUTES = {"/reboot-uefi": True, "/reboot-normal": False, "/shutdown": False}
 
 def cancel_face_scan():
     # SDDM runs one PAM transaction at a time and the greeter can't abort it.
-    # Ending the biopass helper makes the face step fail now, so the greeter's
-    # queued password login goes through immediately.
+    # Ending the biopass helper makes the face step fail now, so the user can
+    # press Enter to submit their typed password immediately.
     subprocess.run(["pkill", "-TERM", "-x", "biopass-helper"], check=False)
 
 
