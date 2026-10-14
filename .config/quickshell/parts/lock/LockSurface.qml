@@ -165,19 +165,20 @@ Item {
         cache: false
     }
 
-    // Frost the whole frozen screenshot in place. Crossfading the full-frame
-    // effect avoids the clipped, expanding screenshot look while preserving
-    // the lock-entry reveal timing for the clock.
+    // Frost the whole frozen screenshot in place. The blur radius itself
+    // ramps up on lock (lockReveal) and back down on unlock (held), so the
+    // desktop visibly goes soft instead of crossfading to a blurred copy.
+    readonly property real frost: root.held * root.lockReveal
+
     MultiEffect {
         anchors.fill: parent
         source: shot
         visible: shot.status === Image.Ready
-        opacity: root.lockReveal
         blurEnabled: true
-        blur: root.held
+        blur: root.frost
         blurMax: SettingsService.lockBlur
-        brightness: (root.screenName === "DP-1" ? 0.05 : -0.02) * root.held
-        contrast: (root.screenName === "DP-1" ? 0.08 : 0.0) * root.held
+        brightness: (root.screenName === "DP-1" ? 0.05 : -0.02) * root.frost
+        contrast: (root.screenName === "DP-1" ? 0.08 : 0.0) * root.frost
         saturation: 0.0
     }
 
@@ -185,14 +186,14 @@ Item {
     Rectangle {
         anchors.fill: parent
         color: Theme.scrim
-        opacity: 0.16 * root.held
+        opacity: 0.16 * root.frost
     }
 
     // A soft lower vignette keeps the password capsule readable without
     // flattening the captured wallpaper behind the clock.
     Rectangle {
         anchors.fill: parent
-        opacity: root.held
+        opacity: root.frost
         gradient: Gradient {
             GradientStop { position: 0.0; color: "#00000000" }
             GradientStop { position: 0.48; color: "#08000000" }
