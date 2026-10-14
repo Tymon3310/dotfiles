@@ -218,14 +218,6 @@ Singleton {
 
         root.volumeShown = true
         root.volumeFlash.restart()
-
-        const icon = (level <= 0 || root.muted) ? "󰝟" : (level < 0.33 ? "󰕿" : (level < 0.66 ? "󰖀" : "󰕾"))
-        const playerName = root.active ? (root.active.identity || "Media") : "Media"
-        OsdService.requested(
-            icon,
-            `${playerName} ${Math.round(level * 100)}%`,
-            level
-        )
     }
 
     function nudgeVolume(delta: real): void {

@@ -31,11 +31,11 @@ Singleton {
 
     Process {
         id: monitorProcess
-        command: ["python3", "-u", Quickshell.shellPath("scripts/headset_monitor.py")]
+        command: ["python3", "-u", Quickshell.shellPath("scripts/osd.py"), "headset"]
         running: true
 
         onExited: exitCode => {
-            console.warn("headset_monitor.py exited with code", exitCode)
+            console.warn("osd.py headset exited with code", exitCode)
             root.restartAttempts++
             root.restartTimer.start()
         }
@@ -43,7 +43,7 @@ Singleton {
         stderr: StdioCollector {
             onStreamFinished: {
                 if (text && text.trim().length > 0)
-                    console.warn("headset_monitor.py stderr:", text.trim())
+                    console.warn("osd.py headset stderr:", text.trim())
             }
         }
 
@@ -84,7 +84,7 @@ Singleton {
                         root.headsetConnectionChanged(evt.connected)
                     }
                 } catch (e) {
-                    console.warn("headset_monitor parse error:", e)
+                    console.warn("osd.py headset parse error:", e)
                 }
             }
         }

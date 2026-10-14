@@ -32,6 +32,17 @@ chip catalogue or string-based module router.
 
 ## Services
 
+- **OSD:** `OsdService` owns the island OSD state (`active`/`icon`/`label`/
+  `progress`); `IslandBar` binds to it and suspends it while expanded.
+  Producers call `OsdService.requested(...)`: volume/mute wiring, lock-key
+  and headset events, and headset-connection notices translated by
+  `NotificationService`. `OsdService` owns `../scripts/osd.py locks` and
+  `HeadsetService` owns `../scripts/osd.py headset` (Caps/Num Lock LEDs and
+  JBL headset mute/battery/connection, one JSON event per line). Sink/source
+  reroutes and flapping connections are debounced so USB re-enumeration does
+  not strobe the island. Caps/Num Lock only surface within a second of a
+  lock keypress; silent drift (login defaults, device quirks) re-baselines
+  without an OSD.
 - **Media:** `MediaService` selects Spotify or MPV through native MPRIS.
   Spotify volume uses its PipeWire streams; MPV uses MPRIS volume. Position
   polling and Cava run while subscribed UI needs them.

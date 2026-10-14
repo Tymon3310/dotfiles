@@ -11,9 +11,52 @@ import "."
 Singleton {
     id: root
 
+    // Producer API: OsdService.requested(icon, label, progress), called from
+    // OsdService's own wiring, HeadsetService events, and NotificationService.
     signal requested(string icon, string label, real progress)
 
+    // ── Presentation state: the single owner. IslandBar binds to this. ──
+    property bool active: false
+    property string icon: ""
+    property string label: ""
+    property real progress: -1
+
+    // Set while the island is expanded: requests are dropped instead of
+    // queuing a stale OSD that would flash on close.
+    property bool suspended: false
+
+    readonly property Timer expiryTimer: Timer {
+        interval: 1800
+        onTriggered: root.active = false
+    }
+
+    function show(icon: string, label: string, progress: real): void {
+        if (!root.armed || root.suspended)
+            return
+        root.icon = icon
+        root.label = label
+        root.progress = progress
+        root.active = true
+        root.expiryTimer.restart()
+    }
+
+    function dismiss(): void {
+        root.active = false
+        root.expiryTimer.stop()
+    }
+
+    onRequested: {
+        root.show(icon, label, progress)
+    }
+
     property bool armed: false
+
+    // Grace window after the default PipeWire node is replaced (USB
+    // disconnect/reconnect reroutes the default sink/source, which always
+    // fires value signals carrying the new node's levels - not user input).
+    property double suppressVolumeUntil: 0
+    property double suppressMicUntil: 0
+    readonly property int flapGraceMs: 1500
 
     readonly property Timer armTimer: Timer {
         interval: 600
@@ -25,6 +68,10 @@ Singleton {
     readonly property Timer volumeTimer: Timer {
         interval: 16
         onTriggered: {
+            // Reroutes (USB disconnect/reconnect) fire value signals with
+            // the new node's levels; those are not user input, skip them.
+            if (!AudioService.ready || Date.now() < root.suppressVolumeUntil)
+                return
             root.requested(
                 AudioService.icon,
                 AudioService.muted ? "Muted" : `${AudioService.volume}%`,
@@ -39,11 +86,50 @@ Singleton {
         function onVolumeChanged(): void { root.volumeTimer.restart() }
         function onMutedChanged(): void { root.volumeTimer.restart() }
         function onSourceMutedChanged(): void {
+            if (!AudioService.sourceReady || Date.now() < root.suppressMicUntil)
+                return
             root.requested(
                 AudioService.sourceMuted ? "\udb80\udf6d" : "\udb80\udf6c",
                 AudioService.sourceMuted ? "Mic Muted" : "Mic Active",
                 -1
             )
+        }
+    }
+
+    // A replaced default node always fires value signals with the new
+    // node's levels: arm the grace window so those are not shown as OSDs.
+    readonly property Connections audioIdentity: Connections {
+        target: AudioService
+        function onSinkChanged(): void {
+            root.suppressVolumeUntil = Date.now() + root.flapGraceMs
+        }
+        function onSourceChanged(): void {
+            root.suppressMicUntil = Date.now() + root.flapGraceMs
+        }
+    }
+
+    // Debounce timer for Spotify / media volume changes
+    readonly property Timer mediaVolumeTimer: Timer {
+        interval: 16
+        onTriggered: {
+            if (!MediaService.available) return
+            const level = MediaService.volume
+            const icon = (level <= 0 || MediaService.muted) ? "󰝟" : (level < 0.33 ? "󰕿" : (level < 0.66 ? "󰖀" : "󰕾"))
+            const playerName = MediaService.active ? (MediaService.active.identity || "Spotify") : "Spotify"
+            root.requested(
+                icon,
+                `${playerName} ${Math.round(level * 100)}%`,
+                level
+            )
+        }
+    }
+
+    readonly property Connections media: Connections {
+        target: MediaService
+        enabled: root.armed
+        function onVolumeChanged(): void {
+            if (MediaService.available)
+                root.mediaVolumeTimer.restart()
         }
     }
 
@@ -121,13 +207,14 @@ Singleton {
     }
 
     // Process monitoring keyboard Caps Lock and Num Lock states
+    // (scripts/osd.py locks: one JSON event per line).
     Process {
         id: lockMonitorProcess
-        command: ["python3", "-u", Quickshell.shellPath("scripts/lock_monitor.py")]
+        command: ["python3", "-u", Quickshell.shellPath("scripts/osd.py"), "locks"]
         running: true
 
         onExited: exitCode => {
-            console.warn("lockMonitorProcess exited with code", exitCode)
+            console.warn("osd.py locks exited with code", exitCode)
             root.restartAttempts++
             root.restartTimer.start()
         }
@@ -135,7 +222,7 @@ Singleton {
         stderr: StdioCollector {
             onStreamFinished: {
                 if (text && text.trim().length > 0)
-                    console.warn("lockMonitorProcess stderr:", text.trim())
+                    console.warn("osd.py locks stderr:", text.trim())
             }
         }
 

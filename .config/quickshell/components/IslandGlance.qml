@@ -46,6 +46,14 @@ Item {
         onTriggered: root.volumeFeedbackActive = false
     }
 
+    Connections {
+        target: MediaService
+        function onVolumeChanged(): void {
+            root.volumeFeedbackActive = true
+            root.volumeFeedbackTimer.restart()
+        }
+    }
+
     readonly property var activeMicApps: {
         const names = PrivacyService.micListeners.map(n => PrivacyService.nameOf(n)).filter(n => n.length > 0)
         return names.filter((v, i, a) => a.indexOf(v) === i)

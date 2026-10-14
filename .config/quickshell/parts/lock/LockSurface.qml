@@ -59,7 +59,12 @@ Item {
         }
     }
 
-    Component.onCompleted: lockEntry.start()
+    Component.onCompleted: {
+        lockEntry.start()
+        // Hold keyboard focus while resting so the first keypress wakes
+        // without needing a mouse click to focus the password field.
+        root.forceActiveFocus()
+    }
 
     Connections {
         target: LockService
@@ -69,6 +74,7 @@ Item {
             root.lockReveal = 0
             root.clockReveal = 0
             lockEntry.restart()
+            root.forceActiveFocus()
         }
     }
 
@@ -85,30 +91,37 @@ Item {
     Connections {
         target: LockService
         function onAwakeChanged(): void {
-            if (!LockService.awake)
+            if (!LockService.awake) {
                 account.clear()
-            else if (root.isActive)
+                root.forceActiveFocus()
+            } else if (root.isActive) {
                 Qt.callLater(account.claim)
+            }
         }
         function onActiveScreenChanged(): void {
-            if (root.isActive)
+            if (root.isActive && LockService.awake)
                 Qt.callLater(account.claim)
         }
     }
 
-    focus: root.isActive
+    // Every surface accepts focus: the compositor delivers keys to the
+    // focused output's surface, which is often not the active screen.
+    // The key handler below adopts whichever screen received the key.
+    focus: true
     Keys.onPressed: event => {
-        if (!root.isActive) return
+        // Adopt this screen first so a keypress on the focused (but
+        // non-active) monitor still wakes and starts face auth.
+        LockService.setActiveScreen(root.screenName)
         // Escape dismisses without rousing (rousing would start face auth).
         if (event.key === Qt.Key_Escape) {
             if (LockService.awake) {
                 account.clear()
                 LockService.rest()
+                root.forceActiveFocus()
             }
             event.accepted = true
             return
         }
-        LockService.setActiveScreen(root.screenName)
         const wasAwake = LockService.awake
         LockService.rouse()
         if (event.key === Qt.Key_Space) {
@@ -273,7 +286,7 @@ Item {
         anchors.bottomMargin: 36
         visible: !root.isActive
         opacity: root.awake * root.held * 0.6
-        text: "Click anywhere to unlock on this screen"
+        text: "Click, or press any key, to unlock on this screen"
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSizeSmall
         color: Theme.textMuted

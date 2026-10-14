@@ -60,6 +60,9 @@ PanelWindow {
         bar.openId = ""
     }
 
+    // Suspend OSD requests while expanded so no stale OSD flashes on close.
+    onExpandedChanged: OsdService.suspended = bar.expanded
+
     readonly property string below: bar.expanded ? bar.openId
         : bar.notifying ? "notification" : ""
 
@@ -81,50 +84,30 @@ PanelWindow {
         return Qt.size(0, 0)
     }
 
-    // ── OSD (VOLUME, CAPS LOCK, NUM LOCK) ────────────────────────────────────
+    // ── OSD state lives in OsdService (active/icon/label/progress); ──
+    // this bar only binds to it and suspends it while expanded.
 
-    property bool osdActive: false
-    property string osdIcon: ""
-    property string osdLabel: ""
-    property real osdProgress: -1
+    // ── HOLD-CLICK GLANCE ─────────────────────────────────────────────────────
+    property bool holdTriggered: false
 
-    readonly property Timer osdExpiryTimer: Timer {
-        interval: 1800
-        onTriggered: bar.osdActive = false
-    }
-
-    // ── HOVER SUMMARY (GLANCE) ────────────────────────────────────────────────
-    readonly property Timer hoverDwellTimer: Timer {
-        interval: 180
+    readonly property Timer holdTimer: Timer {
+        interval: 280
         repeat: false
         onTriggered: {
-            if (islandCapsuleMouse.containsMouse && bar.openId === "") {
+            if (islandCapsuleMouse.pressed && bar.openId === "") {
+                bar.holdTriggered = true
                 bar.openId = "glance"
             }
         }
     }
 
     readonly property Timer hoverGraceTimer: Timer {
-        interval: 280
+        interval: 350
         repeat: false
         onTriggered: {
             if (bar.openId === "glance" && !islandHover.hovered) {
                 bar.close()
             }
-        }
-    }
-
-    Connections {
-        target: OsdService
-
-        function onRequested(icon: string, label: string, progress: real): void {
-            if (bar.expanded)
-                return
-            bar.osdIcon = icon
-            bar.osdLabel = label
-            bar.osdProgress = progress
-            bar.osdActive = true
-            bar.osdExpiryTimer.restart()
         }
     }
 
@@ -212,7 +195,7 @@ PanelWindow {
 
         width: bar.below !== ""
             ? bar.belowSize.width + 2 * bar.pad
-            : bar.osdActive
+            : OsdService.active
                 ? Math.max(260, osdLayerItem.implicitWidth + 36)
                 : bar.recording
                     ? recordingItem.implicitWidth + 24
@@ -254,7 +237,7 @@ PanelWindow {
             }
         }
 
-        // Click and wheel interaction for the top capsule
+        // Click, hold-click, and wheel interaction for the top capsule
         MouseArea {
             id: islandCapsuleMouse
             anchors.top: parent.top
@@ -267,24 +250,32 @@ PanelWindow {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             acceptedButtons: Qt.LeftButton | Qt.RightButton
-            onContainsMouseChanged: {
-                if (containsMouse && bar.openId === "")
-                    bar.hoverDwellTimer.restart()
-                else
-                    bar.hoverDwellTimer.stop()
+
+            onPressed: mouse => {
+                if (mouse.button === Qt.LeftButton && bar.openId === "") {
+                    bar.holdTriggered = false
+                    bar.holdTimer.restart()
+                }
             }
+
+            onReleased: mouse => {
+                bar.holdTimer.stop()
+            }
+
             onClicked: mouse => {
-                bar.hoverDwellTimer.stop()
+                bar.holdTimer.stop()
                 bar.hoverGraceTimer.stop()
-                if (mouse.button === Qt.RightButton)
+                if (mouse.button === Qt.RightButton) {
                     MediaService.toggle()
-                else if (bar.openId === "")
-                    bar.openId = "glance"
-                else if (bar.openId === "glance")
-                    bar.openId = "dashboard"
-                else
-                    bar.close()
+                    return
+                }
+                if (bar.holdTriggered) {
+                    bar.holdTriggered = false
+                    return
+                }
+                bar.toggle("dashboard")
             }
+
             onWheel: event => MediaService.nudgeVolume(event.angleDelta.y > 0 ? 0.05 : -0.05)
         }
 
@@ -293,7 +284,7 @@ PanelWindow {
             anchors.topMargin: bar.barTopMargin
             anchors.horizontalCenter: parent.horizontalCenter
 
-            opacity: (bar.below !== "" || bar.osdActive || bar.isDemorphed || bar.recording) ? 0 : 1
+            opacity: (bar.below !== "" || OsdService.active || bar.isDemorphed || bar.recording) ? 0 : 1
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
         }
@@ -308,7 +299,7 @@ PanelWindow {
             anchors.horizontalCenter: parent.horizontalCenter
 
             // Recording overrides demorph: the island stays wide to show it.
-            opacity: (bar.recording && bar.below === "" && !bar.osdActive) ? 1 : 0
+            opacity: (bar.recording && bar.below === "" && !OsdService.active) ? 1 : 0
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
         }
@@ -321,10 +312,10 @@ PanelWindow {
             anchors.horizontalCenter: parent.horizontalCenter
             height: bar.capsuleH
 
-            icon: bar.osdIcon
-            label: bar.osdLabel
-            progress: bar.osdProgress
-            opacity: (bar.osdActive && bar.below === "") ? 1 : 0
+            icon: OsdService.icon
+            label: OsdService.label
+            progress: OsdService.progress
+            opacity: (OsdService.active && bar.below === "") ? 1 : 0
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
         }

@@ -120,6 +120,9 @@ hl.window_rule {
   float = true,
   size = "1200 750",
   center = true,
+  suppress_event = "maximize",
+  fullscreen_state = 0
+
 }
 
 hl.window_rule {
@@ -131,6 +134,10 @@ hl.window_rule {
   float = true,
   size = "600 450",
   center = true,
+  suppress_event = "maximize",
+  fullscreen_state = 0
+
+
 }
 
 hl.window_rule {
@@ -159,6 +166,7 @@ hl.window_rule {
   size = "1200 750",
   center = true,
   suppress_event = "maximize",
+  fullscreen_state = 0
 }
 
 hl.window_rule {
