@@ -55,6 +55,9 @@ Rectangle {
         unlocked: root.faceVerified
         scanning: root.faceScanning
         failed: root.faceFailed || root.failed
+        // Sit above the black blob that floods out of it, then fade at the end
+        z: root.exitFrom === "island" && root.exitP > 0 ? 10000 : 0
+        dissolve: root.exitFrom === "island" ? root.exitDissolve : 0
         onClicked: {
             if (!root.awake)
                 root.wakeUp()
@@ -77,6 +80,8 @@ Rectangle {
     property bool faceFailed: false
     property bool pendingFaceAuth: false
     property bool loginCommitted: false
+    // Password was accepted for submission (optimistic ✓ in the pill)
+    property bool confirmed: false
     property string queuedPassword: ""
     property string queuedUser: ""
     property int queuedSessionIndex: -1
@@ -144,7 +149,8 @@ Rectangle {
 
     // Face authentication through SDDM's PAM transaction.
     function attemptFace(): void {
-        if (!root.isPrimary || root.authenticating)
+        // fadingOut: a login or power action is already on its way out
+        if (!root.isPrimary || root.authenticating || root.fadingOut)
             return
         // Let the PAM module perform biometric verification exactly once.
         // A separate UI-side biopass-helper run races PAM for the camera and
@@ -156,6 +162,8 @@ Rectangle {
     // SDDM accepts only one PAM transaction at a time. Remember password
     // submissions during face authentication instead of sending a second login.
     function attempt(password: string): void {
+        if (root.fadingOut)
+            return
         if (root.authenticating) {
             if (root.pendingFaceAuth && password !== "") {
                 root.queuedPassword = password
@@ -199,7 +207,12 @@ Rectangle {
         root.pendingLoginIsFace = password === ""
         root.pendingPowerAction = ""
         // Give the scan indicator a brief visible start before a fast PAM
-        // success. Password logins retain the existing fade-before-submit.
+        // success. SDDM tears the greeter down as soon as a login succeeds, so
+        // password logins confirm optimistically: tick, morph the pill out to
+        // black, then submit. A wrong password reverses it (onLoginFailed).
+        root.confirmed = password !== ""
+        if (password !== "")
+            root.exitFrom = "pill"
         root.fadingOut = password !== ""
         sddmCommitTimer.start()
     }
@@ -208,6 +221,10 @@ Rectangle {
         target: sddm
 
         function onLoginSucceeded(): void {
+            // Face logins only learn of success here; morph out of the island
+            // (best effort: the greeter may be gone before it finishes).
+            if (root.pendingFaceAuth)
+                root.exitFrom = "island"
             faceTimeout.stop()
             root.clearQueuedLogin()
             root.pendingPassword = ""
@@ -233,6 +250,7 @@ Rectangle {
             sddmCommitTimer.stop()
             root.authenticating = false
             root.faceScanning = false
+            root.confirmed = false
             root.fadingOut = false
             root.failed = true
             root.faceFailed = wasFaceAuth
@@ -258,7 +276,9 @@ Rectangle {
 
     Timer {
         id: sddmCommitTimer
-        interval: root.pendingFaceAuth ? 100 : 540
+        interval: root.pendingFaceAuth ? 100
+            : root.pendingPowerAction !== "" ? 540
+            : Theme.durationConfirm + Theme.durationExit + 40
         repeat: false
         onTriggered: {
             root.loginCommitted = true
@@ -281,6 +301,8 @@ Rectangle {
         root.faceScanning = false
         root.pendingFaceAuth = false
         root.loginCommitted = false
+        root.confirmed = false
+        root.exitFrom = ""
         root.pendingPowerAction = action
 
         // Notify local helper daemon of power intent & firmware-setup state
@@ -308,11 +330,62 @@ Rectangle {
     }
 
     // ── FULL-SCREEN FADEOUT ──────────────────────────────────────────────────
+    // Power actions dissolve the whole screen to black. Logins instead morph:
+    // the black of the pill (password) or island (face) floods outward until it
+    // covers the screen, with the source element riding on top and fading last.
+
+    // "pill" | "island" | "" (plain fade)
+    property string exitFrom: ""
+    property real exitP: 0
+    readonly property real exitDissolve: Math.max(0, (root.exitP - 0.6) / 0.4)
+
+    // Source geometry, captured when the morph starts
+    property rect exitRect: Qt.rect(0, 0, 0, 0)
+    property real exitTopRadius: 0
+    property real exitBottomRadius: 0
+
+    function captureExitSource(): void {
+        if (root.exitFrom === "pill") {
+            const pill = account.capsule
+            root.exitRect = pill.mapToItem(root, 0, 0, pill.width, pill.height)
+            root.exitTopRadius = pill.height / 2
+            root.exitBottomRadius = pill.height / 2
+        } else if (root.exitFrom === "island") {
+            root.exitRect = topIsland.mapToItem(root, 0, 0, topIsland.width, topIsland.height)
+            root.exitTopRadius = 0
+            root.exitBottomRadius = Theme.radiusLarge
+        }
+    }
+
+    SequentialAnimation {
+        id: exitIn
+
+        // Let the ✓ land before the pill starts to grow
+        PauseAnimation { id: exitPause; duration: Theme.durationConfirm }
+        NumberAnimation {
+            target: root
+            property: "exitP"
+            to: 1
+            duration: Theme.durationExit
+            easing.type: Easing.InOutCubic
+        }
+    }
+
+    NumberAnimation {
+        id: exitOut
+
+        target: root
+        property: "exitP"
+        to: 0
+        duration: Theme.durationMorph
+        easing.type: Theme.easing
+    }
+
     Item {
         id: sddmFadeOverlay
         anchors.fill: parent
         z: 9999
-        visible: root.fadingOut || sddmBaseFade.opacity > 0
+        visible: root.fadingOut || sddmBaseFade.opacity > 0 || root.exitP > 0
 
         MouseArea {
             anchors.fill: parent
@@ -327,10 +400,27 @@ Rectangle {
             id: sddmBaseFade
             anchors.fill: parent
             color: "#000000"
-            opacity: root.fadingOut ? 1.0 : 0.0
+            opacity: root.fadingOut && root.exitFrom === "" ? 1.0 : 0.0
             Behavior on opacity {
                 NumberAnimation { duration: 500; easing.type: Easing.InOutCubic }
             }
+        }
+
+        // Morph blob: grows from the source's exact shape to the full screen
+        Rectangle {
+            readonly property real p: root.exitP
+            readonly property rect r: root.exitRect
+
+            visible: root.exitFrom !== "" && p > 0
+            color: "#000000"
+            x: r.x * (1 - p)
+            y: r.y * (1 - p)
+            width: r.width + (sddmFadeOverlay.width - r.width) * p
+            height: r.height + (sddmFadeOverlay.height - r.height) * p
+            topLeftRadius: root.exitTopRadius * (1 - p)
+            topRightRadius: root.exitTopRadius * (1 - p)
+            bottomLeftRadius: root.exitBottomRadius * (1 - p)
+            bottomRightRadius: root.exitBottomRadius * (1 - p)
         }
 
         Connections {
@@ -340,6 +430,17 @@ Rectangle {
                     sddmCommitTimer.start()
                 } else if (!root.fadingOut) {
                     sddmCommitTimer.stop()
+                }
+
+                if (root.fadingOut && root.exitFrom !== "") {
+                    root.captureExitSource()
+                    exitOut.stop()
+                    exitPause.duration = root.exitFrom === "pill" ? Theme.durationConfirm : 0
+                    exitIn.restart()
+                } else if (!root.fadingOut) {
+                    exitIn.stop()
+                    if (root.exitP > 0)
+                        exitOut.restart()
                 }
             }
         }
@@ -440,7 +541,8 @@ Rectangle {
         anchors.bottomMargin: Math.round(root.height * 0.20) - (root.awake ? 0 : 28)
         opacity: root.awake ? 1 : 0
         visible: opacity > 0
-        z: 10
+        // Sit above the black blob that floods out of it, then fade at the end
+        z: root.exitFrom === "pill" && root.exitP > 0 ? 10000 : 10
 
         Behavior on anchors.bottomMargin {
             NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing }
@@ -461,6 +563,8 @@ Rectangle {
         faceAuthPending: root.pendingFaceAuth
         faceVerified: root.faceVerified
         faceFailed: root.faceFailed
+        confirmed: root.confirmed
+        dissolve: root.exitFrom === "pill" ? root.exitDissolve : 0
 
         onSubmitted: password => root.attempt(password)
         onFaceRetryRequested: root.attemptFace()

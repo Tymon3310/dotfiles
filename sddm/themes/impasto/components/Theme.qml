@@ -62,5 +62,8 @@ QtObject {
     readonly property int durationFast: 140
     readonly property int durationMedium: 200
     readonly property int durationMorph: 380
+    readonly property int durationTick: 260      // checkmark draw-on
+    readonly property int durationConfirm: 220   // tick shown before the exit morph
+    readonly property int durationExit: 520      // pill / island floods to black
     readonly property int easing: Easing.OutCubic
 }

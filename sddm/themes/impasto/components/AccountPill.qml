@@ -28,6 +28,18 @@ Item {
     property bool faceVerified: false
     property bool faceFailed: false
 
+    // Password accepted for submission: tick in the send button, green border
+    property bool confirmed: false
+    // 0 → 1 fades the capsule out at the end of the exit morph
+    property real dissolve: 0
+    // The capsule itself, so the exit morph can start from its exact shape
+    readonly property Item capsule: pill
+
+    property real tick: root.confirmed ? 1 : 0
+    Behavior on tick {
+        NumberAnimation { duration: Theme.durationTick; easing.type: Easing.OutCubic }
+    }
+
     property bool userPickerExpanded: false
 
     signal submitted(string password)
@@ -164,8 +176,11 @@ Item {
         height: root.pillHeight
         radius: Theme.radiusPill
         color: Theme.island
+        opacity: 1 - root.dissolve
         border.width: 1
         border.color: {
+            if (root.confirmed)
+                return Theme.green
             if (root.failed)
                 return Theme.red
             return root.typing ? Theme.accent : Theme.islandBorder
@@ -438,7 +453,8 @@ Item {
             width: 40
             height: 40
             radius: width / 2
-            color: root.passwordBusy ? "transparent"
+            color: root.confirmed ? Theme.green
+                : root.passwordBusy ? "transparent"
                 : (sendMouse.containsMouse ? Theme.accentHover : Theme.accent)
             opacity: root.typing ? 1 : 0
             scale: root.typing ? 1 : 0.6
@@ -460,14 +476,25 @@ Item {
                 font.family: Theme.fontMono
                 font.pixelSize: 18
                 color: Theme.accentText
-                visible: !root.passwordBusy
+                // Wait for a reversed tick to finish undrawing after a wrong password
+                visible: !root.passwordBusy && !root.confirmed && root.tick === 0
             }
 
             RingSpinner {
                 anchors.centerIn: parent
-                visible: root.passwordBusy
+                visible: root.passwordBusy && !root.confirmed
                 running: visible
                 fillColor: Theme.accent
+            }
+
+            Checkmark {
+                anchors.centerIn: parent
+                width: 20
+                height: 20
+                thickness: 2.6
+                color: Theme.accentText
+                progress: root.tick
+                scale: 0.7 + 0.3 * root.tick
             }
 
             MouseArea {
@@ -491,6 +518,7 @@ Item {
         anchors.topMargin: 12
         text: root.capsLock ? qsTr("Caps Lock is on") : root.message
         visible: text !== ""
+        opacity: 1 - root.dissolve
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSizeSmall
         font.weight: Font.DemiBold

@@ -15,8 +15,17 @@ Item {
     property bool unlocked: false
     property bool scanning: false
     property bool failed: false
+    // 0 → 1 fades the island out at the end of the exit morph
+    property real dissolve: 0
 
     signal clicked()
+
+    opacity: 1 - root.dissolve
+
+    property real tick: root.unlocked ? 1 : 0
+    Behavior on tick {
+        NumberAnimation { duration: Theme.durationTick; easing.type: Easing.OutCubic }
+    }
 
     readonly property int capsuleH: 30
     readonly property int barTopMargin: 4
@@ -68,12 +77,28 @@ Item {
                 return Theme.text
             }
 
+            // Shackle pops open, then the padlock gives way to the tick
+            opacity: root.unlocked ? 0 : 1
+            Behavior on opacity {
+                NumberAnimation { duration: Theme.durationTick; easing.type: Theme.easing }
+            }
+
             SequentialAnimation on scale {
                 running: root.scanning && !root.unlocked
                 loops: Animation.Infinite
                 NumberAnimation { to: 1.08; duration: 550; easing.type: Easing.InOutSine }
                 NumberAnimation { to: 0.92; duration: 550; easing.type: Easing.InOutSine }
             }
+        }
+
+        Checkmark {
+            anchors.centerIn: parent
+            width: 20
+            height: 20
+            thickness: 2.6
+            color: Theme.green
+            progress: root.tick
+            scale: 0.7 + 0.3 * root.tick
         }
 
         MouseArea {
