@@ -59,8 +59,46 @@ Item {
         }
     }
 
+    // The screenshot decodes asynchronously, so hold the entry animation
+    // until it's on screen; otherwise the frost plays out over nothing and
+    // the blur just appears. A fallback keeps the clock from never showing.
+    property bool entryPending: false
+
+    function beginEntry(): void {
+        lockEntry.stop()
+        root.lockReveal = 0
+        root.clockReveal = 0
+        root.entryPending = true
+        entryFallback.restart()
+        root.tryEntry(false)
+    }
+
+    function tryEntry(force: bool): void {
+        if (!root.entryPending)
+            return
+        const settled = shot.status === Image.Ready || shot.status === Image.Error || String(shot.source) === ""
+        if (!force && !settled)
+            return
+        root.entryPending = false
+        entryFallback.stop()
+        // One extra frame so the texture upload doesn't land on frame one
+        entryKick.restart()
+    }
+
+    Timer {
+        id: entryFallback
+        interval: 600
+        onTriggered: root.tryEntry(true)
+    }
+
+    Timer {
+        id: entryKick
+        interval: 32
+        onTriggered: lockEntry.restart()
+    }
+
     Component.onCompleted: {
-        lockEntry.start()
+        root.beginEntry()
         // Hold keyboard focus while resting so the first keypress wakes
         // without needing a mouse click to focus the password field.
         root.forceActiveFocus()
@@ -71,9 +109,7 @@ Item {
         function onLockedChanged(): void {
             if (!LockService.locked)
                 return
-            root.lockReveal = 0
-            root.clockReveal = 0
-            lockEntry.restart()
+            root.beginEntry()
             root.forceActiveFocus()
         }
     }
@@ -165,12 +201,15 @@ Item {
         // thread mid-animation. The frost gates on Image.Ready.
         asynchronous: true
         cache: false
+        onStatusChanged: root.tryEntry(false)
     }
 
     // Frost the whole frozen screenshot in place. The blur radius itself
     // ramps up on lock (lockReveal) and back down on unlock (held), so the
     // desktop visibly goes soft instead of crossfading to a blurred copy.
-    readonly property real frost: root.held * root.lockReveal
+    // Floored just above zero: MultiEffect swaps shader variants when blur or
+    // brightness hit exactly 0, which hitches the first and last frame.
+    readonly property real frost: Math.max(0.002, root.held * root.lockReveal)
 
     MultiEffect {
         anchors.fill: parent
