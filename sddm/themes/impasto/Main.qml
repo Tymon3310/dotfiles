@@ -217,6 +217,19 @@ Rectangle {
         sddmCommitTimer.start()
     }
 
+    function acceptFace(): void {
+        if (root.fadingOut)
+            return
+        faceTimeout.stop()
+        root.faceScanning = false
+        root.faceFailed = false
+        root.failed = false
+        root.message = ""
+        root.faceVerified = true
+        root.exitFrom = "island"
+        root.fadingOut = true
+    }
+
     Connections {
         target: sddm
 
@@ -262,6 +275,12 @@ Rectangle {
         }
 
         function onInformationMessage(infoMsg: string): void {
+            // Sent by pam.d/sddm after the face matches, then PAM pauses so
+            // the tick and island morph can play before SDDM drops the greeter.
+            if (infoMsg.trim() === "impasto:face-verified") {
+                root.acceptFace()
+                return
+            }
             root.message = infoMsg
         }
     }

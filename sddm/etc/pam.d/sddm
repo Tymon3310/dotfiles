@@ -5,15 +5,23 @@ auth            required        pam_faillock.so preauth
 
 # 2. Check if password is empty (face attempt) or non-empty (password attempt).
 #    If empty (success): continue to biopass.
-#    If non-empty (default): skip biopass and deny rules (jump 2 lines to system-login).
-auth            [success=ignore default=2] pam_exec.so quiet expose_authtok /usr/share/sddm/scripts/check_empty_password.sh
+#    If non-empty (default): skip the face block below (jump 5 lines to system-login).
+auth            [success=ignore default=5] pam_exec.so quiet expose_authtok /usr/share/sddm/scripts/check_empty_password.sh
 
-# 3. Biopass biometric face auth (only executed when password is empty)
--auth           [success=done default=ignore]   /usr/lib/security/libbiopass_pam.so
+# 3. Biopass biometric face auth (only executed when password is empty).
+#    On success, skip the deny rule and go to the unlock handoff (step 5).
+-auth           [success=1 default=ignore]      /usr/lib/security/libbiopass_pam.so
 
 # 4. If face auth failed on empty password, terminate auth immediately
 #    without falling through to pam_unix or faillock authfail.
 auth            [default=die]   pam_deny.so
+
+# 5. Face recognized: SDDM tears the greeter down the moment PAM succeeds, so
+#    tell the theme first (it plays the tick + morph to black on this marker),
+#    give the animation time to finish, then end the stack with success.
+auth            optional        pam_echo.so impasto:face-verified
+auth            optional        pam_exec.so quiet /usr/bin/sleep 0.8
+auth            [default=done]  pam_permit.so
 
 # 5. Standard password login (only reached for non-empty typed passwords)
 auth            include         system-login
