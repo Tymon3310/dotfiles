@@ -2,7 +2,8 @@
 """
 SDDM Impasto Helper Daemon
 Listens on http://127.0.0.1:18293 for power signals from SDDM greeter.
-Sets systemd-logind RebootToFirmwareSetup securely.
+Sets systemd-logind RebootToFirmwareSetup securely, and lets the greeter
+cancel a running face scan so a typed password doesn't wait for it.
 """
 import http.server
 import grp
@@ -41,6 +42,13 @@ def init_token():
 ROUTES = {"/reboot-uefi": True, "/reboot-normal": False, "/shutdown": False}
 
 
+def cancel_face_scan():
+    # SDDM runs one PAM transaction at a time and the greeter can't abort it.
+    # Ending the biopass helper makes the face step fail now, so the greeter's
+    # queued password login goes through immediately.
+    subprocess.run(["pkill", "-TERM", "-x", "biopass-helper"], check=False)
+
+
 def set_reboot_to_firmware(enabled):
     subprocess.run([
         "busctl", "call", "org.freedesktop.login1",
@@ -72,7 +80,11 @@ class HelperHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(b"Forbidden")
             return
 
-        if path in ROUTES:
+        if path == "/face-cancel":
+            cancel_face_scan()
+            self.send_response(204)
+            self.end_headers()
+        elif path in ROUTES:
             uefi = ROUTES[path]
             set_reboot_to_firmware(uefi)
             self.send_response(200)

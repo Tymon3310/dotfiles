@@ -159,23 +159,57 @@ Rectangle {
         root.attempt("")
     }
 
-    // SDDM accepts only one PAM transaction at a time. Remember password
-    // submissions during face authentication instead of sending a second login.
+    // SDDM accepts only one PAM transaction at a time. A password submitted
+    // during a face scan never waits for the scan: if the face login hasn't been
+    // sent yet it simply replaces it; otherwise the password is queued and the
+    // helper daemon ends the scan, so PAM fails fast and onLoginFailed sends it.
     function attempt(password: string): void {
         if (root.fadingOut)
             return
         if (root.authenticating) {
             if (root.pendingFaceAuth && password !== "") {
+                if (!root.loginCommitted) {
+                    sddmCommitTimer.stop()
+                    root.beginLogin(password, account.userName, session.currentIndex)
+                    return
+                }
                 root.queuedPassword = password
                 root.queuedUser = account.userName
                 root.queuedSessionIndex = session.currentIndex
                 faceTimeout.stop()
                 root.faceScanning = false
-                root.message = qsTr("Password queued — waiting for face authentication")
+                root.helperPost("face-cancel")
+                queuedHint.restart()
             }
             return
         }
         root.beginLogin(password, account.userName, session.currentIndex)
+    }
+
+    // Only mention the queue if cancelling the scan didn't work promptly
+    Timer {
+        id: queuedHint
+        interval: 900
+        onTriggered: {
+            if (root.queuedPassword !== "")
+                root.message = qsTr("Password queued — waiting for face authentication")
+        }
+    }
+
+    function helperPost(endpoint: string): void {
+        const send = function(token: string) {
+            try {
+                let req = new XMLHttpRequest()
+                req.open("POST", "http://127.0.0.1:18293/" + endpoint, true)
+                if (token)
+                    req.setRequestHeader("X-Helper-Token", token)
+                req.send()
+            } catch (e) {}
+        }
+        if (root.helperToken)
+            send(root.helperToken)
+        else
+            root.readHelperToken(send)
     }
 
     function clearQueuedLogin(): void {
@@ -256,6 +290,7 @@ Rectangle {
             const userName = root.queuedUser
             const sessionIndex = root.queuedSessionIndex
             root.clearQueuedLogin()
+            queuedHint.stop()
             root.pendingPassword = ""
             root.pendingFaceAuth = false
             root.loginCommitted = false
@@ -265,13 +300,18 @@ Rectangle {
             root.faceScanning = false
             root.confirmed = false
             root.fadingOut = false
+            // Face scan ended (usually cancelled) with a password waiting:
+            // go straight to it without flashing the face failure.
+            if (wasFaceAuth && password !== "") {
+                root.faceFailed = false
+                root.beginLogin(password, userName, sessionIndex)
+                return
+            }
             root.failed = true
             root.faceFailed = wasFaceAuth
             root.message = wasFaceAuth
                 ? qsTr("Face not recognized — enter password")
                 : qsTr("Wrong password")
-            if (wasFaceAuth && password !== "")
-                root.beginLogin(password, userName, sessionIndex)
         }
 
         function onInformationMessage(infoMsg: string): void {
@@ -325,24 +365,8 @@ Rectangle {
         root.pendingPowerAction = action
 
         // Notify local helper daemon of power intent & firmware-setup state
-        const sendPowerRequest = function(token: string) {
-            try {
-                let req = new XMLHttpRequest()
-                let endpoint = (action === "reboot-uefi") ? "reboot-uefi"
-                             : (action === "shutdown") ? "shutdown" : "reboot-normal"
-                let url = "http://127.0.0.1:18293/" + endpoint
-                req.open("POST", url, true)
-                if (token)
-                    req.setRequestHeader("X-Helper-Token", token)
-                req.send()
-            } catch (e) {}
-        }
-
-        if (root.helperToken) {
-            sendPowerRequest(root.helperToken)
-        } else {
-            root.readHelperToken(sendPowerRequest)
-        }
+        root.helperPost((action === "reboot-uefi") ? "reboot-uefi"
+                        : (action === "shutdown") ? "shutdown" : "reboot-normal")
 
         root.fadingOut = true
         sddmCommitTimer.start()
@@ -425,21 +449,33 @@ Rectangle {
             }
         }
 
-        // Morph blob: grows from the source's exact shape to the full screen
+        // Morph blob: starts as the source's exact shape and swells into a
+        // circle around the source's centre, staying fully round, until it is
+        // big enough to cover the farthest screen corner.
         Rectangle {
             readonly property real p: root.exitP
             readonly property rect r: root.exitRect
+            readonly property real cx: r.x + r.width / 2
+            readonly property real cy: r.y + r.height / 2
+            readonly property real reach: Math.max(
+                Math.hypot(cx, cy),
+                Math.hypot(sddmFadeOverlay.width - cx, cy),
+                Math.hypot(cx, sddmFadeOverlay.height - cy),
+                Math.hypot(sddmFadeOverlay.width - cx, sddmFadeOverlay.height - cy))
+            // Round off the source's square corners (island top) early on
+            readonly property real round: Math.min(1, p * 3)
+            readonly property real stadium: Math.min(width, height) / 2
 
             visible: root.exitFrom !== "" && p > 0
             color: "#000000"
-            x: r.x * (1 - p)
-            y: r.y * (1 - p)
-            width: r.width + (sddmFadeOverlay.width - r.width) * p
-            height: r.height + (sddmFadeOverlay.height - r.height) * p
-            topLeftRadius: root.exitTopRadius * (1 - p)
-            topRightRadius: root.exitTopRadius * (1 - p)
-            bottomLeftRadius: root.exitBottomRadius * (1 - p)
-            bottomRightRadius: root.exitBottomRadius * (1 - p)
+            width: r.width + (2 * reach - r.width) * p
+            height: r.height + (2 * reach - r.height) * p
+            x: cx - width / 2
+            y: cy - height / 2
+            topLeftRadius: root.exitTopRadius + (stadium - root.exitTopRadius) * round
+            topRightRadius: topLeftRadius
+            bottomLeftRadius: root.exitBottomRadius + (stadium - root.exitBottomRadius) * round
+            bottomRightRadius: bottomLeftRadius
         }
 
         Connections {
