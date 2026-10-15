@@ -16,7 +16,8 @@ ShellRoot {
         onTriggered: {
             const now = Date.now()
             if (last > 0 && now - last > 75)
-                console.info("[lock-t] main-thread stall " + Math.round(now - last) + "ms")
+                console.info("[lock-t] main-thread stall " + Math.round(now - last) + "ms at "
+                    + Qt.formatTime(new Date(last), "hh:mm:ss.zzz"))
             last = now
         }
     }
