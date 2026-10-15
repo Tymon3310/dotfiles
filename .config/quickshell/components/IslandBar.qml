@@ -335,6 +335,12 @@ PanelWindow {
             width: bar.belowSize.width
             height: bar.belowSize.height
             active: bar.expanded && bar.openId !== "notification"
+            // Building the dashboard in the click frame stalls the first
+            // frames of the morph. Incubate it across frames while the island
+            // grows (its size is fixed up front), then fade it in.
+            asynchronous: true
+            opacity: detailLoader.status === Loader.Ready ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: Theme.durationMedium; easing.type: Theme.easing } }
 
             sourceComponent: {
                 switch (bar.openId) {
