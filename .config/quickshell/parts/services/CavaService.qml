@@ -25,9 +25,17 @@ Singleton {
 
     readonly property bool active: root.watchers > 0
 
+    // Starting a process forks the whole shell, which stalls the UI for a
+    // few hundred ms. The island hides its spectrum whenever a menu opens,
+    // so keep cava alive for a while after the last release instead of
+    // respawning it (and freezing the morph) on every open/close.
+    readonly property Timer linger: Timer {
+        interval: 120000
+    }
+
     readonly property Process process: Process {
         command: ["cava", "-p", Quickshell.shellPath("parts/scripts/cava.conf")]
-        running: root.active
+        running: root.active || root.linger.running
 
         stdout: SplitParser {
             splitMarker: "\n"
@@ -36,6 +44,8 @@ Singleton {
     }
 
     function parse(line: string): void {
+        if (!root.active)
+            return
         const fields = line.split(";")
         const next = []
         for (let index = 0; index < root.barCount; index++) {
@@ -51,7 +61,9 @@ Singleton {
 
     function release(): void {
         root.watchers = Math.max(0, root.watchers - 1)
-        if (root.watchers === 0)
+        if (root.watchers === 0) {
             root.values = new Array(root.barCount).fill(0)
+            root.linger.restart()
+        }
     }
 }

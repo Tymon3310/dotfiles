@@ -34,12 +34,34 @@ Singleton {
 
     property int watchers: 0
 
+    // Spawning ping.py forks the whole shell and stalls the UI, so start it
+    // only after the dashboard's open morph, and keep it running for a while
+    // after close so reopening doesn't spawn it again.
+    property bool armed: false
+
+    readonly property Timer startDelay: Timer {
+        interval: 450
+        onTriggered: root.armed = root.watchers > 0
+    }
+
+    readonly property Timer linger: Timer {
+        interval: 60000
+        onTriggered: root.armed = root.watchers > 0
+    }
+
     function subscribe(): void {
         root.watchers += 1
+        root.linger.stop()
+        if (!root.armed)
+            root.startDelay.restart()
     }
 
     function release(): void {
         root.watchers = Math.max(0, root.watchers - 1)
+        if (root.watchers === 0) {
+            root.startDelay.stop()
+            root.linger.restart()
+        }
     }
 
     function record(id: string, ms: real): void {
@@ -64,7 +86,7 @@ Singleton {
     }
 
     readonly property Process pinger: Process {
-        running: root.watchers > 0
+        running: root.armed
         command: [Quickshell.shellPath("parts/scripts/ping.py"), `${root.interval / 1000}`]
             .concat(root.hosts.map(host => host.address))
 
