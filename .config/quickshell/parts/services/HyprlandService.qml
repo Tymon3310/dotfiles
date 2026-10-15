@@ -1,7 +1,7 @@
 // ╭────────────────────────────────────────────────────────────────────────────╮
 // │                                                                            │
 // │   H Y P R L A N D   S E R V I C E                                        │
-// │   workspace state · read from hyprctl, refreshed on events               │
+// │   workspace state · read from the Hyprland socket, on events          │
 // │                                                                            │
 // │   github.com/andreumassanet/impasto                                        │
 // │                                                                            │
@@ -19,8 +19,12 @@ import Quickshell.Hyprland
 // Quickshell 0.3.0 ships an object model for this, but against Hyprland 0.55
 // it reports every workspace with id -1 and no monitors at all, so the widget
 // built on it can only ever highlight workspace 1. The event socket and
-// dispatch do work, so the state is read from hyprctl and refreshed on the
-// events that change it — no polling.
+// dispatch do work, so the state is read with hyprctl-style requests and
+// refreshed on the events that change it — no polling.
+//
+// The requests go straight to Hyprland's request socket, not through the
+// hyprctl binary: starting a process forks the whole shell, which froze the
+// UI for ~250 ms on every focus change (e.g. each time a menu closed).
 QtObject {
     id: root
 
@@ -84,17 +88,67 @@ QtObject {
         Hyprland.dispatch(`hl.dsp.focus({ workspace = ${workspaceId} })`)
     }
 
-    // Events come in bursts (a workspace switch sends several), and every
-    // hyprctl call is a fork of the whole shell; Quickshell 0.3 occasionally
-    // crashes in a forked child, so the fewer the better. One batched call,
-    // at most every 80 ms.
+    // ── REQUEST SOCKET ──────────────────────────────────────────────────────
+    //
+    // Same protocol as hyprctl: write "j/<command>" (or "[[BATCH]]a;b"), read
+    // until Hyprland closes the connection. One socket per request, so
+    // overlapping requests never share a buffer.
+
+    readonly property string socketPath: {
+        const runtime = Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"
+        const instance = Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE") || ""
+        return `${runtime}/hypr/${instance}/.socket.sock`
+    }
+
+    readonly property Component requestComponent: Component {
+        Socket {
+            id: request
+
+            property string command: ""
+            property var callback: null
+            property string buffer: ""
+            property bool sent: false
+
+            path: root.socketPath
+            parser: SplitParser {
+                splitMarker: ""
+                onRead: data => request.buffer += data
+            }
+
+            onConnectedChanged: {
+                if (request.connected) {
+                    request.sent = true
+                    request.write(request.command)
+                    request.flush()
+                    return
+                }
+                if (request.sent && request.callback)
+                    request.callback(request.buffer)
+                request.destroy()
+            }
+
+            onError: request.destroy()
+        }
+    }
+
+    function query(command: string, callback: var): void {
+        const request = root.requestComponent.createObject(root, {
+            command: command,
+            callback: callback
+        })
+        if (request)
+            request.connected = true
+    }
+
+    // Events come in bursts (a workspace switch sends several): one batched
+    // request, at most every 80 ms.
     function refresh(): void {
         root.settle.restart()
     }
 
     readonly property Timer settle: Timer {
         interval: 80
-        onTriggered: root.stateProcess.running = true
+        onTriggered: root.query("[[BATCH]]j/workspaces;j/monitors", text => root.applyState(text))
     }
 
     // ── ON DEMAND ───────────────────────────────────────────────────────────
@@ -105,27 +159,6 @@ QtObject {
     property var monitors: []
     property var binds: []
 
-    readonly property Process monitorsProcess: Process {
-        command: ["hyprctl", "monitors", "-j"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const list = root.parseJson(text)
-                if (Array.isArray(list))
-                    root.monitors = list
-            }
-        }
-    }
-
-    readonly property Process bindsProcess: Process {
-        command: ["hyprctl", "binds", "-j"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const list = root.parseJson(text)
-                if (Array.isArray(list))
-                    root.binds = list
-            }
-        }
-    }
 
     // ── WINDOWS ─────────────────────────────────────────────────────────────
     //
@@ -146,40 +179,31 @@ QtObject {
     // address without `0x` and an empty string for no window.
     property string focusedAddress: ""
 
-    readonly property Process focusedProcess: Process {
-        command: ["hyprctl", "activewindow", "-j"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const window = root.parseJson(text)
-                root.focusedAddress = window && typeof window.address === "string"
-                    ? window.address : ""
-                if (window && typeof window.fullscreen === "number" && root.focusedMonitor !== "") {
-                    const isFs = window.fullscreen > 0
-                    if (root.fullscreenByMonitor[root.focusedMonitor] !== isFs) {
-                        const copy = Object.assign({}, root.fullscreenByMonitor)
-                        copy[root.focusedMonitor] = isFs
-                        root.fullscreenByMonitor = copy
-                    }
+    function loadFocused(): void {
+        root.query("j/activewindow", text => {
+            const window = root.parseJson(text)
+            root.focusedAddress = window && typeof window.address === "string"
+                ? window.address : ""
+            if (window && typeof window.fullscreen === "number" && root.focusedMonitor !== "") {
+                const isFs = window.fullscreen > 0
+                if (root.fullscreenByMonitor[root.focusedMonitor] !== isFs) {
+                    const copy = Object.assign({}, root.fullscreenByMonitor)
+                    copy[root.focusedMonitor] = isFs
+                    root.fullscreenByMonitor = copy
                 }
             }
-        }
+        })
     }
 
-    readonly property Process clientsProcess: Process {
-        command: ["hyprctl", "clients", "-j"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const list = root.parseJson(text)
-                if (!Array.isArray(list))
-                    return
-                root.clients = list.filter(client => client.mapped && client.workspace
-                    && client.workspace.id > 0)
-            }
-        }
+    function loadClients(): void {
+        root.query("j/clients", text => {
+            const list = root.parseJson(text)
+            if (!Array.isArray(list))
+                return
+            root.clients = list.filter(client => client.mapped && client.workspace
+                && client.workspace.id > 0)
+        })
     }
-
-    function loadClients(): void { root.clientsProcess.running = true }
 
     function clientsOn(workspaceId: int): var {
         return root.clients.filter(client => client.workspace.id === workspaceId)
@@ -253,89 +277,100 @@ QtObject {
         return parts.join(" + ")
     }
 
-    function loadMonitors(): void { root.monitorsProcess.running = true }
-    function loadBinds(): void { root.bindsProcess.running = true }
+    function loadMonitors(): void {
+        root.query("j/monitors", text => {
+            const list = root.parseJson(text)
+            if (Array.isArray(list))
+                root.monitors = list
+        })
+    }
 
-    // `hyprctl --batch` prints the two JSON arrays back to back: the
-    // workspaces, then the monitors. The focused monitor's workspace is the
-    // focused one.
-    readonly property Process stateProcess: Process {
-        command: ["hyprctl", "--batch", "j/workspaces; j/monitors"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let depth = 0
-                let inString = false
-                let escape = false
-                let firstEnd = -1
-                for (let i = 0; i < text.length; i++) {
-                    const c = text[i]
-                    if (escape) {
-                        escape = false
-                        continue
-                    }
-                    if (c === "\\") {
-                        if (inString) escape = true
-                        continue
-                    }
-                    if (c === '"') {
-                        inString = !inString
-                        continue
-                    }
-                    if (!inString) {
-                        if (c === "[") {
-                            depth++
-                        } else if (c === "]") {
-                            depth--
-                            if (depth === 0) {
-                                firstEnd = i
-                                break
-                            }
-                        }
+    function loadBinds(): void {
+        root.query("j/binds", text => {
+            const list = root.parseJson(text)
+            if (Array.isArray(list))
+                root.binds = list
+        })
+    }
+
+    Component.onCompleted: {
+        root.refresh()
+        root.loadFocused()
+    }
+
+    // A batch reply is the two JSON arrays back to back: the workspaces, then
+    // the monitors. The focused monitor's workspace is the focused one.
+    function applyState(text: string): void {
+        let depth = 0
+        let inString = false
+        let escape = false
+        let firstEnd = -1
+        for (let i = 0; i < text.length; i++) {
+            const c = text[i]
+            if (escape) {
+                escape = false
+                continue
+            }
+            if (c === "\\") {
+                if (inString) escape = true
+                continue
+            }
+            if (c === '"') {
+                inString = !inString
+                continue
+            }
+            if (!inString) {
+                if (c === "[") {
+                    depth++
+                } else if (c === "]") {
+                    depth--
+                    if (depth === 0) {
+                        firstEnd = i
+                        break
                     }
                 }
-                if (firstEnd < 0)
-                    return
-                const secondStart = text.indexOf("[", firstEnd + 1)
-                if (secondStart < 0)
-                    return
-                const workspaces = root.parseJson(text.slice(0, firstEnd + 1))
-                const monitors = root.parseJson(text.slice(secondStart))
-                if (!Array.isArray(workspaces) || !Array.isArray(monitors))
-                    return
-                root.occupiedIds = workspaces
-                    .filter(workspace => workspace.windows > 0)
-                    .map(workspace => workspace.id)
-                const active = {}
-                const fullscreenMap = {}
-                for (const monitor of monitors) {
-                    if (!monitor.activeWorkspace)
-                        continue
-                    active[monitor.name] = monitor.activeWorkspace.id
-                    if (monitor.focused) {
-                        root.focusedMonitor = monitor.name
-                        root.activeId = monitor.activeWorkspace.id
-                    }
-
-                    let isFs = false
-                    const activeWsId = monitor.activeWorkspace?.id
-                    const specialWsId = monitor.specialWorkspace?.id
-                    for (const ws of workspaces) {
-                        if (ws.id === activeWsId && !!ws.hasfullscreen) {
-                            isFs = true
-                            break
-                        }
-                        if (specialWsId && ws.id === specialWsId && !!ws.hasfullscreen) {
-                            isFs = true
-                            break
-                        }
-                    }
-                    fullscreenMap[monitor.name] = isFs
-                }
-                root.activeByMonitor = active
-                root.fullscreenByMonitor = fullscreenMap
             }
         }
+        if (firstEnd < 0)
+            return
+        const secondStart = text.indexOf("[", firstEnd + 1)
+        if (secondStart < 0)
+            return
+        const workspaces = root.parseJson(text.slice(0, firstEnd + 1))
+        const monitors = root.parseJson(text.slice(secondStart))
+        if (!Array.isArray(workspaces) || !Array.isArray(monitors))
+            return
+        root.occupiedIds = workspaces
+            .filter(workspace => workspace.windows > 0)
+            .map(workspace => workspace.id)
+        const active = {}
+        const fullscreenMap = {}
+        for (const monitor of monitors) {
+            if (!monitor.activeWorkspace)
+                continue
+            active[monitor.name] = monitor.activeWorkspace.id
+            if (monitor.focused) {
+                root.focusedMonitor = monitor.name
+                root.activeId = monitor.activeWorkspace.id
+            }
+
+            let isFs = false
+            const activeWsId = monitor.activeWorkspace?.id
+            const specialWsId = monitor.specialWorkspace?.id
+            for (const ws of workspaces) {
+                if (ws.id === activeWsId && !!ws.hasfullscreen) {
+                    isFs = true
+                    break
+                }
+                if (specialWsId && ws.id === specialWsId && !!ws.hasfullscreen) {
+                    isFs = true
+                    break
+                }
+            }
+            fullscreenMap[monitor.name] = isFs
+        }
+        root.activeByMonitor = active
+        root.fullscreenByMonitor = fullscreenMap
     }
 
     readonly property Connections events: Connections {
@@ -357,7 +392,7 @@ QtObject {
             case "focusedmonv2":
             case "fullscreen":
                 if (event.name === "fullscreen") {
-                    root.focusedProcess.running = true
+                    root.loadFocused()
                 }
                 if (event.name === "focusedmonv2") {
                     const parts = `${event.data}`.split(",")
@@ -401,7 +436,7 @@ QtObject {
                     root.focusedAddress = event.data === "" ? "" : `0x${event.data}`
                 if (root.watchClients)
                     root.loadClients()
-                root.focusedProcess.running = true
+                root.loadFocused()
                 root.refresh()
                 break
             }
@@ -414,7 +449,7 @@ QtObject {
         try {
             return JSON.parse(text)
         } catch (error) {
-            console.warn("Cannot parse the hyprctl response:", error)
+            console.warn("Cannot parse the Hyprland response:", error)
             return null
         }
     }
