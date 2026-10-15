@@ -30,7 +30,16 @@ PanelWindow {
     property var trayMenu: null
     property var trayItem: null
 
+    // TEMPORARY open/close timing, paired with the stall watchdog in
+    // shell.qml, to find what freezes the morph. Remove once found.
+    property real dbgT0: 0
+    function dbg(what: string): void {
+        console.info("[island-t] " + what + " t=" + Math.round(Date.now() - bar.dbgT0) + "ms")
+    }
+
     onOpenIdChanged: {
+        bar.dbgT0 = Date.now()
+        bar.dbg("openId=\"" + bar.openId + "\" on " + (bar.screen ? bar.screen.name : "?"))
         if (bar.openId !== "tray") {
             bar.trayMenu = null
             bar.trayItem = null
@@ -152,6 +161,7 @@ PanelWindow {
     HyprlandFocusGrab {
         active: bar.expanded
         windows: [bar]
+        onActiveChanged: bar.dbg("focus grab active=" + active)
         onCleared: bar.close()
     }
 
@@ -226,7 +236,11 @@ PanelWindow {
             NumberAnimation { duration: bar.below !== "" ? Theme.durationMorph : Theme.durationIslandRetract; easing.type: Theme.easing }
         }
         Behavior on height {
-            NumberAnimation { duration: bar.below !== "" ? Theme.durationMorph : Theme.durationIslandRetract; easing.type: Theme.easing }
+            NumberAnimation {
+                duration: bar.below !== "" ? Theme.durationMorph : Theme.durationIslandRetract
+                easing.type: Theme.easing
+                onRunningChanged: bar.dbg("morph " + (running ? "start" : "end") + " h=" + Math.round(island.height))
+            }
         }
 
         focus: bar.expanded
@@ -341,6 +355,7 @@ PanelWindow {
             asynchronous: true
             opacity: detailLoader.status === Loader.Ready ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: Theme.durationMedium; easing.type: Theme.easing } }
+            onStatusChanged: bar.dbg("detail loader status=" + status)
 
             sourceComponent: {
                 switch (bar.openId) {
