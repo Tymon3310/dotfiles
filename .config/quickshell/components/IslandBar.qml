@@ -114,6 +114,8 @@ PanelWindow {
     property alias notchYOffset: motion.notchYOffset
     property alias islandsEmergeProgress: motion.islandsEmergeProgress
     property alias isDemorphed: motion.isDemorphed
+    // The capsule rect, for IslandMotion's explicit lock morph.
+    property alias capsule: island
 
     IslandMotion {
         id: motion
@@ -216,11 +218,15 @@ PanelWindow {
         bottomLeftRadius: bar.below !== "" ? bar.openRadius : Theme.radiusLarge
         bottomRightRadius: bar.below !== "" ? bar.openRadius : Theme.radiusLarge
 
+        // Closing/demorphing is fast (the capture waits on it); opening
+        // keeps the full graceful morph. Branched on `below` (not the
+        // demorph flag): width/height depend on `below`, so it is
+        // guaranteed fresh before they re-evaluate — no duration race.
         Behavior on width {
-            NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing }
+            NumberAnimation { duration: bar.below !== "" ? Theme.durationMorph : Theme.durationIslandRetract; easing.type: Theme.easing }
         }
         Behavior on height {
-            NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing }
+            NumberAnimation { duration: bar.below !== "" ? Theme.durationMorph : Theme.durationIslandRetract; easing.type: Theme.easing }
         }
 
         focus: bar.expanded

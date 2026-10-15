@@ -33,72 +33,85 @@ Item {
     // The source screenshot is already locked and immutable underneath it.
     property real lockReveal: 0
     property real clockReveal: 0
+    property bool entryDone: false
     ParallelAnimation {
         id: lockEntry
         running: false
+        onStopped: root.entryDone = true
 
         NumberAnimation {
             target: root
             property: "lockReveal"
             from: 0
             to: 1
-            duration: 680
+            duration: Math.round(380 * Theme.motion)
             easing.type: Easing.OutCubic
         }
 
         SequentialAnimation {
-            PauseAnimation { duration: 150 }
+            PauseAnimation { duration: Math.round(80 * Theme.motion) }
             NumberAnimation {
                 target: root
                 property: "clockReveal"
                 from: 0
                 to: 1
-                duration: 440
-                easing.type: Easing.OutBack
+                // No overshoot here: OutBack wobble on the big clock reads as lag.
+                duration: Math.round(280 * Theme.motion)
+                easing.type: Easing.OutCubic
             }
         }
     }
 
-    // The screenshot decodes asynchronously, so hold the entry animation
-    // until it's on screen; otherwise the frost plays out over nothing and
-    // the blur just appears. A fallback keeps the clock from never showing.
-    property bool entryPending: false
+    // The screenshots decode asynchronously, so hold the entry animation
+    // until they are on screen; otherwise the reveal plays out over a black
+    // rect and the wallpaper pops in mid-animation. A short fallback caps
+    // the wait when the decoder stalls.
+    property bool entryStarted: false
 
-    function beginEntry(): void {
-        lockEntry.stop()
+    function armEntry(): void {
+        root.entryStarted = false
+        root.entryDone = false
         root.lockReveal = 0
         root.clockReveal = 0
-        root.entryPending = true
         entryFallback.restart()
-        root.tryEntry(false)
+        root.tryEntry()
     }
 
-    function tryEntry(force: bool): void {
-        if (!root.entryPending)
+    function tryEntry(): void {
+        if (root.entryStarted)
             return
-        const settled = shot.status === Image.Ready || shot.status === Image.Error || String(shot.source) === ""
-        if (!force && !settled)
+        // Gate on the blur source only: the sharp layer loads after the
+        // entry (see below), so waiting for it would stall the reveal.
+        const settled = (blurShot.status === Image.Ready || blurShot.status === Image.Error || String(blurShot.source) === "")
+        if (!settled)
             return
-        root.entryPending = false
+        // One frame so the texture uploads land before the reveal animates.
+        entrySettle.restart()
+    }
+
+    function startEntryNow(): void {
+        if (root.entryStarted)
+            return
+        root.entryStarted = true
         entryFallback.stop()
-        // One extra frame so the texture upload doesn't land on frame one
-        entryKick.restart()
+        console.info("[lock-t] entry started")
+        lockEntry.restart()
     }
 
     Timer {
         id: entryFallback
-        interval: 600
-        onTriggered: root.tryEntry(true)
+        interval: Math.round(250 * Theme.motion)
+        onTriggered: root.startEntryNow()
     }
 
     Timer {
-        id: entryKick
+        id: entrySettle
         interval: 32
-        onTriggered: lockEntry.restart()
+        onTriggered: root.startEntryNow()
     }
 
     Component.onCompleted: {
-        root.beginEntry()
+        root.armEntry()
         // Hold keyboard focus while resting so the first keypress wakes
         // without needing a mouse click to focus the password field.
         root.forceActiveFocus()
@@ -109,7 +122,7 @@ Item {
         function onLockedChanged(): void {
             if (!LockService.locked)
                 return
-            root.beginEntry()
+            root.armEntry()
             root.forceActiveFocus()
         }
     }
@@ -161,6 +174,7 @@ Item {
         const wasAwake = LockService.awake
         LockService.rouse()
         if (event.key === Qt.Key_Space) {
+            console.info("[lock-t] space pressed")
             if (!LockService.biopassRunning && !LockService.biopassVerified)
                 LockService.triggerBiopass()
             Qt.callLater(account.claim)
@@ -186,40 +200,66 @@ Item {
 
     // ── BACKGROUND ───────────────────────────────────────────────────────────
 
-    Rectangle {
+    // Frozen desktop frame.
+    Item {
+        id: frame
         anchors.fill: parent
-        color: Theme.island
+
+        Rectangle {
+            anchors.fill: parent
+            color: Theme.island
+        }
+
+        // Half-resolution copy feeding ONLY the blur. Fullscreen blur passes and
+        // texture uploads cost ~4x less this way; under a radius-48 blur the lost
+        // detail is invisible. Must stay visible (invisible items don't feed
+        // effects on Qt 6); file order puts it before the opaque full-res shot,
+        // which covers it fully, so it never shows on screen.
+        Image {
+            id: blurShot
+            anchors.fill: parent
+            source: LockService.shotSourceFor(root.screenName)
+            fillMode: Image.PreserveAspectCrop
+            sourceSize: Qt.size(Math.max(1, Math.round(root.width / 2)), Math.max(1, Math.round(root.height / 2)))
+            asynchronous: true
+            cache: false
+            onStatusChanged: root.tryEntry()
+        }
+
+        Image {
+            id: shot
+            anchors.fill: parent
+            // Loads only after the entry (or when leaving starts): at rest
+            // the full blur covers this layer, so decoding it in the entry
+            // window only buys jank. The pop is invisible under the blur.
+            source: (root.entryDone || LockService.leaving) ? LockService.shotSourceFor(root.screenName) : ""
+            visible: true
+            fillMode: Image.PreserveAspectCrop
+            // Half resolution like the blur source: decode + upload ~4x
+            // cheaper, and this layer is only ever seen mid-fade under the
+            // full blur, so the lost sharpness is invisible.
+            sourceSize: Qt.size(Math.max(1, Math.round(root.width / 2)), Math.max(1, Math.round(root.height / 2)))
+            // Async so the multi-megapixel JPEG decode never blocks the GUI
+            // thread mid-animation.
+            asynchronous: true
+            cache: false
+        }
     }
 
-    Image {
-        id: shot
-        anchors.fill: parent
-        source: LockService.shotSourceFor(root.screenName)
-        visible: true
-        fillMode: Image.PreserveAspectCrop
-        // Async so the multi-megapixel JPEG decode never blocks the GUI
-        // thread mid-animation. The frost gates on Image.Ready.
-        asynchronous: true
-        cache: false
-        onStatusChanged: root.tryEntry(false)
-    }
-
-    // Frost the whole frozen screenshot in place. The blur radius itself
-    // ramps up on lock (lockReveal) and back down on unlock (held), so the
-    // desktop visibly goes soft instead of crossfading to a blurred copy.
-    // Floored just above zero: MultiEffect swaps shader variants when blur or
-    // brightness hit exactly 0, which hitches the first and last frame.
-    readonly property real frost: Math.max(0.002, root.held * root.lockReveal)
-
+    // Frost the whole frozen screenshot in place. The blur is STATIC (rendered
+    // once per lock); only its opacity animates — fading the blurred layer in
+    // over the sharp shot on lock and out again on unlock. Animating the blur
+    // radius itself would re-run a fullscreen blur every frame and stutter.
     MultiEffect {
         anchors.fill: parent
-        source: shot
-        visible: shot.status === Image.Ready
+        source: blurShot
+        visible: blurShot.status === Image.Ready && root.held > 0.01
+        opacity: root.lockReveal * root.held
         blurEnabled: true
-        blur: root.frost
+        blur: 1
         blurMax: SettingsService.lockBlur
-        brightness: (root.screenName === "DP-1" ? 0.05 : -0.02) * root.frost
-        contrast: (root.screenName === "DP-1" ? 0.08 : 0.0) * root.frost
+        brightness: (root.screenName === "DP-1" ? 0.05 : -0.02)
+        contrast: (root.screenName === "DP-1" ? 0.08 : 0.0)
         saturation: 0.0
     }
 
@@ -227,14 +267,14 @@ Item {
     Rectangle {
         anchors.fill: parent
         color: Theme.scrim
-        opacity: 0.16 * root.frost
+        opacity: 0.16 * root.held
     }
 
     // A soft lower vignette keeps the password capsule readable without
     // flattening the captured wallpaper behind the clock.
     Rectangle {
         anchors.fill: parent
-        opacity: root.frost
+        opacity: root.held
         gradient: Gradient {
             GradientStop { position: 0.0; color: "#00000000" }
             GradientStop { position: 0.48; color: "#08000000" }
@@ -268,8 +308,9 @@ Item {
             * (0.92 + 0.08 * root.clockReveal)
         transformOrigin: Item.Top
 
-        Behavior on y { NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing } }
-        Behavior on scale { NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing } }
+        // No Behaviors here: y/scale are already continuously animated via
+        // the `awake`/`clockReveal` props. A Behavior on top would chase a
+        // moving target and feel laggy/floaty.
 
         layer.enabled: true
         layer.effect: MultiEffect {
@@ -299,9 +340,10 @@ Item {
         scale: 0.97 + 0.03 * root.awake
         transformOrigin: Item.Center
 
-        Behavior on anchors.bottomMargin { NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing } }
+        // No Behaviors on geometry: bottomMargin/scale already move smoothly
+        // via the animated `awake` prop; chasing them would lag. Opacity keeps
+        // its Behavior for the `isActive` step when switching screens.
         Behavior on opacity { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
-        Behavior on scale { NumberAnimation { duration: Theme.durationMedium; easing.type: Easing.OutCubic } }
 
         onSubmitted: password => root.submitted(password)
     }

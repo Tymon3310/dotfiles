@@ -6,6 +6,21 @@ import "parts/services"
 import "parts/lock"
 
 ShellRoot {
+    // Main-thread stall watchdog: logs event-loop gaps (quiet otherwise).
+    // Used to hunt hitches in the lock transition; useful anywhere.
+    Timer {
+        interval: 10
+        repeat: true
+        running: true
+        property real last: 0
+        onTriggered: {
+            const now = Date.now()
+            if (last > 0 && now - last > 75)
+                console.info("[lock-t] main-thread stall " + Math.round(now - last) + "ms")
+            last = now
+        }
+    }
+
     // ── Notification Daemon ──────────────────────────────────────────
     // Kill swaync so NotificationService can own org.freedesktop.Notifications
     Process {

@@ -27,9 +27,9 @@ Item {
     anchors.top: parent.top
     width: root.notchWidth
     height: root.notchHeight
-
-    Behavior on width { NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing } }
-    Behavior on height { NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing } }
+    // No Behavior here: notchWidth already moves smoothly because it is
+    // driven by the animated `held` prop. A Behavior on top would chase a
+    // moving target and feel laggy/floaty.
 
     // Fillets attaching notch to top screen edge
     NotchFillet {

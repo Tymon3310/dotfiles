@@ -55,7 +55,9 @@ Shared.ThemeTokens {
     durationMedium: Math.round(200 * root.motion)
     durationMorph: Math.round(380 * root.motion)
 
-    // Capture waits for retraction, notch shrinkage and two compositor frames.
-    readonly property int durationIslandRetract: 300
-    readonly property int durationIslandGone: root.durationIslandRetract + root.durationMorph + 40
+    // Capture waits for the island to reach its compact 72px rest. Retract
+    // and demorph run in parallel over durationIslandRetract (the demorph
+    // flag is set synchronously with close()), plus two compositor frames.
+    readonly property int durationIslandRetract: Math.round(220 * root.motion)
+    readonly property int durationIslandGone: root.durationIslandRetract + 40
 }

@@ -98,10 +98,12 @@ Singleton {
         onStarted: {
             root.biopassRunning = true
             root.biopassFailed = false
+            console.info("[lock-t] biopass running")
         }
 
         onExited: (code, status) => {
             root.biopassRunning = false
+            console.info("[lock-t] biopass exit code=" + code)
             if (code === 0) {
                 root.biopassVerified = true
                 root.biopassFailed = false
@@ -119,6 +121,7 @@ Singleton {
             return
         if (root.biopassRunning || root.biopassVerified || root.authenticating)
             return
+        console.info("[lock-t] biopass starting")
         root.biopassFailed = false
         biopassAuth.running = true
     }
@@ -143,21 +146,27 @@ Singleton {
     function lock(): void {
         if (root.locked || root.settleCaptureTimer.running || root.preparingLock)
             return
+        console.info("[lock-t] lock()")
         root.rest()
         root.preparingLock = true
         root.prepareLock()
         settleCaptureTimer.restart()
     }
 
+    // Screens known to the shell: avoids hyprctl+jq round-trips on the
+    // latency-sensitive lock path.
+    readonly property string perOutputCmds: Quickshell.screens.map(s => "timeout 2 grim -o '" + s.name + "' -t jpeg -q 85 '" + root.shotDirectory + "/lock-" + s.name + ".jpg' &").join(" ")
+
     // Capture each monitor independently in parallel for crisp per-output resolution
     readonly property Process capture: Process {
         command: ["sh", "-c",
-            `mkdir -p '${root.shotDirectory}' && timeout 2 grim -t jpeg -q 85 '${root.shotDirectory}/lock.jpg' & for s in $(hyprctl monitors -j 2>/dev/null | jq -r '.[].name' 2>/dev/null); do timeout 2 grim -o "$s" -t jpeg -q 85 '${root.shotDirectory}/lock-'$s'.jpg' & done; wait; test -f '${root.shotDirectory}/lock.jpg'`]
+            `mkdir -p '${root.shotDirectory}' && timeout 2 grim -t jpeg -q 85 '${root.shotDirectory}/lock.jpg' & ${root.perOutputCmds} wait; test -f '${root.shotDirectory}/lock.jpg'`]
 
         onExited: (code, status) => {
             root.shotSerial += 1
             root.shotReady = (code === 0)
             root.preparingLock = false
+            console.info("[lock-t] captured ok=" + root.shotReady)
             root.locked = true
             root.begin()
         }
@@ -252,6 +261,7 @@ Singleton {
     function release(): void {
         if (root.leaving)
             return
+        console.info("[lock-t] release (leaving)")
         root.leaving = true
         root.cancelBiopass()
         root.leave.restart()
@@ -272,6 +282,7 @@ Singleton {
             root.forget()
             root.unlocked()
             root.leaving = false
+            console.info("[lock-t] unlocked")
         }
     }
 }
