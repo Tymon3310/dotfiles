@@ -103,6 +103,55 @@ def opencode_tui_running():
     return False
 
 
+OPENCODE_STATUS_DIR = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "agent-status" / "opencode"
+
+
+def check_opencode_plugin():
+    """OpenCode sessions from the status plugin (opencode_status.js).
+
+    None when the plugin has written nothing, so the database fallback runs.
+    Busy, waiting and errored sessions always show; a finished one reads
+    "Done" for a minute; after that only the latest idle session stays
+    listed, and only while an OpenCode window is open.
+    """
+    try:
+        files = list(OPENCODE_STATUS_DIR.glob("*.json"))
+    except OSError:
+        return None
+    if not files:
+        return None
+    now_ms = time.time() * 1000
+    tui_open = opencode_tui_running()
+    found, idle = [], []
+    for path in files:
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, ValueError):
+            continue
+        state = data.get("state", "")
+        updated = data.get("time", 0)
+        if state not in STATE_RANK or now_ms - updated > 24 * 3600 * 1000:
+            continue
+        if state == "done" and now_ms - updated > CLAUDE_DONE_MS:
+            state = "idle"
+        word = {"waiting": "Needs Input", "working": "Thinking", "done": "Done",
+                "idle": "Idle", "error": "Error"}[state]
+        entry = {
+            "active": True,
+            "agent": "OpenCode",
+            "id": "opencode:" + data.get("session", path.stem),
+            "state": state,
+            "label": f"OpenCode · {word}",
+            "title": os.path.basename(data.get("cwd", "").rstrip("/")) or "OpenCode",
+            "task": data.get("title", ""),
+            "time": updated,
+        }
+        (idle if state == "idle" else found).append(entry)
+    if tui_open and idle:
+        found.append(max(idle, key=lambda a: a["time"]))
+    return found
+
+
 def check_opencode():
     if not OPENCODE_DB.exists():
         return None
@@ -355,12 +404,21 @@ def daemon_attached_pids():
     return attached
 
 
+def same_tree(a, b):
+    """One folder is the other or inside it (a session's cwd moves as it
+    works, so a resumed session may report a parent or child folder)."""
+    if not a or not b:
+        return False
+    a, b = a.rstrip("/") + "/", b.rstrip("/") + "/"
+    return a.startswith(b) or b.startswith(a)
+
+
 def settle_claude_windows(agents, clients):
     """Window each Claude session, handing daemon-hosted ones their terminal.
 
     A resumed session gets a new id and runs from the daemon; the old id's
     status file lingers, tied to the terminal. When a session has no window
-    of its own and an older session in the same folder sits in a terminal
+    of its own and an older session in the same folder tree sits in a terminal
     attached to the daemon, the new one takes that window and the old one is
     dropped. Any two sessions left on one window keep only the newest.
     """
@@ -375,7 +433,7 @@ def settle_claude_windows(agents, clients):
                 continue
             older = [o for o in claude
                      if o is not a and o["address"] and id(o) not in dropped
-                     and o.get("cwd") == a.get("cwd")
+                     and same_tree(o.get("cwd", ""), a.get("cwd", ""))
                      and o.get("time", 0) < a.get("time", 0)
                      and (o.get("pids") or [0])[0] in attached]
             if older:
@@ -394,7 +452,9 @@ def settle_claude_windows(agents, clients):
 
 
 def poll_agents():
-    agents = [a for a in (check_opencode(), check_t3(), check_antigravity()) if a]
+    plugin = check_opencode_plugin()
+    agents = plugin if plugin is not None else [a for a in (check_opencode(),) if a]
+    agents += [a for a in (check_t3(), check_antigravity()) if a]
     agents += check_claude()
 
     if not agents:
@@ -429,7 +489,7 @@ def poll_agents():
             "title": a.get("title", ""),
             # What the session is about, from its window title ("" if none).
             # Other agents report their session title directly.
-            "task": window_task(address, clients) if a["agent"] == "Claude" else a.get("title", ""),
+            "task": window_task(address, clients) if a["agent"] == "Claude" else a.get("task", a.get("title", "")),
             "address": address,
         })
 
