@@ -105,12 +105,34 @@ local function center_window_if_needed(win)
     end
 end
 
+-- Windows pulled off a monitor that went away: address -> { from, to }.
+-- A monitor that sleeps can drop off the bus (DP-1 does), so when it comes
+-- back each window goes home, unless it was moved by hand in the meantime.
+local displaced = {}
+
+local function restore_displaced()
+    if next(displaced) == nil then return end
+    local valid_slots = get_monitor_slots()
+    for _, win in ipairs(hl.get_windows()) do
+        local entry = displaced[win.address]
+        if entry and win.workspace and win.workspace.id == entry.to
+            and valid_slots[math.floor((entry.from - 1) / per_monitor) + 1] then
+            hl.dispatch(hl.dsp.window.move({ workspace = entry.from, follow = false, window = win }))
+            displaced[win.address] = nil
+        end
+    end
+    -- Anything left is gone or was moved by hand; forget it once every
+    -- monitor is back.
+    if valid_slots[1] and valid_slots[2] then displaced = {} end
+end
+
 local function recover_windows(center)
     local active_ws = hl.get_active_workspace()
     if not active_ws then return end
     local valid_slots = get_monitor_slots()
     for _, win in ipairs(hl.get_windows()) do
         if is_workspace_rogue(win.workspace, valid_slots) then
+            displaced[win.address] = { from = win.workspace.id, to = active_ws.id }
             hl.dispatch(hl.dsp.window.move({ workspace = active_ws.id, window = win }))
         elseif center and win.floating then
             center_window_if_needed(win)
@@ -134,9 +156,29 @@ local function schedule_workspace_recovery()
     hl.timer(recover_rogue_windows, { timeout = 150, type = "oneshot" })
 end
 
+local wallpaper_restart_pending = false
+
+local function schedule_workspace_restore()
+    -- After Hyprland has moved the persistent workspaces back.
+    hl.timer(function()
+        restore_displaced()
+        recover_rogue_windows()
+    end, { timeout = 150, type = "oneshot" })
+
+    -- The wallpaper engine loses the returning output; restart it once the
+    -- monitor has settled (one restart even if several come back at once).
+    if not wallpaper_restart_pending then
+        wallpaper_restart_pending = true
+        hl.timer(function()
+            wallpaper_restart_pending = false
+            hl.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/wallpaper-restart.sh")
+        end, { timeout = 2000, type = "oneshot" })
+    end
+end
+
 local function setup_events()
     hl.on("monitor.removed", schedule_workspace_recovery)
-    hl.on("monitor.added", schedule_workspace_recovery)
+    hl.on("monitor.added", schedule_workspace_restore)
 end
 
 return {

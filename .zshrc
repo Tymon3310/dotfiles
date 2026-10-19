@@ -23,6 +23,8 @@ plugins=(
 autoload -Uz add-zsh-hook
 autoload -U colors && colors
 fpath=($HOME/.zfunc $fpath)
+export ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/.zcompdump-$HOST-$ZSH_VERSION"
+mkdir -p "${ZSH_COMPDUMP:h}"
 source $ZSH/oh-my-zsh.sh
 
 if [[ -o interactive && -t 0 ]] && command -v fzf >/dev/null 2>&1; then

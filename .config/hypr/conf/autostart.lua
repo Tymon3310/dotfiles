@@ -20,6 +20,8 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("vicinae server")
     hl.exec_cmd("wl-clip-persist --clipboard regular")
     hl.exec_cmd("hyprsunset")
+    -- Logs who sends play/pause to media players (debugging auto-unpause) -> ~/mpris-play.log
+    hl.exec_cmd(os.getenv("HOME") .. "/.local/bin/mpris-play-logger")
 
     -- Start btop in background on special workspace
     hl.exec_cmd("kitty --class btop --config ~/.config/kitty/headless.conf -e btop",

@@ -3,6 +3,10 @@ hl.config({
     misc = {
         disable_hyprland_logo = false,
         allow_session_lock_restore = true,
+        -- Keep drawing the desktop under the lock surface, so Quickshell's
+        -- unlock can fade onto the live screen instead of cutting to it.
+        -- The lock surface is opaque while locked, so nothing shows through.
+        session_lock_xray = true,
         middle_click_paste = false,
         disable_splash_rendering = false,
         initial_workspace_tracking = 0,
