@@ -194,8 +194,9 @@ Item {
             id: slide
             NumberAnimation {
                 target: shift; property: "x"
-                from: 18 * root.direction; to: 0
-                duration: Theme.durationMedium; easing.type: Theme.easing
+                from: 22 * root.direction; to: 0
+                duration: Theme.durationEnter; easing.type: Theme.easingSpring
+                easing.overshoot: Theme.springOvershoot
             }
             NumberAnimation {
                 target: list; property: "opacity"
@@ -219,6 +220,22 @@ Item {
             id: entry
 
             required property var modelData
+            required property int index
+
+            // Rows arrive top to bottom: each fades in and drifts up a few
+            // pixels, a beat after the one above it.
+            opacity: 0
+            transform: Translate { id: rowShift }
+            Component.onCompleted: rowIn.start()
+
+            SequentialAnimation {
+                id: rowIn
+                PauseAnimation { duration: Math.min(entry.index, 12) * Math.round(18 * Theme.motion) }
+                ParallelAnimation {
+                    NumberAnimation { target: entry; property: "opacity"; from: 0; to: 1; duration: Theme.durationMedium; easing.type: Easing.OutCubic }
+                    NumberAnimation { target: rowShift; property: "y"; from: 6; to: 0; duration: Theme.durationEnter; easing.type: Easing.OutCubic }
+                }
+            }
 
             readonly property bool separator: entry.modelData.isSeparator
                 || root.clean(entry.modelData.text).replace(/[-_ ]/g, "") === ""
@@ -246,12 +263,12 @@ Item {
                 visible: !entry.separator
                 anchors.fill: parent
                 radius: Theme.radiusMedium
-                color: mouse.containsMouse && entry.usable ? Theme.islandSurfaceHover : "transparent"
+                color: mouse.containsMouse && entry.usable ? Theme.rowHover : Theme.rowRest
                 opacity: entry.usable ? 1 : 0.35
-                scale: mouse.pressed ? 0.98 : 1
+                scale: mouse.pressed ? 0.97 : 1
 
                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                Behavior on scale { NumberAnimation { duration: Theme.durationFast } }
+                Behavior on scale { NumberAnimation { duration: Theme.durationEnter; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot * 3 } }
 
                 RowLayout {
                     anchors.fill: parent
@@ -304,7 +321,7 @@ Item {
                             x: entry.checked ? parent.width - width - 2 : 2
                             color: "white"
 
-                            Behavior on x { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
+                            Behavior on x { NumberAnimation { duration: Theme.durationEnter; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot * 3 } }
                         }
                     }
 

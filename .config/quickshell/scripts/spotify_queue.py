@@ -21,6 +21,13 @@ CONFIG_DIR = os.path.join(
     os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "quickshell-spotify"
 )
 CONFIG_PATH = os.path.join(CONFIG_DIR, "spotify_config.json")
+# Shared with MediaService's art fetcher. QML shows art from here instead of
+# loading it over HTTP itself, which fails intermittently for i.scdn.co.
+ART_DIR = os.path.join(
+    os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")), "quickshell", "art"
+)
+ART_MAX_AGE = 14 * 24 * 3600
+QUEUE_LENGTH = 8
 TOKENS_PATH = os.path.join(CONFIG_DIR, "spotify_tokens.json")
 
 
@@ -29,6 +36,37 @@ def query_json(url, *, headers, data=None):
     with urllib.request.urlopen(request, timeout=5) as response:
         body = response.read()
         return json.loads(body) if body.strip() else None
+
+
+def cached_art(url):
+    """Download `url` into ART_DIR once; return a file:// URL, or "" on failure."""
+    if not url:
+        return ""
+    import hashlib
+    path = os.path.join(ART_DIR, hashlib.md5(url.encode()).hexdigest() + ".img")
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        try:
+            os.makedirs(ART_DIR, exist_ok=True)
+            with urllib.request.urlopen(url, timeout=10) as response:
+                data = response.read()
+            with tempfile.NamedTemporaryFile(dir=ART_DIR, prefix=".art-", delete=False) as stream:
+                stream.write(data)
+            os.replace(stream.name, path)
+        except Exception as error:
+            sys.stderr.write(f"Art download failed: {error}\n")
+            return ""
+    return "file://" + path
+
+
+def prune_art():
+    """Drop cached art not touched for ART_MAX_AGE."""
+    try:
+        cutoff = time.time() - ART_MAX_AGE
+        for entry in os.scandir(ART_DIR):
+            if entry.is_file() and entry.stat().st_mtime < cutoff:
+                os.unlink(entry.path)
+    except FileNotFoundError:
+        pass
 
 
 class SpotifyQueueWorker:
@@ -127,15 +165,17 @@ class SpotifyQueueWorker:
                     headers={"Authorization": f"Bearer {self.access_token}"},
                 )
                 queue = []
-                for track in (data or {}).get("queue", [])[:3]:
+                for track in (data or {}).get("queue", [])[:QUEUE_LENGTH]:
                     images = (track.get("album") or {}).get("images", [])
+                    # Spotify lists largest first; the smallest (64 px) is
+                    # plenty for the 36 px thumbnails.
                     queue.append({
                         "title": track.get("name") or "Unknown",
                         "artist": ", ".join(
                             artist.get("name") or "Unknown Artist"
                             for artist in track.get("artists", [])
                         ) or "Unknown Artist",
-                        "artUrl": images[-1].get("url", "") if images else "",
+                        "artUrl": cached_art(images[-1].get("url", "")) if images else "",
                     })
                 self.publish(queue if self.player_present else [])
             except Exception as error:
@@ -187,5 +227,6 @@ class SpotifyQueueListener:
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal.SIG_DFL)
+    prune_art()
     listener = SpotifyQueueListener()
     GLib.MainLoop().run()

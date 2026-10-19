@@ -482,7 +482,7 @@ Scope {
         const region = `${Math.round(width)}x${Math.round(height)}+${Math.round(x)}+${Math.round(y)}`
         const sys = root.recordSystemAudio ? "1" : "0"
         const mic = root.recordMic ? "1" : "0"
-        Quickshell.execDetached(["quickshell", "ipc", "call", "recorder", "start", region, sys, mic])
+        Quickshell.execDetached([Quickshell.env("HOME") + "/.config/quickshell/scripts/qs-ipc.sh", "call", "recorder", "start", region, sys, mic])
         root.scheduleExit()
     }
 

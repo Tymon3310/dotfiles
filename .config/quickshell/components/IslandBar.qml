@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.SystemTray
 
@@ -44,6 +45,25 @@ PanelWindow {
             bar.trayMenu = null
             bar.trayItem = null
         }
+        if (bar.openId !== "") {
+            bar.contentLinger.stop()
+            bar.shownId = bar.openId
+        } else if (bar.shownId === "tray") {
+            // Its menu handle was just dropped; nothing left to show.
+            bar.shownId = ""
+        } else {
+            bar.contentLinger.restart()
+        }
+    }
+
+    // What the detail area draws. Follows openId on open, but outlives a
+    // close by one retract, so the content fades out while the island
+    // shrinks around it instead of the island shrinking empty. Kept within
+    // Theme.durationIslandGone so the lock capture never sees it.
+    property string shownId: ""
+    readonly property Timer contentLinger: Timer {
+        interval: Theme.durationIslandRetract
+        onTriggered: bar.shownId = ""
     }
 
     Connections {
@@ -61,6 +81,16 @@ PanelWindow {
     readonly property bool notifying: NotificationService.active && !bar.expanded && !bar.headsUpActive
     readonly property bool recording: ScreenRecorderService.recording
 
+    // Growing (a panel, the OSD, an alert) springs; shrinking back to rest
+    // stays the quick retract the lock capture is timed against.
+    readonly property bool growing: bar.below !== "" || OsdService.active || bar.alerting
+        || motion.unfurling
+
+    // An agent alert takes the resting island for a few seconds; it waits
+    // behind anything expanded, an OSD, and the lock morph.
+    readonly property bool alerting: AgentService.alertActive && bar.below === ""
+        && !OsdService.active && !bar.isDemorphed
+
     function toggle(id: string): void {
         bar.openId = bar.openId === id ? "" : id
     }
@@ -69,14 +99,24 @@ PanelWindow {
         bar.openId = ""
     }
 
+    // `qs-ipc.sh call island-DP-1 toggle dashboard` (one target per screen),
+    // e.g. for a keybind. Ids: dashboard, session, glance.
+    IpcHandler {
+        target: "island-" + (bar.screen ? bar.screen.name : "unknown")
+        function toggle(id: string): void { bar.toggle(id) }
+        function close(): void { bar.close() }
+    }
+
     // Suspend OSD requests while expanded so no stale OSD flashes on close.
     onExpandedChanged: OsdService.suspended = bar.expanded
 
     readonly property string below: bar.expanded ? bar.openId
         : bar.notifying ? "notification" : ""
 
-    readonly property size belowSize: {
-        switch (bar.below) {
+    readonly property size belowSize: bar.sizeFor(bar.below)
+
+    function sizeFor(id: string): size {
+        switch (id) {
         case "notification":
             return notificationLoader.item
                 ? Qt.size(notificationLoader.item.wantWidth, notificationLoader.item.wantHeight)
@@ -131,6 +171,11 @@ PanelWindow {
         island: bar
     }
 
+    // The single place notification pictures are rendered to cache files. It
+    // has to sit in this always-mapped window so a grab is never rendered
+    // against an item that is being torn down; see the component.
+    NotificationPictureSaver {}
+
     // ── SURFACE ──────────────────────────────────────────────────────────────
 
     anchors {
@@ -144,7 +189,8 @@ PanelWindow {
     readonly property int pad: bar.openId === "glance" ? 8 : 14
     readonly property int openRadius: Theme.radiusLarge + 4
 
-    implicitHeight: 780
+    // Room for the dashboard plus its spring overshoot.
+    implicitHeight: 820
     // Reduced exclusiveZone to reduce the gap between the bar and tiled windows
     exclusiveZone: bar.capsuleH + bar.barTopMargin - 8
     color: "transparent"
@@ -209,6 +255,8 @@ PanelWindow {
             ? bar.belowSize.width + 2 * bar.pad
             : OsdService.active
                 ? Math.max(260, osdLayerItem.implicitWidth + 36)
+                : bar.alerting
+                    ? Math.max(260, agentAlertItem.implicitWidth + 40)
                 : bar.recording
                     ? recordingItem.implicitWidth + 24
                     : bar.isDemorphed
@@ -226,19 +274,29 @@ PanelWindow {
         topLeftRadius: 0
         topRightRadius: 0
         bottomLeftRadius: bar.below !== "" ? bar.openRadius : Theme.radiusLarge
-        bottomRightRadius: bar.below !== "" ? bar.openRadius : Theme.radiusLarge
+        bottomRightRadius: bottomLeftRadius
+
+        // Corners travel with the morph instead of snapping on its first frame.
+        Behavior on bottomLeftRadius {
+            NumberAnimation { duration: bar.growing ? Theme.durationMorph : Theme.durationIslandRetract; easing.type: Theme.easing }
+        }
 
         // Closing/demorphing is fast (the capture waits on it); opening
         // keeps the full graceful morph. Branched on `below` (not the
         // demorph flag): width/height depend on `below`, so it is
         // guaranteed fresh before they re-evaluate — no duration race.
         Behavior on width {
-            NumberAnimation { duration: bar.below !== "" ? Theme.durationMorph : Theme.durationIslandRetract; easing.type: Theme.easing }
+            NumberAnimation {
+                duration: bar.growing ? Theme.durationSpring : Theme.durationIslandRetract
+                easing.type: bar.growing ? Theme.easingSpring : Theme.easing
+                easing.overshoot: Theme.springOvershoot
+            }
         }
         Behavior on height {
             NumberAnimation {
-                duration: bar.below !== "" ? Theme.durationMorph : Theme.durationIslandRetract
-                easing.type: Theme.easing
+                duration: bar.growing ? Theme.durationSpring : Theme.durationIslandRetract
+                easing.type: bar.growing ? Theme.easingSpring : Theme.easing
+                easing.overshoot: Theme.springOvershoot
                 onRunningChanged: bar.dbg("morph " + (running ? "start" : "end") + " h=" + Math.round(island.height))
             }
         }
@@ -304,9 +362,12 @@ PanelWindow {
             anchors.topMargin: bar.barTopMargin
             anchors.horizontalCenter: parent.horizontalCenter
 
-            opacity: (bar.below !== "" || OsdService.active || bar.isDemorphed || bar.recording) ? 0 : 1
+            readonly property bool shown: !(bar.below !== "" || OsdService.active || bar.isDemorphed || bar.recording || bar.alerting)
+            opacity: shown ? 1 : 0
+            scale: shown ? 1 : 0.9
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+            Behavior on scale { NumberAnimation { duration: Theme.durationEnter; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot } }
         }
 
         // ── RECORDING INDICATOR (replaces rest row while capturing) ───
@@ -319,9 +380,73 @@ PanelWindow {
             anchors.horizontalCenter: parent.horizontalCenter
 
             // Recording overrides demorph: the island stays wide to show it.
-            opacity: (bar.recording && bar.below === "" && !OsdService.active) ? 1 : 0
+            readonly property bool shown: bar.recording && bar.below === "" && !OsdService.active && !bar.alerting
+            opacity: shown ? 1 : 0
+            scale: shown ? 1 : 0.85
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+            Behavior on scale { NumberAnimation { duration: Theme.durationEnter; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot } }
+        }
+
+        // ── AGENT ALERT (an agent finished / needs input / errored) ────────
+        // z above the capsule mouse: a click focuses that session's window.
+        AgentAlert {
+            id: agentAlertItem
+            z: 11
+            anchors.top: parent.top
+            anchors.topMargin: bar.barTopMargin
+            anchors.horizontalCenter: parent.horizontalCenter
+            height: bar.capsuleH
+
+            opacity: bar.alerting ? 1 : 0
+            scale: bar.alerting ? 1 : 0.8
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: Theme.durationMedium } }
+            Behavior on scale { NumberAnimation { duration: Theme.durationSpring; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot } }
+
+            MouseArea {
+                anchors.fill: parent
+                anchors.margins: -6
+                cursorShape: Qt.PointingHandCursor
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                onClicked: mouse => {
+                    if (mouse.button === Qt.LeftButton)
+                        AgentService.focusAddress(AgentService.alert.address)
+                    AgentService.dismissAlert()
+                }
+            }
+        }
+
+        // A tinted glow along the island's lower edge, in the colour of
+        // whatever the island has morphed into: an agent alert, an OSD, a
+        // new notification, or a recording in progress.
+        Rectangle {
+            id: edgeGlow
+
+            readonly property color tint: bar.alerting ? agentAlertItem.tint
+                : (OsdService.active && bar.below === "") ? osdLayerItem.tint
+                : bar.below === "notification" ? Theme.accent
+                : Theme.red
+            readonly property bool lit: bar.alerting
+                || (OsdService.active && bar.below === "")
+                || bar.below === "notification"
+                || (bar.recording && bar.below === "")
+
+            anchors.bottom: parent.bottom
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: edgeGlow.lit ? parent.width * 0.6 : 0
+            height: 2
+            radius: 1
+            opacity: edgeGlow.lit ? (bar.recording && !bar.alerting && !OsdService.active ? 0.6 : 0.9) : 0
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0; color: "transparent" }
+                GradientStop { position: 0.5; color: edgeGlow.tint }
+                GradientStop { position: 1; color: "transparent" }
+            }
+
+            Behavior on width { NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing } }
+            Behavior on opacity { NumberAnimation { duration: Theme.durationMedium } }
         }
 
         // ── MORPHING OSD LAYER (Volume, Caps Lock, Num Lock) ───────────────
@@ -336,8 +461,10 @@ PanelWindow {
             label: OsdService.label
             progress: OsdService.progress
             opacity: (OsdService.active && bar.below === "") ? 1 : 0
+            scale: (OsdService.active && bar.below === "") ? 1 : 0.85
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+            Behavior on scale { NumberAnimation { duration: Theme.durationEnter; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot } }
         }
 
         // ── EXPANDED DETAILS (Dashboard, Session, Tray, Notification) ───────
@@ -346,19 +473,27 @@ PanelWindow {
             anchors.top: parent.top
             anchors.topMargin: bar.pad
             anchors.horizontalCenter: parent.horizontalCenter
-            width: bar.belowSize.width
-            height: bar.belowSize.height
-            active: bar.expanded && bar.openId !== "notification"
+            // Sized by shownId, not below: while closing, the content keeps
+            // its layout and is clipped by the shrinking island.
+            width: bar.sizeFor(bar.shownId).width
+            height: bar.sizeFor(bar.shownId).height
+            active: bar.shownId !== ""
+            enabled: bar.expanded
             // Building the dashboard in the click frame stalls the first
             // frames of the morph. Incubate it across frames while the island
             // grows (its size is fixed up front), then fade it in.
             asynchronous: true
-            opacity: detailLoader.status === Loader.Ready ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: Theme.durationMedium; easing.type: Theme.easing } }
+            opacity: detailLoader.status === Loader.Ready && bar.expanded ? 1 : 0
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: bar.expanded ? Theme.durationMedium : Theme.durationFast
+                    easing.type: bar.expanded ? Theme.easing : Easing.OutQuad
+                }
+            }
             onStatusChanged: bar.dbg("detail loader status=" + status)
 
             sourceComponent: {
-                switch (bar.openId) {
+                switch (bar.shownId) {
                 case "glance":    return glanceComponent
                 case "dashboard": return dashboardComponent
                 case "session":   return sessionComponent

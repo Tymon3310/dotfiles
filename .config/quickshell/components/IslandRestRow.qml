@@ -26,7 +26,10 @@ Row {
             Image {
                 anchors.fill: parent
                 source: MediaService.artUrl
-                visible: source !== "" && status === Image.Ready
+                opacity: source !== "" && status === Image.Ready ? 1 : 0
+                visible: opacity > 0
+                // New covers fade in rather than pop.
+                Behavior on opacity { NumberAnimation { duration: Theme.durationEnter; easing.type: Easing.OutCubic } }
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
                 sourceSize.width: 40
@@ -142,13 +145,51 @@ Row {
         height: Theme.capsuleHeight
         visible: AgentService.active
 
-        Text {
+        Row {
             anchors.centerIn: parent
-            text: AgentService.state === "waiting" ? "󰞋" : AgentService.state === "done" ? "󰄬" : "󱚥"
-            font.family: Theme.fontMono
-            font.pixelSize: 12
-            color: AgentService.state === "waiting" ? Theme.indicatorWarn
-                : AgentService.state === "done" ? Theme.indicatorGood : Theme.accent
+            spacing: 1
+
+            Text {
+                id: agentIcon
+                anchors.verticalCenter: parent.verticalCenter
+                text: AgentService.state === "error" ? "󰅚"
+                    : AgentService.state === "waiting" ? "󰂚"
+                    : AgentService.state === "done" ? "󰄬" : "󱚥"
+                font.family: Theme.fontMono
+                font.pixelSize: 12
+                color: AgentService.state === "error" ? Theme.indicatorBad
+                    : AgentService.state === "waiting" ? Theme.indicatorWarn
+                    : AgentService.state === "done" ? Theme.indicatorGood : Theme.accent
+
+                // Pulses while a session waits for you or has errored, until
+                // you get to it.
+                SequentialAnimation {
+                    running: AgentService.needsAttention
+                    loops: Animation.Infinite
+                    onRunningChanged: if (!running) { agentIcon.scale = 1; agentIcon.opacity = 1 }
+
+                    ParallelAnimation {
+                        NumberAnimation { target: agentIcon; property: "scale"; to: 1.3; duration: 380; easing.type: Easing.OutQuad }
+                        NumberAnimation { target: agentIcon; property: "opacity"; to: 1; duration: 380 }
+                    }
+                    ParallelAnimation {
+                        NumberAnimation { target: agentIcon; property: "scale"; to: 1; duration: 620; easing.type: Easing.InOutQuad }
+                        NumberAnimation { target: agentIcon; property: "opacity"; to: 0.55; duration: 620 }
+                    }
+                    PauseAnimation { duration: 500 }
+                }
+            }
+
+            // How many agents are active, when more than one.
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: AgentService.count > 1
+                text: AgentService.count
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSmall - 2
+                font.weight: Font.DemiBold
+                color: Theme.textMuted
+            }
         }
     }
 

@@ -15,33 +15,55 @@ Scope {
     property real islandsEmergeProgress: 0.0
     property bool isDemorphed: false
 
-    ParallelAnimation {
+    // STARTUP: the same morph as an unlock, from nothing.
+    //   1. wait a beat, so the song and clock have loaded and the island
+    //      opens straight to its final width instead of growing in steps;
+    //   2. drop in from above as the compact 72px pill, with a small bounce;
+    //   3. spring open sideways while the clock and song scale in;
+    //   4. the side capsules glide out from under it as it settles.
+    property bool unfurling: false
+
+    SequentialAnimation {
         id: startupAnimation
 
-        SequentialAnimation {
-            PauseAnimation { duration: Math.round(30 * Theme.motion) }
+        PauseAnimation { duration: Math.round(260 * Theme.motion) }
+
+        // The opening starts while the drop is still settling, so the two
+        // read as one motion rather than drop, pause, open.
+        ParallelAnimation {
             NumberAnimation {
                 target: root.island
                 property: "notchYOffset"
-                from: -root.island.capsuleH - root.island.barTopMargin - 20
                 to: 0
-                duration: Math.round(280 * Theme.motion)
+                duration: Math.round(320 * Theme.motion)
                 easing.type: Easing.OutBack
-                easing.overshoot: 1.15
+                easing.overshoot: 1.3
+            }
+
+            SequentialAnimation {
+                PauseAnimation { duration: Math.round(140 * Theme.motion) }
+                ScriptAction {
+                    script: {
+                        root.unfurling = true
+                        root.island.isDemorphed = false
+                    }
+                }
             }
         }
 
-        SequentialAnimation {
-            PauseAnimation { duration: Math.round(200 * Theme.motion) }
-            NumberAnimation {
-                target: root.island
-                property: "islandsEmergeProgress"
-                from: 0.0
-                to: 1.0
-                duration: Math.round(380 * Theme.motion)
-                easing.type: Easing.OutCubic
-            }
+        PauseAnimation { duration: Math.round(Theme.durationSpring * 0.25) }
+
+        NumberAnimation {
+            target: root.island
+            property: "islandsEmergeProgress"
+            from: 0.0
+            to: 1.0
+            duration: Math.round(460 * Theme.motion)
+            easing.type: Easing.OutBack
+            easing.overshoot: 0.9
         }
+
+        ScriptAction { script: root.unfurling = false }
     }
 
     // Side islands retraction (into notch) - relaxed and smooth
@@ -54,20 +76,24 @@ Scope {
         easing.type: Easing.InOutCubic
     }
 
-    // Side islands emergence (out from notch) - fluid glide
+    // Side islands emergence (out from notch) - fluid glide. From wherever
+    // they are, not from 0: restarting from 0 mid-glide (an interrupted
+    // retract, or the unlock glide still running) snapped them back in.
     NumberAnimation {
         id: sideIslandsEmergeAnimation
         target: root.island
         property: "islandsEmergeProgress"
-        from: 0.0
         to: 1.0
         duration: Math.round(380 * Theme.motion)
         easing.type: Easing.OutCubic
     }
 
-    // Timer ensuring side islands pop out AFTER the island completes its morph/demorph back to rest
+    // Side islands glide back out once the island is well into its return
+    // to rest. Returning runs over durationIslandRetract (see IslandBar), not
+    // durationMorph; the capsules track the island's edges and sit beneath
+    // it, so starting halfway through reads as one motion with no dead gap.
     readonly property Timer postMorphEmergeTimer: Timer {
-        interval: Theme.durationMorph + 60
+        interval: Math.round(Theme.durationIslandRetract * 0.5)
         onTriggered: {
             if (root.island.below === "" && !LockService.locked && !root.island.isDemorphed) {
                 sideIslandsEmergeAnimation.restart()
@@ -102,41 +128,24 @@ Scope {
         easing.type: Easing.InOutCubic
     }
 
-    // TEMPORARY lock-morph sampler for diagnosing staged shrinks. Remove
-    // once the transition is confirmed smooth.
-    property real dbgT0: 0
-    property int dbgN: 0
-    readonly property Timer dbgSampler: Timer {
-        interval: 30
-        repeat: true
-        onTriggered: {
-            root.dbgN += 1
-            console.info("[lock-t] morph t=" + Math.round(Date.now() - root.dbgT0) + "ms w=" + Math.round(root.island.capsule.width) + " prog=" + root.islandsEmergeProgress.toFixed(2))
-            if (root.dbgN >= 12)
-                root.dbgSampler.stop()
-        }
-    }
-
-    // UNLOCK: side islands glide out while the notch morphs back to full
-    // width (reset synchronously in onLeavingChanged); the lock surface
-    // lifts as they land.
+    // UNLOCK: the notch morphs back to full width under the lock surface
+    // (reset synchronously in onLeavingChanged), so by the time the surface
+    // lifts the two islands are pixel-identical.
+    //
+    // With session_lock_xray the desktop shows through the fading lock, so
+    // the side capsules glide out during the release, starting as the lock
+    // notch reaches full width. Without it nothing under the lock is seen,
+    // and starting early would show them mid-glide at the cut, so they wait
+    // for the surface to lift (onLockedChanged).
     SequentialAnimation {
-        id: unlockSequence
-
-        // Begin the side-island glide early so it runs while the lock
-        // surface fades, finishing just as the surface lifts — no dead
-        // pause with a full-width island and no side islands.
-        PauseAnimation {
-            duration: Math.round(100 * Theme.motion)
-        }
-
+        id: unlockEmerge
+        PauseAnimation { duration: Math.round(70 * Theme.motion) }
         NumberAnimation {
             target: root.island
             property: "islandsEmergeProgress"
-            from: 0.0
             to: 1.0
-            duration: Math.round(380 * Theme.motion)
-            easing.type: Easing.InOutCubic
+            duration: Math.round(320 * Theme.motion)
+            easing.type: Easing.OutCubic
         }
     }
 
@@ -148,6 +157,9 @@ Scope {
             root.island.isDemorphed = false
             root.island.islandsEmergeProgress = 1.0
         } else if (!LockService.locked) {
+            // Starts as the hidden compact pill; see startupAnimation.
+            root.island.isDemorphed = true
+            root.island.islandsEmergeProgress = 0.0
             startupAnimation.start()
         } else {
             root.island.notchYOffset = 0
@@ -163,18 +175,20 @@ Scope {
             console.info("[lock-t] island prepare")
             root.island.close()
             root.island.isDemorphed = true
-            root.dbgT0 = Date.now()
-            root.dbgN = 0
-            root.dbgSampler.start()
+            unlockEmerge.stop()
             lockSequence.restart()
         }
 
         function onLockedChanged(): void {
             if (LockService.locked) {
-                root.dbgSampler.stop()
                 root.island.close()
                 root.island.isDemorphed = true
                 root.island.islandsEmergeProgress = 0.0
+            } else if (root.island.below === "" && !unlockEmerge.running
+                    && root.island.islandsEmergeProgress < 1) {
+                // Surface lifted without xray: glide the side capsules out
+                // now, so they animate in visibly instead of popping.
+                sideIslandsEmergeAnimation.restart()
             }
         }
 
@@ -186,7 +200,8 @@ Scope {
                 console.info("[lock-t] island unlock start")
                 root.island.notchYOffset = 0
                 root.island.isDemorphed = false
-                unlockSequence.restart()
+                if (LockService.xray && root.island.below === "")
+                    unlockEmerge.restart()
             }
         }
     }

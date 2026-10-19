@@ -25,16 +25,20 @@ Rectangle {
     bottomLeftRadius: 0
     bottomRightRadius: 0
 
+    // Rises from the screen edge quickly and settles; its contents then
+    // pop in one after another (see the mode buttons). No overshoot here:
+    // the notch sits on the edge, and overshooting would lift it off.
     Behavior on notchOffset {
         NumberAnimation {
             duration: Theme.durationMorph
-            easing.type: Theme.easing
+            easing.type: Easing.OutQuint
         }
     }
     Behavior on width {
         NumberAnimation {
-            duration: Theme.durationFast
-            easing.type: Theme.easing
+            duration: Theme.durationMedium
+            easing.type: Easing.OutBack
+            easing.overshoot: 0.8
         }
     }
 
@@ -43,6 +47,27 @@ Rectangle {
         anchors.centerIn: parent
         anchors.verticalCenterOffset: -2
         spacing: 12
+
+        Item {
+            width: buttonRow.width
+            height: buttonRow.height
+
+            readonly property int activeIndex: bottomNotch.controller.modes
+                .findIndex(entry => entry.mode === bottomNotch.controller.mode)
+
+            // One highlight that slides to the picked mode, instead of each
+            // button fading its own fill.
+            Rectangle {
+                visible: parent.activeIndex >= 0
+                x: parent.activeIndex * (48 + buttonRow.spacing)
+                width: 48
+                height: 40
+                radius: Theme.radiusMedium - 2
+                color: Theme.accent
+
+                Behavior on x { NumberAnimation { duration: 340; easing.type: Easing.OutBack; easing.overshoot: 0.9 } }
+                Behavior on color { ColorAnimation { duration: Theme.durationMedium } }
+            }
 
         Row {
             id: buttonRow
@@ -54,22 +79,46 @@ Rectangle {
                 Rectangle {
                     id: modeBtn
                     required property var modelData
+                    required property int index
                     readonly property bool active: bottomNotch.controller.mode === modelData.mode
 
                     implicitWidth: 48
                     implicitHeight: 40
                     radius: Theme.radiusMedium - 2
 
-                    color: active
-                        ? Theme.accent
-                        : (btnMouse.containsMouse ? Theme.islandSurfaceHover : "transparent")
-                    border.color: active
-                        ? Theme.accent
-                        : (btnMouse.containsMouse ? Theme.islandBorder : "transparent")
+                    // The active fill is the sliding highlight underneath.
+                    color: !active && btnMouse.containsMouse ? Theme.islandSurfaceHover : "transparent"
+                    border.color: !active && btnMouse.containsMouse ? Theme.islandBorder : "transparent"
                     border.width: 1
 
                     Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                    // Squish while pressed.
+                    scale: btnMouse.pressed ? 0.92 : 1
+                    Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutBack; easing.overshoot: 2 } }
+
+                    // Pop in one after another as the toolbar rises.
+                    function enter(): void {
+                        modeBtn.opacity = 0
+                        enterAnim.restart()
+                    }
+                    Component.onCompleted: if (bottomNotch.frozen) modeBtn.enter()
+                    Connections {
+                        target: bottomNotch
+                        function onFrozenChanged(): void {
+                            if (bottomNotch.frozen)
+                                modeBtn.enter()
+                        }
+                    }
+                    SequentialAnimation {
+                        id: enterAnim
+                        PauseAnimation { duration: 90 + modeBtn.index * 35 }
+                        ParallelAnimation {
+                            NumberAnimation { target: modeBtn; property: "opacity"; to: 1; duration: 220; easing.type: Easing.OutCubic }
+                            NumberAnimation { target: modeBtn; property: "scale"; from: 0.7; to: 1; duration: 360; easing.type: Easing.OutBack; easing.overshoot: 1.2 }
+                        }
+                    }
 
                     Column {
                         anchors.centerIn: parent
@@ -108,6 +157,8 @@ Rectangle {
                     }
                 }
             }
+        }
+
         }
 
         Rectangle {
@@ -182,7 +233,7 @@ Rectangle {
                             x: bottomNotch.controller.saveToDisk ? parent.width - width - 3 : 3
                             color: bottomNotch.controller.saveToDisk ? Theme.accentText : Theme.textMuted
 
-                            Behavior on x { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
+                            Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutBack; easing.overshoot: 1.4 } }
                             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                         }
 
@@ -292,7 +343,7 @@ Rectangle {
                             x: bottomNotch.controller.recordSystemAudio ? parent.width - width - 3 : 3
                             color: bottomNotch.controller.recordSystemAudio ? Theme.accentText : Theme.textMuted
 
-                            Behavior on x { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
+                            Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutBack; easing.overshoot: 1.4 } }
                             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                         }
 
@@ -336,7 +387,7 @@ Rectangle {
                             x: bottomNotch.controller.recordMic ? parent.width - width - 3 : 3
                             color: bottomNotch.controller.recordMic ? Theme.accentText : Theme.textMuted
 
-                            Behavior on x { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
+                            Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutBack; easing.overshoot: 1.4 } }
                             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                         }
 

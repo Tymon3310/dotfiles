@@ -55,6 +55,31 @@ Shared.ThemeTokens {
     durationMedium: Math.round(200 * root.motion)
     durationMorph: Math.round(380 * root.motion)
 
+    // ── MOTION LANGUAGE ──────────────────────────────────────────────────
+    // Growing and arriving get a light spring (OutBack, small overshoot);
+    // leaving stays a quick ease. Content inside a panel enters staggered:
+    // each piece scales up from `enterScale` and fades in, `durationStagger`
+    // after the one before it.
+    readonly property int easingSpring: Easing.OutBack
+    readonly property real springOvershoot: 0.5
+    readonly property int durationSpring: Math.round(440 * root.motion)
+    readonly property int durationEnter: Math.round(320 * root.motion)
+    readonly property int durationStagger: Math.round(32 * root.motion)
+    readonly property real enterScale: 0.94
+    // List-row washes. Rest and hover are both white at low opacity, so a
+    // fade between them stays dark: fading from a near-transparent white to
+    // an opaque grey passes through a brighter grey than either, which read
+    // as a flash.
+    readonly property color rowRest: Qt.rgba(1, 1, 1, 0)
+    readonly property color rowRaised: Qt.rgba(1, 1, 1, 0.025)
+    readonly property color rowHover: Qt.rgba(1, 1, 1, 0.06)
+    function tintWash(tint: color, strength: real): color {
+        return Qt.rgba(tint.r, tint.g, tint.b, strength)
+    }
+
+    // How far a pressed control shrinks.
+    readonly property real pressScale: 0.94
+
     // Capture waits for the island to reach its compact 72px rest. Retract
     // and demorph run in parallel over durationIslandRetract (the demorph
     // flag is set synchronously with close()), plus two compositor frames.

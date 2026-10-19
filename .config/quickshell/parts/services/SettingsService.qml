@@ -70,6 +70,9 @@ Singleton {
     // Global lyrics offset in milliseconds (+ shifts lyrics earlier, - shifts lyrics later).
     property int lyricsOffset: 0
 
+    // The media card shows the queue instead of lyrics (its header switch).
+    property bool mediaPreferQueue: false
+
     function set(key: string, value: var): void {
         if (key in root)
             root[key] = value

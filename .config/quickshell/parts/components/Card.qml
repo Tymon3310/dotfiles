@@ -28,6 +28,20 @@ Rectangle {
 
     Behavior on color { ColorAnimation { duration: Theme.paletteTransition } }
 
+    // A faint light from above: a white wash fading out near the top (above
+    // any content that paints the flat card colour, like the lyric fades),
+    // so cards read as raised surfaces rather than flat slabs.
+    Rectangle {
+        visible: !root.bare
+        anchors.fill: parent
+        anchors.margins: 1
+        radius: Math.max(0, root.radius - 1)
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.035) }
+            GradientStop { position: 0.18; color: Qt.rgba(1, 1, 1, 0) }
+        }
+    }
+
     Item {
         id: inner
         anchors.fill: parent

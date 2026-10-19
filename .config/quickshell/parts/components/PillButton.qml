@@ -40,6 +40,10 @@ Rectangle {
         : (mouse.containsMouse ? Theme.accent : Theme.islandBorder)
     border.width: 1
 
+    // Squish while pressed, spring back on release.
+    scale: mouse.pressed ? Theme.pressScale : 1
+    Behavior on scale { NumberAnimation { duration: Theme.durationEnter; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot * 3 } }
+
     Behavior on color { ColorAnimation { duration: Theme.durationFast } }
     Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
     Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }

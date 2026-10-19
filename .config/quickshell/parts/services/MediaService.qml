@@ -11,6 +11,7 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import Quickshell.Services.Mpris
 import Quickshell.Services.Pipewire
 
@@ -75,7 +76,44 @@ Singleton {
     readonly property string title: root.available ? (root.active.trackTitle ?? "") : ""
     readonly property string artist: root.available ? (root.active.trackArtist ?? "") : ""
     readonly property string album: root.available ? (root.active.trackAlbum ?? "") : ""
-    readonly property string artUrl: root.available ? (root.active.trackArtUrl ?? "") : ""
+    // Remote cover art is fetched by curl into a local cache and shown from
+    // there: Qt's own HTTP loader drops requests to Spotify's image host
+    // ("sendRequest() called without QHttpNetworkReply"), leaving art blank.
+    readonly property string remoteArtUrl: root.available ? (root.active.trackArtUrl ?? "") : ""
+    readonly property string artCacheDir: (Quickshell.env("XDG_CACHE_HOME")
+        || `${Quickshell.env("HOME")}/.cache`) + "/quickshell/art"
+    property string artUrl: ""
+
+    onRemoteArtUrlChanged: root.fetchArt()
+    Component.onCompleted: root.fetchArt()
+
+    function fetchArt(): void {
+        const url = root.remoteArtUrl
+        if (!/^https?:\/\//.test(url)) {
+            root.artUrl = url
+            return
+        }
+        const path = `${root.artCacheDir}/${Qt.md5(url)}.img`
+        root.artUrl = ""
+        root.artFetcher.running = false
+        root.artFetcher.url = url
+        root.artFetcher.path = path
+        root.artFetcher.command = ["sh", "-c",
+            'test -s "$2" || { mkdir -p "$(dirname "$2")" && curl -sfL --max-time 15 -o "$2.part" "$1" && mv "$2.part" "$2"; }',
+            "fetch-art", url, path]
+        root.artFetcher.running = true
+    }
+
+    readonly property Process artFetcher: Process {
+        property string url: ""
+        property string path: ""
+
+        onExited: code => {
+            // A newer track may have started a fetch since.
+            if (code === 0 && root.artFetcher.url === root.remoteArtUrl)
+                root.artUrl = `file://${root.artFetcher.path}`
+        }
+    }
     readonly property string identity: root.available ? (root.active.identity ?? "") : ""
 
     readonly property bool canNext: root.available && root.active.canGoNext

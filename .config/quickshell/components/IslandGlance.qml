@@ -13,7 +13,8 @@ Item {
     signal expandRequested()
     signal closed()
 
-    implicitWidth: 490
+    // Matches IslandBar.sizeFor("glance").
+    implicitWidth: 450
     implicitHeight: 56
 
     Component.onCompleted: {
@@ -63,6 +64,9 @@ Item {
         return PrivacyService.cameraHolders.map(n => n.charAt(0).toUpperCase() + n.slice(1))
     }
 
+    readonly property bool hasBadges: AgentService.active || HeadsetService.connected
+        || root.activeMicApps.length > 0 || root.activeCamApps.length > 0
+
     // Background click expands to full dashboard
     MouseArea {
         id: bgMouse
@@ -93,6 +97,7 @@ Item {
 
         // ── 1. NOW PLAYING (Left) ─────────────────────────────────────────────
         RowLayout {
+            id: mediaSection
             Layout.preferredWidth: 205
             Layout.fillHeight: true
             spacing: 8
@@ -113,7 +118,10 @@ Item {
                     Image {
                         anchors.fill: parent
                         source: MediaService.artUrl
-                        visible: MediaService.available && source !== "" && status === Image.Ready
+                        opacity: MediaService.available && source !== "" && status === Image.Ready ? 1 : 0
+                        visible: opacity > 0
+                        // New covers fade in rather than pop.
+                        Behavior on opacity { NumberAnimation { duration: Theme.durationEnter; easing.type: Easing.OutCubic } }
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                         sourceSize.width: 84
@@ -270,7 +278,8 @@ Item {
 
                     // Mini Controls
                     Row {
-                        spacing: 6
+                        Layout.leftMargin: 2
+                        spacing: 8
 
                         Text {
                             text: "󰒮"
@@ -280,6 +289,7 @@ Item {
                             MouseArea {
                                 id: prevMouse
                                 anchors.fill: parent
+                                anchors.margins: -4
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: MediaService.previous()
@@ -289,11 +299,12 @@ Item {
                         Text {
                             text: MediaService.playing ? "󰏤" : "󰐊"
                             font.family: Theme.fontMono
-                            font.pixelSize: 10
+                            font.pixelSize: 12
                             color: playMouse.containsMouse ? Theme.accent : Theme.text
                             MouseArea {
                                 id: playMouse
                                 anchors.fill: parent
+                                anchors.margins: -4
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: MediaService.toggle()
@@ -308,6 +319,7 @@ Item {
                             MouseArea {
                                 id: nextMouse
                                 anchors.fill: parent
+                                anchors.margins: -4
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: MediaService.next()
@@ -318,18 +330,28 @@ Item {
             }
         }
 
+        Rectangle {
+            Layout.preferredWidth: 1
+            Layout.fillHeight: true
+            Layout.topMargin: 8
+            Layout.bottomMargin: 8
+            color: Theme.hairline
+        }
+
         // ── 2. CENTER & RIGHT: UNIFIED 3-ROW GRID ─────────────────────────────
         // Top: Privacy, JBL, Agent
         // Rows 2 & 3: Calendar (Left/Center) + Time & Weather (Right)
         ColumnLayout {
+            id: infoSection
             Layout.fillWidth: true
-            Layout.fillHeight: true
             Layout.alignment: Qt.AlignVCenter
-            spacing: 2
+            spacing: 3
 
             // ── ROW 1 (TOP): BADGES (Privacy + JBL + Agent) ───────────────────
+            // Hidden when empty, so the calendar and clock centre instead.
             RowLayout {
                 Layout.fillWidth: true
+                visible: root.hasBadges
                 spacing: 4
 
                 Item { Layout.fillWidth: true }
@@ -341,7 +363,8 @@ Item {
                     height: 15
                     width: agentRow.implicitWidth + 8
                     radius: 7.5
-                    color: AgentService.state === "waiting"
+                    color: AgentService.state === "error" ? Theme.indicatorBad
+                        : AgentService.state === "waiting"
                         ? Theme.indicatorWarn
                         : AgentService.state === "done" ? Theme.indicatorGood : "transparent"
                     border.width: 1
@@ -352,17 +375,19 @@ Item {
                         anchors.centerIn: parent
                         spacing: 3
                         Text {
-                            text: AgentService.state === "waiting" ? "󰞋" : AgentService.state === "done" ? "󰄬" : "󱚥"
+                            text: AgentService.state === "error" ? "󰅚" : AgentService.state === "waiting" ? "󰂚" : AgentService.state === "done" ? "󰄬" : "󱚥"
                             font.family: Theme.fontMono
                             font.pixelSize: 8
-                            color: AgentService.state === "waiting" || AgentService.state === "done" ? "#000000" : Theme.accent
+                            color: AgentService.state !== "working" ? "#000000" : Theme.accent
                         }
                         Text {
-                            text: AgentService.label
+                            text: AgentService.count > 1
+                                ? `${AgentService.label}  +${AgentService.count - 1}`
+                                : AgentService.label
                             font.family: Theme.fontFamily
                             font.pixelSize: 8
                             font.weight: Font.DemiBold
-                            color: AgentService.state === "waiting" || AgentService.state === "done" ? "#000000" : Theme.text
+                            color: AgentService.state !== "working" ? "#000000" : Theme.text
                         }
                     }
 
@@ -563,4 +588,8 @@ Item {
             }
         }
     }
+
+    // Music first, then the calendar and clock.
+    Entrance { item: mediaSection; order: 0 }
+    Entrance { item: infoSection; order: 2 }
 }

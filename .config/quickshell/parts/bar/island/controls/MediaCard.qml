@@ -27,6 +27,9 @@ import "../../../components"
 Card {
     id: root
 
+    // Lyrics in the middle, unless there are none or the queue was picked.
+    readonly property bool lyricsMode: LyricsService.shown && !SettingsService.mediaPreferQueue
+
     // The Spectrum in the title row subscribes to cava itself, only while
     // it is shown and playing.
     Component.onCompleted: LyricsService.subscribe()
@@ -66,7 +69,11 @@ Card {
                     id: art
                     anchors.fill: parent
                     source: MediaService.artUrl
-                    visible: source !== "" && status === Image.Ready
+                    readonly property bool ready: source !== "" && status === Image.Ready
+                    opacity: art.ready ? 1 : 0
+                    visible: opacity > 0
+                    // New covers fade in rather than pop.
+                    Behavior on opacity { NumberAnimation { duration: Theme.durationEnter; easing.type: Easing.OutCubic } }
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     sourceSize.width: 112
@@ -75,7 +82,7 @@ Card {
 
                 Text {
                     anchors.centerIn: parent
-                    visible: !art.visible
+                    visible: !art.ready
                     text: "󰎇"
                     font.family: Theme.fontMono
                     font.pixelSize: 22
@@ -131,108 +138,145 @@ Card {
                 }
             }
 
-            // What the middle is showing, as a small tag with optional timing calibration.
-            RowLayout {
+            // What the middle shows. With lyrics available, a switch between
+            // them and the queue; otherwise a tag saying why the queue is up.
+            // Synced lyrics get a timing nudge underneath.
+            ColumnLayout {
                 Layout.alignment: Qt.AlignTop
-                spacing: 4
+                spacing: 6
 
-                // Minus button (shifts lyrics later / delays them by 100ms)
+                // Lyrics | Up next
                 Rectangle {
-                    visible: LyricsService.synced
-                    implicitWidth: 18
-                    implicitHeight: 18
-                    radius: 9
-                    color: minusMouse.containsMouse ? Theme.islandSurfaceHover : "transparent"
-                    border.width: 1
-                    border.color: minusMouse.containsMouse ? Theme.islandBorder : "transparent"
+                    id: modeSwitch
 
-                    Text {
-                        anchors.centerIn: parent
-                        text: "−"
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 11
-                        font.weight: Font.Bold
-                        color: minusMouse.containsMouse ? Theme.accent : Theme.textMuted
+                    readonly property var modes: [
+                        { label: "LYRICS", queue: false },
+                        { label: "UP NEXT", queue: true }
+                    ]
+                    readonly property real segment: Math.max(lyricsLabel.implicitWidth, queueLabel.implicitWidth) + 16
+
+                    Layout.alignment: Qt.AlignRight
+                    visible: LyricsService.shown
+                    implicitWidth: modeSwitch.segment * 2 + 4
+                    implicitHeight: 20
+                    radius: height / 2
+                    color: Theme.islandSurfaceHover
+
+                    // The selected segment, sliding between the two.
+                    Rectangle {
+                        x: 2 + (SettingsService.mediaPreferQueue ? modeSwitch.segment : 0)
+                        y: 2
+                        width: modeSwitch.segment
+                        height: parent.height - 4
+                        radius: height / 2
+                        color: Theme.accent
+
+                        Behavior on x { NumberAnimation { duration: Theme.durationMedium; easing.type: Theme.easing } }
                     }
 
-                    MouseArea {
-                        id: minusMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: SettingsService.lyricsOffset -= 100
+                    Row {
+                        x: 2
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        Repeater {
+                            model: modeSwitch.modes
+
+                            Item {
+                                id: seg
+
+                                required property var modelData
+                                readonly property bool selected: SettingsService.mediaPreferQueue === seg.modelData.queue
+
+                                width: modeSwitch.segment
+                                height: 16
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: seg.modelData.label
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: 9
+                                    font.weight: Font.DemiBold
+                                    font.letterSpacing: 0.6
+                                    color: seg.selected ? Theme.accentText
+                                        : segMouse.containsMouse ? Theme.text : Theme.textMuted
+
+                                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                }
+
+                                MouseArea {
+                                    id: segMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: SettingsService.mediaPreferQueue = seg.modelData.queue
+                                }
+                            }
+                        }
                     }
+
+                    // Measure both labels, so the segments are equal.
+                    Text { id: lyricsLabel; visible: false; text: "LYRICS"; font.pixelSize: 9; font.weight: Font.DemiBold; font.letterSpacing: 0.6; font.family: Theme.fontFamily }
+                    Text { id: queueLabel; visible: false; text: "UP NEXT"; font.pixelSize: 9; font.weight: Font.DemiBold; font.letterSpacing: 0.6; font.family: Theme.fontFamily }
                 }
 
+                // No lyrics to switch to: just say what is shown.
                 Rectangle {
+                    Layout.alignment: Qt.AlignRight
+                    visible: !LyricsService.shown
                     implicitWidth: tag.implicitWidth + 14
-                    implicitHeight: 18
+                    implicitHeight: 20
                     radius: height / 2
-                    color: tagMouse.containsMouse && LyricsService.synced && SettingsService.lyricsOffset !== 0
-                        ? Theme.accent : Theme.islandSurfaceHover
-                    border.width: 1
-                    border.color: tagMouse.containsMouse && LyricsService.synced && SettingsService.lyricsOffset !== 0
-                        ? Theme.accentHover : "transparent"
+                    color: Theme.islandSurfaceHover
 
                     Text {
                         id: tag
                         anchors.centerIn: parent
-                        text: {
-                            if (LyricsService.synced) {
-                                if (SettingsService.lyricsOffset !== 0)
-                                    return `LYRICS ${(SettingsService.lyricsOffset > 0 ? "+" : "") + (SettingsService.lyricsOffset / 1000).toFixed(1)}s`
-                                return "LYRICS"
-                            }
-                            if (LyricsService.shown)
-                                return "TEXT"
-                            if (LyricsService.loading)
-                                return "…"
-                            return LyricsService.kind === "instrumental" ? "INSTRUMENTAL" : "UP NEXT"
-                        }
+                        text: LyricsService.loading ? "…"
+                            : LyricsService.kind === "instrumental" ? "INSTRUMENTAL" : "UP NEXT"
                         font.family: Theme.fontFamily
                         font.pixelSize: 9
                         font.weight: Font.DemiBold
                         font.letterSpacing: 0.6
-                        color: (tagMouse.containsMouse && LyricsService.synced && SettingsService.lyricsOffset !== 0)
-                            ? Theme.accentText : (LyricsService.synced ? Theme.accent : Theme.textMuted)
-                    }
-
-                    MouseArea {
-                        id: tagMouse
-                        anchors.fill: parent
-                        hoverEnabled: LyricsService.synced && SettingsService.lyricsOffset !== 0
-                        cursorShape: hoverEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                        onClicked: {
-                            if (LyricsService.synced)
-                                SettingsService.lyricsOffset = 0
-                        }
+                        color: Theme.textMuted
                     }
                 }
 
-                // Plus button (shifts lyrics earlier / advances them by 100ms)
-                Rectangle {
-                    visible: LyricsService.synced
-                    implicitWidth: 18
-                    implicitHeight: 18
-                    radius: 9
-                    color: plusMouse.containsMouse ? Theme.islandSurfaceHover : "transparent"
-                    border.width: 1
-                    border.color: plusMouse.containsMouse ? Theme.islandBorder : "transparent"
+                // Lyric timing: − later, the offset (click resets), + earlier.
+                Row {
+                    Layout.alignment: Qt.AlignRight
+                    visible: root.lyricsMode && LyricsService.synced
+                    spacing: 2
 
-                    Text {
-                        anchors.centerIn: parent
-                        text: "+"
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 11
-                        font.weight: Font.Bold
-                        color: plusMouse.containsMouse ? Theme.accent : Theme.textMuted
+                    NudgeButton {
+                        glyph: "−"
+                        onClicked: SettingsService.lyricsOffset -= 100
                     }
 
-                    MouseArea {
-                        id: plusMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
+                    Text {
+                        width: 38
+                        height: 18
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        text: SettingsService.lyricsOffset === 0 ? "sync"
+                            : `${SettingsService.lyricsOffset > 0 ? "+" : ""}${(SettingsService.lyricsOffset / 1000).toFixed(1)}s`
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 9
+                        font.weight: Font.DemiBold
+                        font.features: { "tnum": 1 }
+                        color: SettingsService.lyricsOffset !== 0
+                            ? (offsetMouse.containsMouse ? Theme.text : Theme.accent) : Theme.textMuted
+
+                        MouseArea {
+                            id: offsetMouse
+                            anchors.fill: parent
+                            hoverEnabled: SettingsService.lyricsOffset !== 0
+                            cursorShape: hoverEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onClicked: SettingsService.lyricsOffset = 0
+                        }
+                    }
+
+                    NudgeButton {
+                        glyph: "+"
                         onClicked: SettingsService.lyricsOffset += 100
                     }
                 }
@@ -251,7 +295,7 @@ Card {
                 id: lyrics
 
                 anchors.fill: parent
-                visible: LyricsService.shown
+                visible: root.lyricsMode
                 clip: true
                 interactive: false
                 spacing: 4
@@ -358,12 +402,22 @@ Card {
             // ── UP NEXT ───────────────────────────────────────────────────
 
             ColumnLayout {
+                id: upNext
+
+                // As many rows as the space holds (36px art + 6px spacing),
+                // under the 20px label.
+                readonly property int rows: Math.max(1, Math.floor((upNext.height - 20) / 42))
+                readonly property bool empty: (MediaService.queue ?? []).length === 0
+
                 anchors.fill: parent
-                visible: !LyricsService.shown
+                visible: !root.lyricsMode
                 spacing: 6
 
                 Text {
+                    visible: !upNext.empty
                     text: {
+                        if (LyricsService.shown)
+                            return "Up next"
                         if (LyricsService.loading)
                             return "Finding lyrics…"
                         if (LyricsService.kind === "instrumental")
@@ -377,7 +431,7 @@ Card {
                 }
 
                 Repeater {
-                    model: (MediaService.queue ?? []).slice(0, 3)
+                    model: (MediaService.queue ?? []).slice(0, upNext.rows)
 
                     RowLayout {
                         id: next
@@ -387,7 +441,7 @@ Card {
 
                         Layout.fillWidth: true
                         spacing: 10
-                        opacity: 1 - next.index * 0.2
+                        opacity: Math.max(0.35, 1 - next.index * 0.15)
 
                         ClippingRectangle {
                             Layout.preferredWidth: 36
@@ -431,16 +485,46 @@ Card {
                     }
                 }
 
-                Text {
-                    visible: (MediaService.queue ?? []).length === 0
-                    text: "Nothing queued"
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: Theme.textMuted
-                    opacity: 0.7
-                }
+                Item {
+                    Layout.fillHeight: true
+                    Layout.fillWidth: true
 
-                Item { Layout.fillHeight: true }
+                    // No lyrics and no queue: say why, centred, instead of
+                    // leaving the middle of the card blank.
+                    Column {
+                        anchors.centerIn: parent
+                        visible: upNext.empty
+                        spacing: 6
+
+                        Text {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: LyricsService.kind === "instrumental" ? "󰝚" : "󰎈"
+                            font.family: Theme.fontMono
+                            font.pixelSize: 30
+                            color: Theme.textMuted
+                            opacity: 0.5
+                        }
+
+                        Text {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: LyricsService.loading ? "Finding lyrics…"
+                                : LyricsService.kind === "instrumental" ? "Instrumental" : "No lyrics"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeRegular
+                            font.weight: Font.DemiBold
+                            color: Theme.textMuted
+                        }
+
+                        Text {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: "Nothing queued"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeLabel
+                            color: Theme.textMuted
+                            opacity: 0.6
+                        }
+                    }
+                }
             }
         }
 
@@ -505,10 +589,36 @@ Card {
                 onClicked: MediaService.previous()
             }
 
-            IconButton {
-                icon: MediaService.playing ? "󰏤" : "󰐊"
-                iconSize: 18
-                onClicked: MediaService.toggle()
+            // The main control, filled so it reads first.
+            Rectangle {
+                Layout.preferredWidth: 34
+                Layout.preferredHeight: 34
+                Layout.leftMargin: 4
+                Layout.rightMargin: 4
+                radius: width / 2
+                color: playMouse.containsMouse ? Theme.accentHover : Theme.accent
+                scale: playMouse.pressed ? 0.92 : 1
+
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutBack } }
+
+                Text {
+                    anchors.centerIn: parent
+                    // The play glyph sits visually left of centre.
+                    anchors.horizontalCenterOffset: MediaService.playing ? 0 : 1
+                    text: MediaService.playing ? "󰏤" : "󰐊"
+                    font.family: Theme.fontMono
+                    font.pixelSize: 17
+                    color: Theme.accentText
+                }
+
+                MouseArea {
+                    id: playMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: MediaService.toggle()
+                }
             }
 
             IconButton {

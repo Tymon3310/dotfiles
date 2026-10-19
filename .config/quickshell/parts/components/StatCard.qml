@@ -12,7 +12,9 @@ import QtQuick.Layouts
 
 import "../theme"
 
-// The sparkline sits behind the reading as the card's background.
+// A header (icon, title, reading), a detail line, the sparkline, and a
+// footer row. The footer always keeps its height, so cards set side by side
+// line their graphs and footers up whether or not they fill it.
 Card {
     id: root
 
@@ -24,29 +26,18 @@ Card {
     property real maximum: 1
     property color accent: Theme.accent
 
-    default property alias extra: extraHolder.data
+    // The bottom row: a muted label and its value on the right. The row
+    // keeps its height when empty, so neighbouring cards stay aligned.
+    property string footerLabel: ""
+    property string footerValue: ""
+    property color footerColor: Theme.text
 
     padding: 0
-
-    // Stops above the extra row, so it never overlaps the per-core bars.
-    Sparkline {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.leftMargin: 1
-        anchors.rightMargin: 1
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: extraHolder.implicitHeight > 0
-            ? extraHolder.implicitHeight + 20 : 1
-        height: Math.max(28, parent.height * 0.58 - extraHolder.implicitHeight)
-        values: root.series
-        maximum: root.maximum
-        stroke: root.accent
-    }
 
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 14
-        spacing: 8
+        spacing: 6
 
         RowLayout {
             Layout.fillWidth: true
@@ -60,20 +51,21 @@ Card {
             }
 
             Text {
+                Layout.fillWidth: true
                 text: root.title
+                elide: Text.ElideRight
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSmall
                 font.weight: Font.DemiBold
                 color: Theme.text
             }
 
-            Item { Layout.fillWidth: true }
-
             Text {
                 text: root.reading
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeLarge
                 font.weight: Font.DemiBold
+                font.features: { "tnum": 1 }
                 color: Theme.text
             }
         }
@@ -84,17 +76,46 @@ Card {
             elide: Text.ElideRight
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeLabel
+            font.features: { "tnum": 1 }
             color: Theme.textMuted
         }
 
-        Item { Layout.fillHeight: true }
-
-        // A ColumnLayout, not an Item: children need a width, and a bare
-        // Item's childrenRect gives them none.
-        ColumnLayout {
-            id: extraHolder
+        Sparkline {
             Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.topMargin: 4
+            Layout.rightMargin: 3
+            values: root.series
+            maximum: root.maximum
+            stroke: root.accent
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 15
             spacing: 6
+
+            Text {
+                text: root.footerLabel
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeLabel
+                color: Theme.textMuted
+            }
+
+            // The value gives way, not the label.
+            Text {
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignRight
+                elide: Text.ElideLeft
+                text: root.footerValue
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSmall
+                font.weight: Font.DemiBold
+                font.features: { "tnum": 1 }
+                color: root.footerColor
+
+                Behavior on color { ColorAnimation { duration: Theme.durationMedium } }
+            }
         }
     }
 }

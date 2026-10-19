@@ -33,11 +33,9 @@ Item {
     // The source screenshot is already locked and immutable underneath it.
     property real lockReveal: 0
     property real clockReveal: 0
-    property bool entryDone: false
     ParallelAnimation {
         id: lockEntry
         running: false
-        onStopped: root.entryDone = true
 
         NumberAnimation {
             target: root
@@ -62,15 +60,13 @@ Item {
         }
     }
 
-    // The screenshots decode asynchronously, so hold the entry animation
-    // until they are on screen; otherwise the reveal plays out over a black
-    // rect and the wallpaper pops in mid-animation. A short fallback caps
-    // the wait when the decoder stalls.
+    // The frozen shot loads synchronously with the surface, so the reveal can
+    // begin as soon as its texture is up. The fallback still caps the wait if
+    // the decoder ever stalls.
     property bool entryStarted: false
 
     function armEntry(): void {
         root.entryStarted = false
-        root.entryDone = false
         root.lockReveal = 0
         root.clockReveal = 0
         entryFallback.restart()
@@ -80,8 +76,8 @@ Item {
     function tryEntry(): void {
         if (root.entryStarted)
             return
-        // Gate on the blur source only: the sharp layer loads after the
-        // entry (see below), so waiting for it would stall the reveal.
+        // Gate on the blur source: it is the layer that is drawn — the blur
+        // effect reads it and it shows through as the blur fades.
         const settled = (blurShot.status === Image.Ready || blurShot.status === Image.Error || String(blurShot.source) === "")
         if (!settled)
             return
@@ -127,8 +123,11 @@ Item {
         }
     }
 
+    // Release: OutCubic, so the unlock answers on the very next frame
+    // instead of easing in (InOutCubic read as a beat of lag after the
+    // password). LockService lifts the surface at 80% of this.
     Behavior on held {
-        NumberAnimation { duration: Theme.durationMorph; easing.type: Easing.InOutCubic }
+        NumberAnimation { duration: Theme.durationMorph; easing.type: Easing.OutCubic }
     }
 
     property real awake: LockService.awake ? 1 : 0
@@ -204,52 +203,39 @@ Item {
     Item {
         id: frame
         anchors.fill: parent
+        // With xray the live desktop is drawn underneath: fade the frozen
+        // frame out onto it so the surface lifts with no visible cut (a
+        // frozen wallpaper/JPEG frame snapping to the live one read as a
+        // blink). Without xray only black is underneath, so stay opaque.
+        opacity: (LockService.leaving && LockService.xray) ? root.held : 1
 
         Rectangle {
             anchors.fill: parent
             color: Theme.island
         }
 
-        // Half-resolution copy feeding ONLY the blur. Fullscreen blur passes and
-        // texture uploads cost ~4x less this way; under a radius-48 blur the lost
-        // detail is invisible. Must stay visible (invisible items don't feed
-        // effects on Qt 6); file order puts it before the opaque full-res shot,
-        // which covers it fully, so it never shows on screen.
+        // Frozen desktop: feeds the blur AND is the first visible frame of the
+        // lock. Loaded SYNCHRONOUSLY so the surface never paints its bare black
+        // base for a frame while the JPEG decodes — that gap read as a
+        // fullscreen black flash on entry. Full resolution so neither the
+        // sharp reveal nor the blur looks upscaled. Must stay visible
+        // (invisible items don't feed effects on Qt 6).
         Image {
             id: blurShot
             anchors.fill: parent
             source: LockService.shotSourceFor(root.screenName)
             fillMode: Image.PreserveAspectCrop
-            sourceSize: Qt.size(Math.max(1, Math.round(root.width / 2)), Math.max(1, Math.round(root.height / 2)))
-            asynchronous: true
+            sourceSize: Qt.size(Math.max(1, Math.round(root.width)), Math.max(1, Math.round(root.height)))
+            asynchronous: false
             cache: false
             onStatusChanged: root.tryEntry()
-        }
-
-        Image {
-            id: shot
-            anchors.fill: parent
-            // Loads only after the entry (or when leaving starts): at rest
-            // the full blur covers this layer, so decoding it in the entry
-            // window only buys jank. The pop is invisible under the blur.
-            source: (root.entryDone || LockService.leaving) ? LockService.shotSourceFor(root.screenName) : ""
-            visible: true
-            fillMode: Image.PreserveAspectCrop
-            // Half resolution like the blur source: decode + upload ~4x
-            // cheaper, and this layer is only ever seen mid-fade under the
-            // full blur, so the lost sharpness is invisible.
-            sourceSize: Qt.size(Math.max(1, Math.round(root.width / 2)), Math.max(1, Math.round(root.height / 2)))
-            // Async so the multi-megapixel JPEG decode never blocks the GUI
-            // thread mid-animation.
-            asynchronous: true
-            cache: false
         }
     }
 
     // Frost the whole frozen screenshot in place. The blur is STATIC (rendered
     // once per lock); only its opacity animates — fading the blurred layer in
-    // over the sharp shot on lock and out again on unlock. Animating the blur
-    // radius itself would re-run a fullscreen blur every frame and stutter.
+    // over the sharp desktop on lock and out again on unlock. Animating the
+    // blur radius itself would re-run a fullscreen blur every frame.
     MultiEffect {
         anchors.fill: parent
         source: blurShot

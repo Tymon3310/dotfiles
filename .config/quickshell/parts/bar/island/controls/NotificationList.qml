@@ -135,7 +135,7 @@ Card {
                 width: ListView.view.width - 8
                 height: row.implicitHeight + 16
                 radius: Theme.radiusSmall
-                color: (entryMouse.containsMouse || entryHover.hovered) ? Theme.islandSurfaceHover : "transparent"
+                color: (entryMouse.containsMouse || entryHover.hovered) ? Theme.rowHover : Theme.rowRest
 
                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
@@ -225,6 +225,7 @@ Card {
                     anchors.rightMargin: 8
                     z: 2
                     opacity: (entryMouse.containsMouse || entryHover.hovered) ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
                     icon: "󰅖"
                     iconSize: 11
                     onClicked: NotificationService.remove(entry.modelData)

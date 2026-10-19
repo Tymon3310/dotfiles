@@ -28,6 +28,11 @@ Singleton {
     readonly property bool sourceReady: root.source !== null && root.source.ready
     readonly property bool sourceMuted: root.sourceReady ? root.source.audio.muted : false
     readonly property string sourceIcon: root.sourceMuted ? "󰍭" : "󰍬"
+    readonly property int sourceVolume: root.sourceReady ? Math.round(root.source.audio.volume * 100) : 0
+
+    // What the output is called, for labels ("" until known).
+    readonly property string sinkDescription: root.sink
+        ? (root.sink.description || root.sink.nickname || root.sink.name || "") : ""
 
     // Pipewire reports a 0–1 factor; everything above the service speaks
     // percent.
@@ -56,6 +61,12 @@ Singleton {
         if (!root.ready)
             return
         root.sink.audio.muted = !root.sink.audio.muted
+    }
+
+    function setSourceVolume(percent: int): void {
+        if (!root.sourceReady)
+            return
+        root.source.audio.volume = Math.max(0, Math.min(100, percent)) / 100
     }
 
     function toggleSourceMute(): void {

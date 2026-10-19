@@ -116,8 +116,15 @@ Item {
                         id: arrival
                         NumberAnimation {
                             target: arrive; property: "y"
-                            from: -8; to: 0
-                            duration: Theme.durationMedium; easing.type: Theme.easing
+                            from: -14; to: 0
+                            duration: Theme.durationSpring; easing.type: Theme.easingSpring
+                            easing.overshoot: Theme.springOvershoot * 2
+                        }
+                        NumberAnimation {
+                            target: entry; property: "scale"
+                            from: 0.96; to: 1
+                            duration: Theme.durationSpring; easing.type: Theme.easingSpring
+                            easing.overshoot: Theme.springOvershoot
                         }
                         NumberAnimation {
                             target: entry; property: "opacity"

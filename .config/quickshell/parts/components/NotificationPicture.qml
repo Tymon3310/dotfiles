@@ -6,7 +6,6 @@
 // ╰──────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
-import Quickshell
 import Quickshell.Widgets
 
 import "../theme"
@@ -56,23 +55,11 @@ Item {
             sourceSize.width: 200
 
             onStatusChanged: {
-                if (status !== Image.Ready || !root.keep || !root.notification)
-                    return
-                if (!root.pictureUrl.startsWith("image://qsimage"))
-                    return
-                const key = root.notification.key
-                const path = Quickshell.cachePath(`notification-${key}.png`)
-                const saveCb = result => {
-                    if (result && result.saveToFile(path))
-                        NotificationService.keepPicture(key, `file://${path}?${Date.now()}`)
-                }
-                if (picture.width < 1 || picture.height < 1) {
-                    const grabW = picture.sourceSize.width > 0 ? picture.sourceSize.width : 64
-                    const grabH = picture.sourceSize.height > 0 ? Math.round(grabW / Math.max(0.1, root.aspect)) : 64
-                    picture.grabToImage(saveCb, Qt.size(grabW, grabH))
-                } else {
-                    picture.grabToImage(saveCb)
-                }
+                // The file is written elsewhere, by a grabber that outlives
+                // this row; grabbing here crashes when the row is rebuilt
+                // mid-grab. See NotificationPictureSaver.
+                if (status === Image.Ready && root.keep && root.notification)
+                    NotificationService.requestPictureSave(root.notification.key, root.pictureUrl)
             }
         }
 

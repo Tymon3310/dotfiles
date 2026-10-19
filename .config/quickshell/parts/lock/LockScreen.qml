@@ -45,6 +45,12 @@ Scope {
         WlSessionLockSurface {
             id: surface
 
+            // The default is white. The unlock fades the frozen frame out
+            // onto the live desktop (session_lock_xray), so whatever is left
+            // behind it must be see-through, or it flashes white at the end.
+            // While locked, LockSurface's own opaque base covers everything.
+            color: "transparent"
+
             LockSurface {
                 anchors.fill: parent
                 screenName: (surface.screen && surface.screen.name) ? surface.screen.name : ""

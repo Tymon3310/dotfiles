@@ -64,9 +64,31 @@ Singleton {
     function shotSourceFor(screenName: string): string {
         if (!root.shotReady)
             return ""
-        if (screenName && screenName.length > 0)
-            return `file://${root.shotDirectory}/lock-${screenName}.jpg?v=${root.shotSerial}`
-        return `file://${root.shotDirectory}/lock.jpg?v=${root.shotSerial}`
+        // Only per-output shots are taken; an unnamed surface borrows the
+        // first screen's.
+        const name = (screenName && screenName.length > 0) ? screenName
+            : (Quickshell.screens.length > 0 ? Quickshell.screens[0].name : "")
+        return `file://${root.shotDirectory}/lock-${name}.jpg?v=${root.shotSerial}`
+    }
+
+    // Hyprland keeps drawing the live desktop under the lock surface
+    // (misc:session_lock_xray). When it does, the unlock fades the frozen
+    // screenshot out onto the live desktop instead of cutting from it, so
+    // nothing jumps when the surface lifts. Without it, fading would reveal
+    // black, so the screenshot stays opaque until the cut. Read on every
+    // lock, so a config change is picked up.
+    property bool xray: false
+
+    function loadXray(): void {
+        HyprlandService.query("j/getoption misc:session_lock_xray", text => {
+            try {
+                const option = JSON.parse(text)
+                root.xray = option.bool === true || option.int === 1
+            } catch (error) {
+                root.xray = false
+            }
+            console.info("[lock-t] session_lock_xray=" + root.xray)
+        })
     }
 
     signal unlocked()
@@ -78,6 +100,7 @@ Singleton {
     property bool biopassRunning: false
     property bool biopassVerified: false
     property bool biopassFailed: false
+    property bool biopassStarting: false
 
     readonly property string currentUser: Quickshell.env("USER") || Quickshell.env("LOGNAME") || ""
 
@@ -90,18 +113,21 @@ Singleton {
 
     Component.onCompleted: {
         biopassProbe.running = true
+        root.loadXray()
     }
 
     readonly property Process biopassAuth: Process {
         command: ["/usr/bin/biopass-helper", "auth", "-u", root.currentUser, "--service", "login"]
 
         onStarted: {
+            root.biopassStarting = false
             root.biopassRunning = true
             root.biopassFailed = false
             console.info("[lock-t] biopass running")
         }
 
         onExited: (code, status) => {
+            root.biopassStarting = false
             root.biopassRunning = false
             console.info("[lock-t] biopass exit code=" + code)
             if (code === 0) {
@@ -119,9 +145,14 @@ Singleton {
     function triggerBiopass(): void {
         if (!root.locked || root.leaving || !root.biopassAvailable)
             return
-        if (root.biopassRunning || root.biopassVerified || root.authenticating)
+        if (root.biopassStarting || root.biopassRunning || root.biopassVerified || root.authenticating)
             return
         console.info("[lock-t] biopass starting")
+        // Set now, not in onStarted: a keypress triggers this twice in one
+        // tick (rouse + the Space handler), and the second `running = true`
+        // queued a fresh helper that started right as the unlock began —
+        // a process spawn (UI stall) mid-animation, and the camera again.
+        root.biopassStarting = true
         root.biopassFailed = false
         biopassAuth.running = true
     }
@@ -131,6 +162,7 @@ Singleton {
             biopassAuth.running = false
         }
         root.biopassRunning = false
+        root.biopassStarting = false
     }
 
     // ── LOCKING ──────────────────────────────────────────────────────────────
@@ -147,6 +179,7 @@ Singleton {
         if (root.locked || root.settleCaptureTimer.running || root.preparingLock)
             return
         console.info("[lock-t] lock()")
+        root.loadXray()
         root.rest()
         root.preparingLock = true
         root.prepareLock()
@@ -157,10 +190,13 @@ Singleton {
     // latency-sensitive lock path.
     readonly property string perOutputCmds: Quickshell.screens.map(s => "timeout 2 grim -o '" + s.name + "' -t jpeg -q 85 '" + root.shotDirectory + "/lock-" + s.name + ".jpg' &").join(" ")
 
-    // Capture each monitor independently in parallel for crisp per-output resolution
+    // Capture each monitor in parallel, at its own resolution. The directory
+    // is made (and stale shots cleared) first, so no grim races the mkdir.
+    // No whole-desktop shot: nothing draws it, and it cost 20-50 ms a lock.
     readonly property Process capture: Process {
         command: ["sh", "-c",
-            `mkdir -p '${root.shotDirectory}' && timeout 2 grim -t jpeg -q 85 '${root.shotDirectory}/lock.jpg' & ${root.perOutputCmds} wait; test -f '${root.shotDirectory}/lock.jpg'`]
+            `mkdir -p '${root.shotDirectory}' && rm -f '${root.shotDirectory}'/lock*.jpg; `
+            + `${root.perOutputCmds} wait; ls '${root.shotDirectory}'/lock-*.jpg >/dev/null 2>&1`]
 
         onExited: (code, status) => {
             root.shotSerial += 1
@@ -174,9 +210,19 @@ Singleton {
 
     function forget(): void {
         root.shotReady = false
-        root.eraser.running = true
+        // Spawning rm forks the shell (a UI stall); doing it at the cut froze
+        // the unlock animations for ~120 ms. Wait until they have finished.
+        root.eraseLater.restart()
         root.failed = false
         root.message = ""
+    }
+
+    readonly property Timer eraseLater: Timer {
+        interval: 1500
+        onTriggered: {
+            if (!root.locked && !root.preparingLock)
+                root.eraser.running = true
+        }
     }
 
     readonly property Process eraser: Process {
@@ -268,9 +314,10 @@ Singleton {
     }
 
     readonly property Timer leave: Timer {
-        // Keep the session-lock surface alive for the morph and a couple of
-        // compositor frames, without a visible pause after the animation.
-        interval: Theme.durationMorph + 40
+        // The release runs OutCubic over durationMorph (LockSurface `held`),
+        // which is visually done by 80% of it (under 1% left). Lifting the
+        // surface there hands input back ~120 ms sooner, with nothing to see.
+        interval: Math.round(Theme.durationMorph * 0.8)
         onTriggered: {
             if (root.pam.active)
                 root.pam.abort()

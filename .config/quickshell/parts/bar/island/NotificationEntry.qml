@@ -42,7 +42,9 @@ Item {
     readonly property bool hasDefault: root.actions.some(action => action.identifier === "default")
     // Every action with a label gets a pill, the default one included, so
     // "Open" is visible and not only a click on the whole thing.
-    readonly property var buttons: root.actions.filter(action => action.text !== "")
+    // Blank labels are skipped: kitty labels its default action " ", which
+    // drew as an empty accent circle.
+    readonly property var buttons: root.actions.filter(action => (action.text ?? "").trim() !== "")
 
     readonly property int minWidth: 430
     readonly property int maxWidth: 600
@@ -69,12 +71,18 @@ Item {
         onTriggered: now = Date.now()
     }
 
-    // The picture: 38 px square for icons and avatars, up to `pictureWide`
-    // across for a landscape image.
+    // The picture: its box is the image's own shape, so the whole picture is
+    // shown rather than cropped into a fixed square — a wide screenshot keeps
+    // its wide ratio (kept short, though), an avatar stays square. Bounded so
+    // one odd image cannot take over the row.
     readonly property int pictureHeight: picture.landscape ? 56 : 38
-    readonly property int pictureWide: 100
-    readonly property real pictureWidth: picture.landscape
-        ? Math.min(root.pictureWide, root.pictureHeight * picture.aspect) : root.pictureHeight
+    readonly property int pictureMaxWidth: 220
+    readonly property real pictureWidth: {
+        if (!picture.hasPicture)
+            return root.pictureHeight
+        const aspect = Math.max(0.1, picture.aspect)
+        return Math.max(20, Math.min(root.pictureMaxWidth, root.pictureHeight * aspect))
+    }
 
     // Room the title row asks for: picture, gaps, title, app name, close.
     readonly property real wantWidth: Math.max(root.minWidth, Math.min(root.maxWidth,

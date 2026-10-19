@@ -197,11 +197,16 @@ Card {
 
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            // Marks hours past midnight, so 21, 0, 3, 6 doesn't
-                            // read as a broken sort.
+                            // Hours past midnight carry tomorrow's weekday, so
+                            // 21, 0, 3, 6 doesn't read as a broken sort. (A
+                            // superscript plus read as a degree sign.)
                             text: {
                                 const hour = `${block.modelData.hour}`.padStart(2, "0")
-                                return block.modelData.tomorrow ? `${hour}:00⁺` : `${hour}:00`
+                                if (!block.modelData.tomorrow)
+                                    return `${hour}:00`
+                                const day = new Date()
+                                day.setDate(day.getDate() + 1)
+                                return `${Qt.formatDate(day, "ddd")} ${hour}`
                             }
                             font.family: Theme.fontMono
                             font.pixelSize: Theme.fontSizeLabel

@@ -208,8 +208,8 @@ Singleton {
     }
 
     // A picture handed over as image data only lives as long as the
-    // notification, so the popup saves a copy once it has drawn it
-    // (NotificationPicture) and the history is pointed at that.
+    // notification, so a copy is rendered to a file once drawn and the history
+    // is pointed at that.
     function keepPicture(key: int, url: string): void {
         root.history = root.history.map(entry =>
             entry.key === key ? Object.assign({}, entry, { picture: url }) : entry)
@@ -217,6 +217,65 @@ Singleton {
             entry.key === key ? Object.assign({}, entry, { picture: url }) : entry)
         root.shown = update(root.shown)
         root.waiting = update(root.waiting)
+    }
+
+    // The copy is made by a standalone grabber (NotificationPictureSaver), not
+    // by the row showing the picture: a grab renders on a later frame, and Qt
+    // frees the grab along with the item it grabbed, so one started from a row
+    // that is then rebuilt (or from the heads-up popup as it closes) crashes
+    // Quickshell. See that component. Requests wait here and go out one at a
+    // time to whichever grabber lives in an on-screen window.
+    property var pictureSavers: []
+    property var pictureQueue: []
+    // One grab at a time; a grabber asked for a second image while the first
+    // is still rendering would lose it.
+    property bool pictureBusy: false
+    // Keys already queued or being grabbed, so a row that is rebuilt before
+    // the file is ready does not ask again.
+    property var pictureSaving: ({})
+
+    function registerPictureSaver(saver: var): void {
+        if (root.pictureSavers.indexOf(saver) < 0)
+            root.pictureSavers = root.pictureSavers.concat([saver])
+        root.pumpPictureSaves()
+    }
+
+    function unregisterPictureSaver(saver: var): void {
+        root.pictureSavers = root.pictureSavers.filter(item => item !== saver)
+    }
+
+    function requestPictureSave(key: int, url: string): void {
+        if (!url || !url.startsWith("image://qsimage") || root.pictureSaving[key])
+            return
+        const saving = Object.assign({}, root.pictureSaving)
+        saving[key] = true
+        root.pictureSaving = saving
+        root.pictureQueue = root.pictureQueue.concat([{
+            key: key,
+            url: url,
+            path: Quickshell.cachePath(`notification-${key}.png`)
+        }])
+        root.pumpPictureSaves()
+    }
+
+    function pumpPictureSaves(): void {
+        if (root.pictureBusy || root.pictureQueue.length === 0)
+            return
+        const saver = root.pictureSavers[0]
+        if (!saver)
+            return
+        const next = root.pictureQueue[0]
+        root.pictureQueue = root.pictureQueue.slice(1)
+        root.pictureBusy = true
+        saver.save(next.key, next.url, next.path)
+    }
+
+    function pictureSaveFinished(key: int): void {
+        root.pictureBusy = false
+        const saving = Object.assign({}, root.pictureSaving)
+        delete saving[key]
+        root.pictureSaving = saving
+        root.pumpPictureSaves()
     }
 
     function snapshot(notification: var): var {
@@ -267,6 +326,14 @@ Singleton {
         extraHints: ["image-data", "image_data", "icon-image"]
 
         onNotification: notification => {
+            // Claude Code's notifications (idle reminders, permission
+            // prompts) are dropped: the island's agent badge already shows
+            // when a session is waiting or needs input.
+            if (notification.summary === "Claude Code") {
+                notification.dismiss()
+                return
+            }
+
             // Tracking keeps the object alive past this handler; without it
             // the notification is destroyed as soon as the signal returns.
             notification.tracked = true

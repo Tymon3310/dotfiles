@@ -139,16 +139,32 @@ Card {
         // ── ROUND TRIPS ─────────────────────────────────────────────────────
 
         ColumnLayout {
-            Layout.preferredWidth: 150
+            Layout.preferredWidth: 168
+            Layout.maximumWidth: 168
             Layout.fillHeight: true
+            Layout.alignment: Qt.AlignTop
             spacing: 0
 
-            Text {
-                text: "PING"
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeLabel
-                font.weight: Font.DemiBold
-                color: Theme.textMuted
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignTop
+                Layout.maximumHeight: implicitHeight
+                spacing: 6
+
+                Text {
+                    text: "󰓅"
+                    font.family: Theme.fontMono
+                    font.pixelSize: 12
+                    color: Theme.textMuted
+                }
+
+                Text {
+                    text: "PING"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeLabel
+                    font.weight: Font.DemiBold
+                    color: Theme.textMuted
+                }
             }
 
             Repeater {
@@ -164,6 +180,9 @@ Card {
 
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+                    // Share what is left under the header rather than
+                    // asking for more than the card has.
+                    Layout.preferredHeight: 0
                     spacing: 7
 
                     Rectangle {
@@ -177,9 +196,12 @@ Card {
 
                     ColumnLayout {
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         spacing: -1
 
                         Text {
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
                             text: host.modelData.label
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeSmall
@@ -187,6 +209,8 @@ Card {
                         }
 
                         Text {
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
                             text: host.modelData.address
                             font.family: Theme.fontMono
                             font.pixelSize: 9
@@ -202,6 +226,8 @@ Card {
                                 return "lost"
                             return `${host.result.ms < 10 ? host.result.ms.toFixed(1) : Math.round(host.result.ms)} ms`
                         }
+                        Layout.preferredWidth: 44
+                        horizontalAlignment: Text.AlignRight
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeSmall
                         font.weight: Font.DemiBold

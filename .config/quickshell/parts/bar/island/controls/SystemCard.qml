@@ -30,6 +30,8 @@ Card {
         return series.slice(-root.span)
     }
 
+    readonly property var cpuTemp: StatsService.temperature ? StatsService.temperature.celsius : null
+
     function degrees(value: var): string {
         return value === null || value === undefined ? "–" : `${Math.round(value)} °C`
     }
@@ -39,7 +41,7 @@ Card {
             return Theme.textMuted
         if (value >= hotAt)
             return Theme.indicatorBad
-        return value >= warmAt ? Theme.indicatorWarn : Theme.textMuted
+        return value >= warmAt ? Theme.indicatorWarn : Theme.text
     }
 
     RowLayout {
@@ -58,11 +60,9 @@ Card {
             series: root.recent(StatsService.cpuHistory)
             accent: Theme.accent
 
-            Temperature {
-                value: StatsService.temperature ? StatsService.temperature.celsius : null
-                warmAt: 70
-                hotAt: 85
-            }
+            footerLabel: "Temperature"
+            footerValue: root.degrees(root.cpuTemp)
+            footerColor: root.heat(root.cpuTemp, 70, 85)
         }
 
         Rule {}
@@ -78,6 +78,10 @@ Card {
             detail: `${StatsService.bytes(StatsService.memoryUsed)} of ${StatsService.bytes(StatsService.memoryTotal)}`
             series: root.recent(StatsService.memoryHistory)
             accent: Theme.blue
+
+            footerLabel: StatsService.swapTotal > 0 ? "Swap used" : "Swap"
+            footerValue: StatsService.swapTotal > 0
+                ? StatsService.bytes(StatsService.swapUsed, 0) : "off"
         }
 
         Rule { visible: StatsService.gpuAvailable }
@@ -96,11 +100,9 @@ Card {
             series: root.recent(StatsService.gpuHistory)
             accent: Theme.green
 
-            Temperature {
-                value: StatsService.gpuTemperature
-                warmAt: 70
-                hotAt: 85
-            }
+            footerLabel: "Temperature"
+            footerValue: root.degrees(StatsService.gpuTemperature)
+            footerColor: root.heat(StatsService.gpuTemperature, 70, 85)
         }
 
         Rule { visible: StatsService.gpuAvailable }
@@ -117,6 +119,9 @@ Card {
             detail: `of ${StatsService.bytes(StatsService.vramTotal, 0)} · ${(StatsService.vramFraction * 100).toFixed(0)}%`
             series: root.recent(StatsService.vramHistory)
             accent: Theme.yellow
+
+            footerLabel: "Free"
+            footerValue: StatsService.bytes(Math.max(0, StatsService.vramTotal - StatsService.vramUsed))
         }
     }
 
@@ -127,21 +132,5 @@ Card {
         Layout.bottomMargin: 6
         Layout.preferredWidth: 1
         color: Theme.hairline
-    }
-
-    // A temperature under the reading, tinted when warm.
-    component Temperature: Text {
-        property var value: null
-        property real warmAt: 70
-        property real hotAt: 85
-
-        text: root.degrees(value)
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontSizeSmall
-        font.weight: Font.DemiBold
-        font.features: { "tnum": 1 }
-        color: root.heat(value, warmAt, hotAt)
-
-        Behavior on color { ColorAnimation { duration: Theme.durationMedium } }
     }
 }

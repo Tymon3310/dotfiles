@@ -115,6 +115,10 @@ FocusScope {
                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                 Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
+                // Lifts a little when picked, squishes while pressed.
+                scale: tileMouse.pressed ? Theme.pressScale : tile.isSelected ? 1.03 : 1
+                Behavior on scale { NumberAnimation { duration: Theme.durationEnter; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot * 3 } }
+
                 Column {
                     anchors.centerIn: parent
                     spacing: 10
@@ -149,6 +153,7 @@ FocusScope {
 
                 // The pointer drives the same selection as the arrows.
                 MouseArea {
+                    id: tileMouse
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor

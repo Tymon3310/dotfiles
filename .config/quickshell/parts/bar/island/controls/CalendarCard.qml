@@ -56,6 +56,16 @@ Card {
     // Reset to the current month whenever the card is rebuilt.
     Component.onCompleted: root.offsetMonths = 0
 
+    // Paging slides the new month in from the side it comes from.
+    property int lastOffset: 0
+    onOffsetMonthsChanged: {
+        const forward = root.offsetMonths > root.lastOffset
+        root.lastOffset = root.offsetMonths
+        monthSlide.from = forward ? 28 : -28
+        monthSlide.restart()
+        monthFade.restart()
+    }
+
     // ── MONTH ───────────────────────────────────────────────────────────────
 
     ColumnLayout {
@@ -90,7 +100,7 @@ Card {
                 visible: root.showingThisMonth
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSmall
-                color: Theme.accent
+                color: Theme.textMuted
             }
 
             PillButton {
@@ -121,6 +131,28 @@ Card {
         GridLayout {
             id: grid
 
+            transform: Translate { id: gridShift }
+
+            NumberAnimation {
+                id: monthSlide
+                target: gridShift
+                property: "x"
+                to: 0
+                duration: Theme.durationEnter
+                easing.type: Theme.easingSpring
+                easing.overshoot: Theme.springOvershoot
+            }
+
+            NumberAnimation {
+                id: monthFade
+                target: grid
+                property: "opacity"
+                from: 0.2
+                to: 1
+                duration: Theme.durationMedium
+                easing.type: Easing.OutCubic
+            }
+
             Layout.fillWidth: true
             Layout.fillHeight: true
             columns: 7
@@ -142,8 +174,10 @@ Card {
 
                 Text {
                     required property string modelData
+                    // Equal shares, whatever the glyph widths.
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 16
+                    Layout.preferredWidth: 1
+                    Layout.preferredHeight: 18
                     horizontalAlignment: Text.AlignHCenter
                     text: modelData
                     font.family: Theme.fontFamily
@@ -176,15 +210,21 @@ Card {
                         && root.showingThisMonth
                         && cell.day === root.today.getDate()
 
+                    // Equal shares, so columns and rows stay even.
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+                    Layout.preferredWidth: 1
+                    Layout.preferredHeight: 1
+
+                    HoverHandler { id: cellHover }
 
                     Rectangle {
                         anchors.centerIn: parent
-                        width: Math.min(parent.width, parent.height)
+                        width: Math.min(34, parent.width, parent.height)
                         height: width
                         radius: width / 2
-                        color: cell.isToday ? Theme.accent : "transparent"
+                        color: cell.isToday ? Theme.accent
+                            : cellHover.hovered && cell.inMonth ? Theme.islandSurfaceHover : "transparent"
 
                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
