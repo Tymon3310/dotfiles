@@ -1,11 +1,3 @@
-// ╭────────────────────────────────────────────────────────────────────────────╮
-// │                                                                            │
-// │   W O R K S P A C E S   W I D G E T                                      │
-// │   dots that stretch into a pill for the one you are on                   │
-// │                                                                            │
-// │   github.com/andreumassanet/impasto                                        │
-// │                                                                            │
-// ╰────────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 import QtQuick.Layouts
@@ -13,15 +5,6 @@ import QtQuick.Layouts
 import "../../theme"
 import "../../services"
 
-// Three states, by shape and weight alone:
-//
-//     focused    a wide pill
-//     occupied   a dot, solid but dim
-//     empty      a dot, dimmer still
-//
-// The first few dots are always shown; the rest appear with use. The pill
-// slides and stretches between positions rather than switching. Drawn in the
-// accent: unlike the battery it carries no warning, so it follows the palette.
 Rectangle {
     id: root
 
@@ -41,7 +24,6 @@ Rectangle {
     // numbered from its start.
     readonly property int perMonitor: SettingsService.workspacesPerMonitor
 
-    // ── SWITCH FLASH ────────────────────────────────────────────────────────
     //
     // On a switch or when the monitor regains focus, the pill grows tall
     // enough to carry the workspace's number (its place in this monitor's block),
@@ -108,6 +90,51 @@ Rectangle {
     border.color: Theme.islandBorder
     border.width: root.chromeless ? 0 : 1
 
+    // The workspaces that have a dot, in order: the same rule the slots use.
+    function shownIds(): var {
+        const ids = []
+        if (root.monitor === "") {
+            for (let id = 1; id <= HyprlandService.maximum; id++)
+                if (HyprlandService.isVisible(id))
+                    ids.push(id)
+        } else {
+            for (let i = 0; i < root.perMonitor; i++) {
+                const id = root.base + i + 1
+                if (i < HyprlandService.slots || id === root.activeId
+                        || HyprlandService.isOccupied(id))
+                    ids.push(id)
+            }
+        }
+        return ids
+    }
+
+    // Scrolling steps through the dots: down or right goes to the next one,
+    // up or left the previous. Stops at either end rather than wrapping.
+    function step(direction: int): void {
+        const ids = root.shownIds()
+        const at = ids.indexOf(root.activeId)
+        const next = at < 0 ? 0 : at + direction
+        if (next < 0 || next >= ids.length || ids[next] === root.activeId)
+            return
+        HyprlandService.focus(ids[next])
+    }
+
+    // Touchpads send many small deltas; a step fires per notch's worth (120).
+    property real wheelAccum: 0
+
+    WheelHandler {
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        onWheel: event => {
+            const delta = event.angleDelta.y !== 0 ? event.angleDelta.y : -event.angleDelta.x
+            root.wheelAccum += delta
+            while (Math.abs(root.wheelAccum) >= 120) {
+                const direction = root.wheelAccum > 0 ? -1 : 1
+                root.wheelAccum += direction * 120
+                root.step(direction)
+            }
+        }
+    }
+
     RowLayout {
         id: layout
         anchors.centerIn: parent
@@ -125,7 +152,6 @@ Rectangle {
 
                 required property int index
                 readonly property int workspaceId: root.base + slot.index + 1
-                // The first few of the block always, the rest while in use.
                 readonly property bool shown: root.monitor === ""
                     ? HyprlandService.isVisible(slot.workspaceId)
                     : slot.index < HyprlandService.slots || slot.focused || slot.occupied
@@ -168,7 +194,6 @@ Rectangle {
                             color: Theme.accentText
                             opacity: 0
 
-                            // Fades in once the pill has room for it.
                             NumberAnimation on opacity {
                                 from: 0; to: 1
                                 duration: Theme.durationMedium
