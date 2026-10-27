@@ -1,11 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   N O T I F I C A T I O N   S E R V I C E                                │
-// │   the shell is the notification daemon                                   │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 pragma Singleton
 
@@ -15,9 +7,6 @@ import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Services.Notifications
 
-// Owns org.freedesktop.Notifications. If another daemon holds the name, the
-// server stays unregistered and takes over by itself once it is released.
-//
 // Only capabilities the island actually renders are declared; claiming more
 // makes applications send content that gets dropped.
 Singleton {
@@ -25,7 +14,6 @@ Singleton {
 
     signal arrived(var notification)
 
-    // For notifications that do not set their own timeout.
     readonly property int defaultTimeout: SettingsService.notificationTimeout
 
     // `shown`, `waiting` and `history` hold plain copies, never the
@@ -133,10 +121,8 @@ Singleton {
     property var deadlines: root.serverInstance === Quickshell.instanceId
         ? (root.cacheData.deadlines ?? {}) : ({})
 
-    // True while the pointer is over the stack: nothing times out under it.
     property bool held: false
 
-    // ── PICTURE AND ICON ───────────────────────────────────────────────────
     //
     // Quickshell folds `notify-send -i NAME` into `image` as
     // "image://icon/NAME", so an icon name and a real picture (an avatar, a
@@ -293,7 +279,6 @@ Singleton {
             image: notification.image ?? "",
             urgency: notification.urgency,
             expireTimeout: notification.expireTimeout,
-            // Buttons, by identifier; "default" is the click on the popup.
             actions: (notification.actions ?? [])
                 .map(action => ({ identifier: action.identifier, text: action.text ?? "" })),
             time: Date.now()
@@ -360,7 +345,7 @@ Singleton {
                     if (timeout > 0 && deadline <= Date.now()) {
                         // The server registers replayed objects after this
                         // handler returns, so expiration must wait until then.
-                        Qt.callLater(() => root.dismissKey(key))
+                        Qt.callLater(() => root.retireKey(key))
                     } else {
                         root.enqueue(existing)
                         if (timeout > 0 && root.shown.some(entry => entry.key === key)) {
@@ -377,7 +362,6 @@ Singleton {
         }
     }
 
-    // One clock for every shown notification, against `deadlines`.
     readonly property Timer tick: Timer {
         interval: 250
         repeat: true
@@ -389,7 +373,7 @@ Singleton {
             for (const entry of root.shown) {
                 const deadline = root.deadlines[entry.key]
                 if (deadline !== undefined && deadline <= now)
-                    root.dismissKey(entry.key)
+                    root.retireKey(entry.key)
             }
         }
     }
@@ -443,7 +427,6 @@ Singleton {
         const oldHistory = root.history
         root.history = [notification].concat(root.history).slice(0, root.historyLimit)
 
-        // Drop oldest entries beyond limit from liveObjects
         if (oldHistory.length >= root.historyLimit) {
             const dropped = oldHistory.slice(root.historyLimit - 1)
             for (const item of dropped) {
@@ -456,17 +439,17 @@ Singleton {
         // Critical notifications ignore do-not-disturb. One that never reaches
         // the island is expired at once, so a sender waiting on it
         // (`notify-send --wait`) is not left hanging.
-        if (root.doNotDisturb && !root.isCritical(notification)) {
-            object.expire()
-            return
-        }
-
         const key = notification.key
         const live = Object.assign({}, root.liveObjects)
         live[key] = object
         root.liveObjects = live
         // The application closed it, or it was expired or dismissed here.
         object.closed.connect(() => root.forget(key))
+
+        if (root.doNotDisturb && !root.isCritical(notification)) {
+            root.retireKey(key)
+            return
+        }
 
         root.enqueue(notification)
         root.arrived(notification)
@@ -512,7 +495,6 @@ Singleton {
         }
     }
 
-    // Remove the banner and queue entry, keeping the plain history snapshot.
     function hideKey(key: int): void {
         root.shown = root.shown.filter(entry => entry.key !== key)
         root.waiting = root.waiting.filter(entry => entry.key !== key)
@@ -539,6 +521,17 @@ Singleton {
         root.forget(key)
         if (object)
             object.expire()
+    }
+
+    // Off the island (timed out, dismissed in bulk, do-not-disturb) but still
+    // in the history. One with actions stays alive so clicking it in the
+    // history can still run them (Discord opens the channel); one without is
+    // expired at once, freeing callers like notify-send --wait.
+    function retireKey(key: int): void {
+        root.hideKey(key)
+        const object = root.liveObjects[key]
+        if (object && (object.actions ?? []).length === 0)
+            root.dismissKey(key)
     }
 
     // The user closed it (its cross): the application is told it was dismissed.
@@ -634,7 +627,7 @@ Singleton {
     // Everything off the island and out of the queue.
     function dismiss(): void {
         for (const entry of root.shown.concat(root.waiting))
-            root.dismissKey(entry.key)
+            root.retireKey(entry.key)
     }
 
     function clearHistory(): void {
