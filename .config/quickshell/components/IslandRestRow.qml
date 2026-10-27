@@ -5,13 +5,11 @@ import "../parts/theme"
 import "../parts/services"
 import "../parts/components"
 
-// Resting desktop content; its geometry is also used by the lock screen.
 Row {
     id: root
     spacing: IslandMetrics.spacing
     height: Theme.capsuleHeight
 
-    // 1. Media Album Art Thumbnail
     Item {
         id: mediaThumb
         width: IslandMetrics.artSize
@@ -28,7 +26,6 @@ Row {
                 source: MediaService.artUrl
                 opacity: source !== "" && status === Image.Ready ? 1 : 0
                 visible: opacity > 0
-                // New covers fade in rather than pop.
                 Behavior on opacity { NumberAnimation { duration: Theme.durationEnter; easing.type: Easing.OutCubic } }
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
@@ -47,7 +44,6 @@ Row {
         }
     }
 
-    // 2. Song Name (Title and Artist)
     Item {
         id: songItem
         anchors.verticalCenter: parent.verticalCenter
@@ -99,7 +95,6 @@ Row {
         }
     }
 
-    // 4. Clock Time
     Item {
         anchors.verticalCenter: parent.verticalCenter
         width: Math.ceil(IslandMetrics.clockMetrics.advanceWidth)
@@ -113,7 +108,6 @@ Row {
         }
     }
 
-    // Divider
     Text {
         anchors.verticalCenter: parent.verticalCenter
         width: Math.ceil(IslandMetrics.dividerMetrics.advanceWidth)
@@ -123,7 +117,6 @@ Row {
         opacity: 0.25
     }
 
-    // Date
     Item {
         anchors.verticalCenter: parent.verticalCenter
         width: Math.ceil(IslandMetrics.dateMetrics.advanceWidth)
@@ -138,45 +131,89 @@ Row {
         }
     }
 
-    // 5. Agent Status Indicator (resting)
     Item {
         anchors.verticalCenter: parent.verticalCenter
         width: IslandMetrics.agentWidth
         height: Theme.capsuleHeight
         visible: AgentService.active
 
+        // A click goes to that session (its window, and its tab in
+        // OpenCode) instead of opening the dashboard.
+        MouseArea {
+            anchors.fill: parent
+            anchors.margins: -3
+            cursorShape: Qt.PointingHandCursor
+            acceptedButtons: Qt.LeftButton
+            onClicked: AgentService.focusWindow()
+        }
+
         Row {
             anchors.centerIn: parent
-            spacing: 1
+            spacing: AgentService.needsAttention ? 4 : 1
 
-            Text {
-                id: agentIcon
+            Item {
+                id: agentBadge
                 anchors.verticalCenter: parent.verticalCenter
-                text: AgentService.state === "error" ? "󰅚"
-                    : AgentService.state === "waiting" ? "󰂚"
-                    : AgentService.state === "done" ? "󰄬" : "󱚥"
-                font.family: Theme.fontMono
-                font.pixelSize: 12
-                color: AgentService.state === "error" ? Theme.indicatorBad
-                    : AgentService.state === "waiting" ? Theme.indicatorWarn
-                    : AgentService.state === "done" ? Theme.indicatorGood : Theme.accent
+                width: 18
+                height: 18
 
-                // Pulses while a session waits for you or has errored, until
+                readonly property bool alarm: AgentService.needsAttention
+                readonly property color tint: AgentService.attentionState === "error"
+                    ? Theme.indicatorBad : Theme.indicatorWarn
+
+                // While a session waits for you or has errored: a solid
+                // badge in that colour, with a ring rippling out of it, until
                 // you get to it.
+                Rectangle {
+                    id: agentRing
+                    anchors.centerIn: parent
+                    width: 18
+                    height: 18
+                    radius: 9
+                    color: "transparent"
+                    border.width: 1.5
+                    border.color: agentBadge.tint
+                    opacity: 0
+                    visible: agentBadge.alarm
+                }
+
+                Rectangle {
+                    id: agentDisc
+                    anchors.centerIn: parent
+                    width: 18
+                    height: 18
+                    radius: 9
+                    color: agentBadge.tint
+                    visible: agentBadge.alarm
+                }
+
+                Text {
+                    id: agentIcon
+                    anchors.centerIn: parent
+                    text: AgentService.state === "error" ? "󰅚"
+                        : AgentService.state === "waiting" ? "󰂚"
+                        : AgentService.state === "done" ? "󰄬" : "󱚥"
+                    font.family: Theme.fontMono
+                    font.pixelSize: agentBadge.alarm ? 11 : 12
+                    color: agentBadge.alarm ? Theme.island
+                        : AgentService.state === "done" ? Theme.indicatorGood : Theme.accent
+                }
+
                 SequentialAnimation {
-                    running: AgentService.needsAttention
+                    running: agentBadge.alarm
                     loops: Animation.Infinite
-                    onRunningChanged: if (!running) { agentIcon.scale = 1; agentIcon.opacity = 1 }
+                    onRunningChanged: if (!running) { agentBadge.scale = 1; agentRing.opacity = 0 }
 
                     ParallelAnimation {
-                        NumberAnimation { target: agentIcon; property: "scale"; to: 1.3; duration: 380; easing.type: Easing.OutQuad }
-                        NumberAnimation { target: agentIcon; property: "opacity"; to: 1; duration: 380 }
+                        NumberAnimation { target: agentBadge; property: "scale"; to: 1.15; duration: 260; easing.type: Easing.OutQuad }
+                        NumberAnimation { target: agentRing; property: "scale"; from: 1; to: 1.9; duration: 1100; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: agentRing; property: "opacity"; from: 0.8; to: 0; duration: 1100; easing.type: Easing.OutCubic }
+                        SequentialAnimation {
+                            PauseAnimation { duration: 260 }
+                            NumberAnimation { target: agentBadge; property: "scale"; to: 1; duration: 500; easing.type: Easing.InOutQuad }
+                        }
                     }
-                    ParallelAnimation {
-                        NumberAnimation { target: agentIcon; property: "scale"; to: 1; duration: 620; easing.type: Easing.InOutQuad }
-                        NumberAnimation { target: agentIcon; property: "opacity"; to: 0.55; duration: 620 }
-                    }
-                    PauseAnimation { duration: 500 }
+                    PauseAnimation { duration: 600 }
                 }
             }
 
@@ -193,7 +230,6 @@ Row {
         }
     }
 
-    // 6. Privacy Radar (resting)
     Row {
         anchors.verticalCenter: parent.verticalCenter
         spacing: 4

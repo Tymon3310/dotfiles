@@ -56,8 +56,8 @@ QtObject {
         NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing }
     }
 
-    // Icon, plus a small count when several agents are active.
-    readonly property real agentWidth: AgentService.active ? (AgentService.count > 1 ? 30 : 22) : 0
+    readonly property real agentWidth: !AgentService.active ? 0
+        : (AgentService.count > 1 ? 30 : 22) + (AgentService.needsAttention ? 6 : 0)
     readonly property real privacyWidth: PrivacyService.active ? (PrivacyService.cameraActive && PrivacyService.micActive ? 22 : 12) : 0
 
     readonly property real rowWidth: root.artSize + Math.ceil(root.clockMetrics.advanceWidth)

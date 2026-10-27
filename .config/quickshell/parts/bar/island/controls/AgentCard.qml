@@ -1,7 +1,3 @@
-// Every open coding agent session (AgentService.agents, most urgent first,
-// idle ones last and dimmed), in a list that scrolls: what each session is
-// about (its window title), its state and project, and a click to focus its
-// window.
 
 import QtQuick
 import QtQuick.Layouts
@@ -148,7 +144,6 @@ Card {
                         Layout.alignment: Qt.AlignVCenter
                         spacing: 1
 
-                        // What the session is about, or the agent's name.
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 8
@@ -174,7 +169,6 @@ Card {
                             }
                         }
 
-                        // Agent and project.
                         Text {
                             Layout.fillWidth: true
                             text: [row.task ? row.name : "",
@@ -193,11 +187,10 @@ Card {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: row.modelData.address !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor
-                    onClicked: AgentService.focusAddress(row.modelData.address)
+                    onClicked: AgentService.focusAgent(row.modelData)
                 }
             }
 
-            // Nothing running.
             Text {
                 anchors.centerIn: parent
                 visible: root.total === 0

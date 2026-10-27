@@ -106,50 +106,67 @@ def opencode_tui_running():
 OPENCODE_STATUS_DIR = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "agent-status" / "opencode"
 
 
-def check_opencode_plugin():
-    """OpenCode sessions from the status plugin (opencode_status.js).
+def ancestry(pid):
+    """The process and its parents, nearest first (to find its terminal)."""
+    chain = []
+    while pid > 1 and pid not in chain and len(chain) < 16:
+        chain.append(pid)
+        pid = parent_of(pid)
+    return chain
 
-    None when the plugin has written nothing, so the database fallback runs.
-    Busy, waiting and errored sessions always show; a finished one reads
-    "Done" for a minute; after that only the latest idle session stays
-    listed, and only while an OpenCode window is open.
+
+def check_opencode_plugin():
+    """OpenCode tabs from the TUI plugin (opencode-agent-status/tui.js).
+
+    One file per OpenCode window, listing its session tabs. None when no
+    window has the plugin loaded, so the database fallback runs. A finished
+    tab reads "Done" for a minute, then "Idle" while it stays open.
     """
     try:
         files = list(OPENCODE_STATUS_DIR.glob("*.json"))
     except OSError:
         return None
-    if not files:
-        return None
     now_ms = time.time() * 1000
-    tui_open = opencode_tui_running()
-    found, idle = [], []
+    found = []
+    windows = 0
     for path in files:
         try:
             data = json.loads(path.read_text())
         except (OSError, ValueError):
             continue
-        state = data.get("state", "")
-        updated = data.get("time", 0)
-        if state not in STATE_RANK or now_ms - updated > 24 * 3600 * 1000:
+        pid = data.get("pid")
+        tabs = data.get("tabs")
+        if not isinstance(pid, int) or not isinstance(tabs, list):
             continue
-        if state == "done" and now_ms - updated > CLAUDE_DONE_MS:
-            state = "idle"
-        word = {"waiting": "Needs Input", "working": "Thinking", "done": "Done",
-                "idle": "Idle", "error": "Error"}[state]
-        entry = {
-            "active": True,
-            "agent": "OpenCode",
-            "id": "opencode:" + data.get("session", path.stem),
-            "state": state,
-            "label": f"OpenCode · {word}",
-            "title": os.path.basename(data.get("cwd", "").rstrip("/")) or "OpenCode",
-            "task": data.get("title", ""),
-            "time": updated,
-        }
-        (idle if state == "idle" else found).append(entry)
-    if tui_open and idle:
-        found.append(max(idle, key=lambda a: a["time"]))
-    return found
+        # The window closed without its exit handler running.
+        if not os.path.exists(f"/proc/{pid}"):
+            path.unlink(missing_ok=True)
+            continue
+        windows += 1
+        pids = ancestry(pid)
+        for tab in tabs:
+            state = tab.get("state", "")
+            updated = tab.get("time", 0)
+            if state == "done" and now_ms - updated > CLAUDE_DONE_MS:
+                state = "idle"
+            if state not in STATE_RANK or not tab.get("session"):
+                continue
+            word = {"waiting": "Needs Input", "working": "Thinking", "done": "Done",
+                    "idle": "Idle", "error": "Error"}[state]
+            found.append({
+                "active": True,
+                "agent": "OpenCode",
+                "id": "opencode:" + tab["session"],
+                "state": state,
+                "label": f"OpenCode · {word}",
+                "title": os.path.basename(tab.get("cwd", "").rstrip("/")) or "OpenCode",
+                "task": tab.get("title", ""),
+                "time": updated,
+                "pids": pids,
+                # Writing the session id here makes that window show the tab.
+                "focus": {"file": str(path.with_suffix(".focus")), "session": tab["session"]},
+            })
+    return found if windows else None
 
 
 def check_opencode():
@@ -178,7 +195,6 @@ def check_opencode():
             conn.close()
             return None
 
-        # Check pending actions / approval
         pending = cur.execute(
             "SELECT id, type, data FROM session_pending WHERE session_id=? LIMIT 1", (sid,)
         ).fetchone()
@@ -243,7 +259,6 @@ def check_t3():
         cur = conn.cursor()
         cur.execute("PRAGMA query_only = ON")
 
-        # Check if table exists
         has_table = cur.execute(
             "SELECT 1 FROM sqlite_master WHERE name='projection_threads'"
         ).fetchone()
@@ -491,6 +506,8 @@ def poll_agents():
             # Other agents report their session title directly.
             "task": window_task(address, clients) if a["agent"] == "Claude" else a.get("task", a.get("title", "")),
             "address": address,
+            # Where to ask the app to show this session ({file, session}).
+            "focus": a.get("focus"),
         })
 
     # Badges follow the busy agents only; `agents` lists idle sessions too.

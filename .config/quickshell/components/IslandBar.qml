@@ -18,7 +18,6 @@ PanelWindow {
     property var modelData
     screen: modelData
 
-    // ── STATE ────────────────────────────────────────────────────────────────
 
     // "dashboard", "session", "tray" or "".
     property string openId: ""
@@ -133,10 +132,8 @@ PanelWindow {
         return Qt.size(0, 0)
     }
 
-    // ── OSD state lives in OsdService (active/icon/label/progress); ──
     // this bar only binds to it and suspends it while expanded.
 
-    // ── HOLD-CLICK GLANCE ─────────────────────────────────────────────────────
     property bool holdTriggered: false
 
     readonly property Timer holdTimer: Timer {
@@ -176,7 +173,6 @@ PanelWindow {
     // against an item that is being torn down; see the component.
     NotificationPictureSaver {}
 
-    // ── SURFACE ──────────────────────────────────────────────────────────────
 
     anchors {
         top: true
@@ -211,7 +207,6 @@ PanelWindow {
         onCleared: bar.close()
     }
 
-    // ── LEFT FLOATING ZONE ───────────────────────────────────────────────────
 
     Row {
         id: leftZone
@@ -224,7 +219,6 @@ PanelWindow {
         opacity: Math.min(1, bar.islandsEmergeProgress * 1.5)
         visible: opacity > 0
 
-        // Workspaces Capsule (borderless)
         Rectangle {
             height: bar.capsuleH
             width: wsWidget.implicitWidth + 12
@@ -242,7 +236,6 @@ PanelWindow {
         }
     }
 
-    // ── CENTER MAIN ISLAND (NOTCH) ───────────────────────────────────────────
 
     Rectangle {
         id: island
@@ -315,7 +308,6 @@ PanelWindow {
             }
         }
 
-        // Click, hold-click, and wheel interaction for the top capsule
         MouseArea {
             id: islandCapsuleMouse
             anchors.top: parent.top
@@ -357,7 +349,10 @@ PanelWindow {
             onWheel: event => MediaService.nudgeVolume(event.angleDelta.y > 0 ? 0.05 : -0.05)
         }
 
+        // z above the capsule mouse so the agent icon takes its own clicks
+        // (it has the row's only MouseArea; clicks elsewhere fall through).
         IslandRestRow {
+            z: 11
             anchors.top: parent.top
             anchors.topMargin: bar.barTopMargin
             anchors.horizontalCenter: parent.horizontalCenter
@@ -370,7 +365,6 @@ PanelWindow {
             Behavior on scale { NumberAnimation { duration: Theme.durationEnter; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot } }
         }
 
-        // ── RECORDING INDICATOR (replaces rest row while capturing) ───
         // z above the capsule mouse so pause/stop stay clickable.
         RecordingIndicator {
             id: recordingItem
@@ -388,7 +382,6 @@ PanelWindow {
             Behavior on scale { NumberAnimation { duration: Theme.durationEnter; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot } }
         }
 
-        // ── AGENT ALERT (an agent finished / needs input / errored) ────────
         // z above the capsule mouse: a click focuses that session's window.
         AgentAlert {
             id: agentAlertItem
@@ -411,7 +404,7 @@ PanelWindow {
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 onClicked: mouse => {
                     if (mouse.button === Qt.LeftButton)
-                        AgentService.focusAddress(AgentService.alert.address)
+                        AgentService.focusAgent(AgentService.alert)
                     AgentService.dismissAlert()
                 }
             }
@@ -420,24 +413,42 @@ PanelWindow {
         // A tinted glow along the island's lower edge, in the colour of
         // whatever the island has morphed into: an agent alert, an OSD, a
         // new notification, or a recording in progress.
+        // While a session waits for input (or has errored), it stays lit
+        // and breathes in that colour until you get to it.
         Rectangle {
             id: edgeGlow
 
+            // Lit only because something is waiting: nothing else showing.
+            readonly property bool attentionOnly: AgentService.needsAttention && bar.below === ""
+                && !bar.alerting && !OsdService.active && !bar.recording
             readonly property color tint: bar.alerting ? agentAlertItem.tint
                 : (OsdService.active && bar.below === "") ? osdLayerItem.tint
                 : bar.below === "notification" ? Theme.accent
+                : edgeGlow.attentionOnly ? (AgentService.attentionState === "error" ? Theme.indicatorBad : Theme.indicatorWarn)
                 : Theme.red
             readonly property bool lit: bar.alerting
                 || (OsdService.active && bar.below === "")
                 || bar.below === "notification"
                 || (bar.recording && bar.below === "")
+                || edgeGlow.attentionOnly
+
+            property real breath: 1
+            SequentialAnimation on breath {
+                running: edgeGlow.attentionOnly
+                loops: Animation.Infinite
+                onRunningChanged: if (!running) edgeGlow.breath = 1
+                NumberAnimation { from: 1; to: 0.35; duration: 900; easing.type: Easing.InOutSine }
+                NumberAnimation { from: 0.35; to: 1; duration: 900; easing.type: Easing.InOutSine }
+            }
 
             anchors.bottom: parent.bottom
             anchors.horizontalCenter: parent.horizontalCenter
             width: edgeGlow.lit ? parent.width * 0.6 : 0
             height: 2
             radius: 1
-            opacity: edgeGlow.lit ? (bar.recording && !bar.alerting && !OsdService.active ? 0.6 : 0.9) : 0
+            opacity: !edgeGlow.lit ? 0
+                : edgeGlow.attentionOnly ? edgeGlow.breath
+                : (bar.recording && !bar.alerting && !OsdService.active ? 0.6 : 0.9)
             gradient: Gradient {
                 orientation: Gradient.Horizontal
                 GradientStop { position: 0; color: "transparent" }
@@ -449,7 +460,6 @@ PanelWindow {
             Behavior on opacity { NumberAnimation { duration: Theme.durationMedium } }
         }
 
-        // ── MORPHING OSD LAYER (Volume, Caps Lock, Num Lock) ───────────────
         OsdLayer {
             id: osdLayerItem
             anchors.top: parent.top
@@ -467,7 +477,6 @@ PanelWindow {
             Behavior on scale { NumberAnimation { duration: Theme.durationEnter; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot } }
         }
 
-        // ── EXPANDED DETAILS (Dashboard, Session, Tray, Notification) ───────
         Loader {
             id: detailLoader
             anchors.top: parent.top
@@ -566,7 +575,6 @@ PanelWindow {
         opacity: Math.max(0, 1 + bar.notchYOffset / 10)
     }
 
-    // ── RIGHT FLOATING ZONE ──────────────────────────────────────────────────
 
     Row {
         id: rightZone
@@ -579,7 +587,6 @@ PanelWindow {
         opacity: Math.min(1, bar.islandsEmergeProgress * 1.5)
         visible: opacity > 0
 
-        // System Tray Capsule (borderless black pill)
         Rectangle {
             height: bar.capsuleH
             width: trayWidget.implicitWidth + 16
@@ -600,7 +607,6 @@ PanelWindow {
             }
         }
 
-        // Power Session Action Capsule
         Rectangle {
             height: bar.capsuleH
             width: bar.capsuleH

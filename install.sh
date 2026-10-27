@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# ==============================================================================
 # Dotfiles installer
 #
 #   ./install.sh                     run every step
@@ -9,7 +8,6 @@
 #
 # Every step is safe to re-run: it only changes what is missing or different.
 # Anything a link would replace is moved to ~/.dotfiles_backup/<timestamp>/.
-# ==============================================================================
 
 set -euo pipefail
 
@@ -32,7 +30,6 @@ declare -A STEP_INFO=(
     [agents]="Claude Code hooks + OpenCode plugin for the island's agent status"
 )
 
-# ── output ───────────────────────────────────────────────────────────────────
 
 if [[ -t 1 ]]; then
     GREEN=$'\e[0;32m' BLUE=$'\e[0;34m' YELLOW=$'\e[1;33m' RED=$'\e[0;31m' BOLD=$'\e[1m' NC=$'\e[0m'
@@ -52,7 +49,6 @@ usage() {
     printf '\nSTEPS is a comma-separated list, e.g. --only links,agents\n'
 }
 
-# ── arguments ────────────────────────────────────────────────────────────────
 
 ONLY="" SKIP=""
 while [[ $# -gt 0 ]]; do
@@ -78,7 +74,6 @@ wanted() {
 
 [[ $EUID -ne 0 ]] || die "Run this as your normal user; sudo is asked for when needed."
 
-# ── sudo, only when a step needs it ──────────────────────────────────────────
 
 SUDO_KEEPALIVE=""
 need_sudo() {
@@ -92,7 +87,6 @@ trap '[[ -n "$SUDO_KEEPALIVE" ]] && kill "$SUDO_KEEPALIVE" 2>/dev/null; true' EX
 
 is_arch() { command -v pacman >/dev/null 2>&1; }
 
-# ── steps ────────────────────────────────────────────────────────────────────
 
 step_pacman() {
     is_arch || { warn "pacman not found, skipping pacman.conf"; return; }
@@ -206,7 +200,8 @@ step_shell() {
 
 # Claude Code and OpenCode report each session's state for the island's agent
 # indicator: Claude through hooks (parts/scripts/claude_status.sh), OpenCode
-# through a plugin (parts/scripts/opencode_status.js).
+# through a TUI plugin (parts/scripts/opencode-agent-status/), which also lets
+# the island switch an OpenCode window to the clicked session's tab.
 step_agents() {
     agents_opencode
     agents_claude
@@ -217,11 +212,13 @@ agents_opencode() {
         ok "OpenCode not installed, no plugin needed"
         return
     fi
-    # Just the one file: ~/.config/opencode also holds credentials, so the
-    # folder itself is not part of the dotfiles.
-    link "$DOTFILES_DIR/.config/quickshell/parts/scripts/opencode_status.js" \
-         "$HOME/.config/opencode/plugins/agent-status.js"
-    ok "OpenCode status plugin linked (restart OpenCode to load it)"
+    # Just the plugin folder: ~/.config/opencode also holds credentials, so
+    # the folder itself is not part of the dotfiles. OpenCode v2 loads only
+    # folders from plugins/; drop the old single-file plugin it would reject.
+    rm -f "$HOME/.config/opencode/plugins/agent-status.js"
+    link "$DOTFILES_DIR/.config/quickshell/parts/scripts/opencode-agent-status" \
+         "$HOME/.config/opencode/plugins/agent-status"
+    ok "OpenCode status plugin linked (restart OpenCode windows to load it)"
 }
 
 agents_claude() {
@@ -271,7 +268,6 @@ agents_claude() {
     ok "Claude Code hooks added (restart open sessions to pick them up)"
 }
 
-# ── run ──────────────────────────────────────────────────────────────────────
 
 RAN=()
 for s in "${ALL_STEPS[@]}"; do
