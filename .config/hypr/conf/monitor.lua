@@ -5,16 +5,18 @@ hl.monitor({
     scale = 1,
     bitdepth = 10,
     supports_wide_color = 1,
-    supports_hdr = 1
+    supports_hdr = 1,
+    vrr = 1
 })
 hl.monitor({
     output = "DP-2",
-    mode = "1920x1080@144.00Hz",
-    position = "0x-70",
+    mode = "2560x1440@200.00Hz",
+    position = "0x-200",
     scale = 1,
     bitdepth = 10,
     supports_wide_color = 1,
-    supports_hdr = 0
+    supports_hdr = 1,
+    vrr = 1
 })
 hl.monitor({
     output = "",

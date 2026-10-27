@@ -32,7 +32,6 @@ for index, name in ipairs(split_workspaces.monitor_order) do
     for ws = 1, per_monitor do
         local id = base + ws
         hl.workspace_rule({ workspace = tostring(id), monitor = name, persistent = true })
-        local _, __, ___ = focus_dsp[id], move_dsp[id], move_follow_dsp[id]
     end
 end
 
@@ -41,11 +40,10 @@ local function monitor_slot(mon)
 end
 
 local function get_current_slot()
+    local slot = monitor_slot(hl.get_active_monitor()) or monitor_slot(hl.get_monitor_at_cursor())
+    if slot then return slot end
     local win = hl.get_active_window()
-    return monitor_slot(hl.get_active_monitor())
-        or monitor_slot(hl.get_monitor_at_cursor())
-        or monitor_slot(win and win.monitor)
-        or 1
+    return monitor_slot(win and win.monitor) or 1
 end
 
 local function get_monitor_slot(mon)
@@ -72,8 +70,7 @@ end
 local function cycle_local_workspace(step)
     return function()
         local slot = get_current_slot()
-        local mon = hl.get_active_monitor()
-        local active = hl.get_active_workspace(mon and mon.name)
+        local active = hl.get_active_workspace()
         local cur = (active and active.id and (active.id - (slot - 1) * per_monitor)) or 1
         local local_ws = (cur >= 1 and cur <= per_monitor) and cur or 1
         local next_ws = ((local_ws - 1 + step) % per_monitor) + 1
@@ -101,7 +98,7 @@ local function center_window_if_needed(win)
     local ww, wh = sz.x or sz[1] or 0, sz.y or sz[2] or 0
     local mx, my, mw, mh = m.x or 0, m.y or 0, m.width or 0, m.height or 0
     if wx < mx - math.max(ww, mw) or wy < my - math.max(wh, mh) or wx > mx + mw or wy > my + mh then
-        hl.dispatch(hl.dsp.window.center(win.address))
+        hl.dispatch(hl.dsp.window.center({ window = win }))
     end
 end
 
@@ -126,7 +123,7 @@ local function restore_displaced()
     if valid_slots[1] and valid_slots[2] then displaced = {} end
 end
 
-local function recover_windows(center)
+local function recover_rogue_windows()
     local active_ws = hl.get_active_workspace()
     if not active_ws then return end
     local valid_slots = get_monitor_slots()
@@ -134,14 +131,20 @@ local function recover_windows(center)
         if is_workspace_rogue(win.workspace, valid_slots) then
             displaced[win.address] = { from = win.workspace.id, to = active_ws.id }
             hl.dispatch(hl.dsp.window.move({ workspace = active_ws.id, window = win }))
-        elseif center and win.floating then
-            center_window_if_needed(win)
         end
     end
 end
 
-local function recover_rogue_windows() return recover_windows(false) end
-local function recover_all_windows() return recover_windows(true) end
+-- Screens off (DP-1 drops off the bus when it sleeps): leave the windows
+-- alone. Hyprland already parks the persistent workspaces on the remaining
+-- monitor and moves them back intact, so gathering them would only scramble
+-- the tiling. SUPER + CTRL + G still recovers by hand if a monitor stays gone.
+local function any_screen_on()
+    for _, mon in ipairs(hl.get_monitors()) do
+        if mon.dpms_status then return true end
+    end
+    return false
+end
 
 local function recover_active_window()
     local win, active_ws = hl.get_active_window(), hl.get_active_workspace()
@@ -153,7 +156,9 @@ local function recover_active_window()
 end
 
 local function schedule_workspace_recovery()
-    hl.timer(recover_rogue_windows, { timeout = 150, type = "oneshot" })
+    hl.timer(function()
+        if any_screen_on() then recover_rogue_windows() end
+    end, { timeout = 150, type = "oneshot" })
 end
 
 local wallpaper_restart_pending = false
@@ -188,7 +193,5 @@ return {
     cycle_local_workspace = cycle_local_workspace,
     recover_active_window = recover_active_window,
     recover_rogue_windows = recover_rogue_windows,
-    recover_all_windows = recover_all_windows,
-    split_workspaces = split_workspaces,
     per_monitor = per_monitor,
 }

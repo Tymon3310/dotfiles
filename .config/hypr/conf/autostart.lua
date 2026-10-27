@@ -1,9 +1,7 @@
+local pref = require("conf.pref")
 local SCRIPTS = os.getenv("HOME") .. "/.config/hypr/scripts"
 
 hl.on("hyprland.start", function()
-    -- Imports the session environment before restarting portals (in order).
-    hl.exec_cmd(SCRIPTS .. "/xdg.sh")
-
     hl.exec_cmd("xrandr --output DP-1 --primary")
 
     hl.exec_cmd("/usr/lib/polkit-kde-authentication-agent-1")
@@ -14,16 +12,11 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("hypridle")
     hl.exec_cmd("wl-paste --watch cliphist store")
     hl.exec_cmd("quickshell")
-    hl.exec_cmd("XDG_MENU_PREFIX=arch- kbuildsycoca6 --noincremental")
+    hl.exec_cmd("kbuildsycoca6 --noincremental")
     hl.exec_cmd("playerctld daemon")
-    hl.exec_cmd("/usr/lib/kdeconnectd")
     hl.exec_cmd("vicinae server")
     hl.exec_cmd("wl-clip-persist --clipboard regular")
     hl.exec_cmd("hyprsunset")
-    -- Logs who sends play/pause to media players (debugging auto-unpause) -> ~/mpris-play.log
-    hl.exec_cmd(os.getenv("HOME") .. "/.local/bin/mpris-play-logger")
 
-    -- Start btop in background on special workspace
-    hl.exec_cmd("kitty --class btop --config ~/.config/kitty/headless.conf -e btop",
-        { workspace = "special:btop silent" })
+    hl.exec_cmd(pref.BTOP, { workspace = "special:btop silent" })
 end)

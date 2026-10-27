@@ -15,7 +15,6 @@ hl.config({
 })
 
 
--- Applications
 hl.bind("SUPER + RETURN", hl.dsp.exec_cmd(pref.TERM))
 hl.bind("SUPER + B", hl.dsp.exec_cmd(pref.BROWSER))
 hl.bind("SUPER + E", hl.dsp.exec_cmd(pref.FILE_MANAGER))
@@ -24,12 +23,11 @@ hl.bind("SUPER + CTRL + C", hl.dsp.exec_cmd(pref.CALCULATOR))
 hl.bind("SUPER + CTRL + RETURN", hl.dsp.exec_cmd(pref.LAUNCHER))
 hl.bind("SUPER + SPACE", hl.dsp.exec_cmd(pref.LAUNCHER))
 
--- Windows
 hl.bind("SUPER + Q", hl.dsp.window.close())
 hl.bind("SUPER + SHIFT + Q", hl.dsp.window.kill())
-hl.bind("SUPER + F", hl.dsp.window.fullscreen({ "fullscreen", "toggle" }))
-hl.bind("SUPER + M", hl.dsp.window.fullscreen({ "maximized", "toggle" }))
-hl.bind("SUPER + T", hl.dsp.window.float({ "toggle" }))
+hl.bind("SUPER + F", hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" }))
+hl.bind("SUPER + M", hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" }))
+hl.bind("SUPER + T", hl.dsp.window.float({ action = "toggle" }))
 hl.bind("SUPER + S", hl.dsp.window.pseudo())
 hl.bind("SUPER + J", hl.dsp.layout("togglesplit"))
 hl.bind("SUPER + left", hl.dsp.focus({ direction = "left" }))
@@ -48,17 +46,15 @@ hl.bind("SUPER + ALT + right", hl.dsp.window.swap({ direction = "right" }))
 hl.bind("SUPER + ALT + up", hl.dsp.window.swap({ direction = "up" }))
 hl.bind("SUPER + ALT + down", hl.dsp.window.swap({ direction = "down" }))
 hl.bind("SUPER + ALT + Tab", hl.dsp.window.cycle_next())
-hl.bind("SUPER + ALT + SHIFT + Tab", hl.dsp.window.cycle_next(false))
+hl.bind("SUPER + ALT + SHIFT + Tab", hl.dsp.window.cycle_next({ next = false }))
 hl.bind("SUPER + CTRL + Tab", hl.dsp.window.alter_zorder({ mode = "top" }))
 
--- Actions
 hl.bind("SUPER + PRINT", hl.dsp.exec_cmd(pref.SCREENSHOT))
 hl.bind("SUPER + SHIFT + S", hl.dsp.exec_cmd(pref.SCREENSHOT))
 hl.bind("SUPER + SHIFT + R", hl.dsp.exec_cmd(pref.RECORD))
 hl.bind("SUPER + V", hl.dsp.exec_cmd(pref.CLIP))
 hl.bind("SUPER + L", hl.dsp.exec_cmd(pref.LOCK))
 
--- Per monitor Workspaces
 layout.setup_events()
 
 -- Switch workspaces with mainMod + [1-9,0] for 1-10
@@ -76,9 +72,9 @@ for local_workspace = 1, layout.per_monitor do
         key = "F" .. (local_workspace - 10)
     end
 
-    hl.bind("SUPER + " .. key, layout.focus_local_workspace(local_workspace), { repeating = true })
-    hl.bind("SUPER + SHIFT + " .. key, layout.move_to_local_workspace(local_workspace, false), { repeating = true })
-    hl.bind("SUPER + CTRL + SHIFT + " .. key, layout.move_to_local_workspace(local_workspace, true), { repeating = true })
+    hl.bind("SUPER + " .. key, layout.focus_local_workspace(local_workspace))
+    hl.bind("SUPER + SHIFT + " .. key, layout.move_to_local_workspace(local_workspace, false))
+    hl.bind("SUPER + CTRL + SHIFT + " .. key, layout.move_to_local_workspace(local_workspace, true))
 end
 
 hl.bind("SUPER + Tab", layout.cycle_local_workspace(1), { repeating = true })
@@ -91,7 +87,6 @@ hl.bind("SUPER + CTRL + G", layout.recover_rogue_windows)
 
 hl.bind("SUPER + SHIFT + F", misc.toggle_btop_special)
 
---Custom media keys
 local player = "spotify"
 hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_SINK@ 5%+"))
 hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_SINK@ 5%-"))

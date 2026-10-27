@@ -1,5 +1,48 @@
--- Generic & Multiple properties
+-- Popups and dialogs. One set of effects, applied through two matchers:
+--   * windows Hyprland already floats on its own: Wayland dialogs with a
+--     parent (Firefox/Zen download and save prompts, GTK/Qt dialogs, and
+--     portal pickers linked to their app) or with a fixed size.
+--     X11 is left out: its menus and tooltips are windows too.
+--   * portal dialogs, which come from a separate process and sometimes open
+--     without a parent, so Hyprland can't tell they're dialogs.
+-- Each keeps the size it asks for, capped to 60% x 70% of its monitor, and
+-- may not maximize or go fullscreen (the KDE picker remembers being
+-- maximized and asks for it again on every open).
+-- Keep this first: later rules (PiP, btop, ...) override it.
+local popup = {
+  float = true,
+  center = true,
+  size = {
+    "window_w > 50 ? min(window_w, monitor_w*0.6) : monitor_w*0.45",
+    "window_h > 50 ? min(window_h, monitor_h*0.7) : monitor_h*0.55",
+  },
+  suppress_event = "maximize fullscreen",
+  fullscreen_state = 0,
+}
 
+-- Each entry: what to match, plus any effects that differ from `popup`.
+-- File pickers are browsers, so they get at least half the monitor (their
+-- default 640x480 is cramped) but may grow to the cap if resized.
+-- Order matters: a parented file picker matches both, and the later wins.
+local popup_matchers = {
+  { name = "dialog", match = { float = true, xwayland = false } },
+  {
+    name = "portal",
+    match = { class = "org\\.freedesktop\\.impl\\.portal\\.desktop\\.(kde|gtk|gnome)|xdg-desktop-portal-(kde|gtk|gnome)" },
+    size = {
+      "min(max(window_w, monitor_w*0.5), monitor_w*0.6)",
+      "min(max(window_h, monitor_h*0.6), monitor_h*0.7)",
+    },
+  },
+}
+
+for _, spec in ipairs(popup_matchers) do
+  local rule = {}
+  for k, v in pairs(popup) do rule[k] = v end
+  for k, v in pairs(spec) do rule[k] = v end
+  rule.name = "popup_" .. spec.name
+  hl.window_rule(rule)
+end
 
 hl.window_rule({
   name = "empty_no_blur",
@@ -9,16 +52,6 @@ hl.window_rule({
   },
   no_blur = true,
 })
-
-hl.window_rule {
-  name = "modal_float",
-  match = {
-    modal = 1,
-  },
-  float = true,
-}
-
--- Floating windows
 
 
 hl.window_rule {
@@ -97,8 +130,6 @@ hl.window_rule {
   pin = true,
 }
 
--- Dialog & Picker windows
-
 
 hl.window_rule {
   name = "share_picker",
@@ -110,50 +141,6 @@ hl.window_rule {
   size = "600 400",
   center = true,
 }
-
-hl.window_rule {
-  name = "kde_file_picker",
-  match = {
-    class = "^(org.freedesktop.impl.portal.desktop.kde)$",
-    title = "^(Enter name of file to save to|Save As|Open File|Select Folder).*$",
-  },
-  float = true,
-  size = "1200 750",
-  center = true,
-  suppress_event = "maximize",
-  fullscreen_state = 0
-
-}
-
-hl.window_rule {
-  name = "kde_choose_app_fix",
-  match = {
-    class = "^(org.freedesktop.impl.portal.desktop.kde)$",
-    title = "^(Choose Application)$",
-  },
-  float = true,
-  size = "600 450",
-  center = true,
-  suppress_event = "maximize",
-  fullscreen_state = 0
-
-
-}
-
-hl.window_rule {
-  name = "zen_download_fix",
-  match = {
-    class = "^(zen-twilight)$",
-    title = "^(Opening|Save As).*$",
-  },
-  float = true,
-  size = "540 317",
-  center = true,
-}
-
-
--- Workspace specific
-
 
 
 hl.window_rule {
@@ -201,8 +188,6 @@ hl.window_rule {
   workspace = "23 silent",
 }
 
--- No screen share
-
 
 hl.window_rule {
   name = "bitwarden",
@@ -212,7 +197,7 @@ hl.window_rule {
   float = true,
   size = "1200 700",
   center = true,
-  no_screen_share = 1,
+  no_screen_share = 0,
 }
 
 hl.window_rule {
@@ -239,8 +224,6 @@ hl.window_rule {
   no_screen_share = 1,
 }
 
--- Layer rules
-
 
 hl.layer_rule {
   name = "vicinae_dim",
@@ -257,9 +240,6 @@ hl.layer_rule {
   },
   animation = "slide right",
 }
-
-
--- Fixes
 
 
 hl.window_rule {

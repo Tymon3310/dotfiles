@@ -7,6 +7,7 @@ local QS_IPC = os.getenv("HOME") .. "/.config/quickshell/scripts/qs-ipc.sh"
 return {
     TERM = "kitty",
     HEADLESS = "kitty -c ~/.config/kitty/headless.conf --class headless -e",
+    BTOP = "kitty --class btop --config ~/.config/kitty/headless.conf -e btop",
     EDITOR = "nvim",
     BROWSER = "zen-twilight",
     FILE_MANAGER = "dolphin",
