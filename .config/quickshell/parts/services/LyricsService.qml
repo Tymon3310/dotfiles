@@ -1,9 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   L Y R I C S   S E R V I C E                                            │
-// │   the playing track's lyrics, and the line being sung                    │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 pragma Singleton
 
@@ -11,9 +5,6 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 
-// Lyrics for MediaService's track, from `scripts/lyrics.py` (lrclib.net,
-// cached on disk). Fetched only while something holds a subscribe(), and
-// again whenever the track changes while it is held.
 //
 // `kind` is "synced", "plain", "instrumental", "none" or "" while loading.
 // `index` is the line being sung (synced only, -1 before the first), `wordIndex`
@@ -40,12 +31,10 @@ Singleton {
         MediaService.releasePrecise()
     }
 
-    // ── TRACK ─────────────────────────────────────────────────────────────
 
     readonly property string track: MediaService.available
         ? `${MediaService.artist}\n${MediaService.title}\n${Math.round(MediaService.length)}` : ""
 
-    // What the lines on hand belong to.
     property string loaded: ""
 
     onTrackChanged: {
@@ -96,9 +85,7 @@ Singleton {
         }
     }
 
-    // ── POSITION ──────────────────────────────────────────────────────────
 
-    // Milliseconds with user offset from SettingsService (+ shifts earlier, - shifts later).
     readonly property real now: MediaService.position * 1000 + SettingsService.lyricsOffset
 
     readonly property int index: {

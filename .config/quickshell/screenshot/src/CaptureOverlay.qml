@@ -1,7 +1,6 @@
 import QtQuick
 import Quickshell.Hyprland
 
-// Per-screen selection and frozen image. Capture work stays in the coordinator.
 FreezeScreen {
     id: freezeWindow
     required property var modelData
@@ -147,7 +146,6 @@ FreezeScreen {
             borderRadius: 10.0
             outlineThickness: 2.0
 
-            // Pass root-level selection state
             globalSelectedWindows: freezeWindow.controller.selectedWindows
 
             onRegionSelected: (x, y, width, height, openEditor) => {
@@ -155,14 +153,12 @@ FreezeScreen {
                 freezeWindow.controller.selectedWindows = []
                 freezeWindow.controller.selectedScreens = []
 
-                // Window coordinates are already global from WindowSelector
                 if (freezeWindow.controller.mode === "record")
                     freezeWindow.controller.startRecording(x, y, width, height)
                 else
                     freezeWindow.controller.processScreenshot(x, y, width, height, openEditor)
             }
             onCaptureRequested: (openEditor) => {
-                // Capture all selected windows (stitching)
                 freezeWindow.controller.processScreenshot(0, 0, 0, 0, openEditor)
             }
             onWindowToggled: (windowInfo) => {
@@ -186,7 +182,6 @@ FreezeScreen {
             property real pressY: 0
             readonly property bool recordMode: freezeWindow.controller.mode === "record"
 
-            // Dimming shader - highlight full screen when hovered
             ShaderEffect {
                 anchors.fill: parent
                 z: 0
@@ -206,7 +201,6 @@ FreezeScreen {
                 fragmentShader: Qt.resolvedUrl("../shaders/dimming.frag.qsb")
             }
 
-            // Monitor label
             Rectangle {
                 visible: screenSelector.isHovered
                 anchors.centerIn: parent
@@ -270,13 +264,11 @@ FreezeScreen {
                         return
                     }
 
-                    // Multi-selection with Ctrl
                     if (mouse.modifiers & Qt.ControlModifier) {
                         freezeWindow.controller.toggleScreenSelection(freezeWindow.modelData.name)
                         return
                     }
 
-                    // If clicking a selected screen, capture all selected screens
                     if (freezeWindow.controller.selectedScreens.indexOf(freezeWindow.modelData.name) !== -1 && freezeWindow.controller.selectedScreens.length > 0) {
                         freezeWindow.controller.processScreenshot(0, 0, 0, 0, false)
                         return
@@ -297,7 +289,6 @@ FreezeScreen {
                 }
             }
 
-            // Selection indicator
             Rectangle {
                 visible: freezeWindow.controller.selectedScreens.indexOf(freezeWindow.modelData.name) !== -1
                 anchors.fill: parent
@@ -315,7 +306,6 @@ FreezeScreen {
             primary: freezeWindow.modelData === freezeWindow.controller.primaryScreen
         }
 
-        // Notch fillets where the bottom notch meets the bottom bezel
         NotchFillet {
             z: 10
             visible: bottomNotch.visible

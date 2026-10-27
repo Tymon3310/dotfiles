@@ -8,12 +8,6 @@ import "../parts/bar/modules"
 import "../parts/bar/island"
 import "../parts/bar/island/controls"
 
-// Everything the island opens, in one board. Built only while it is open.
-//
-//   calendar      player and lyrics    weather / notifications
-//   audio + bt    speed and pings      agents
-//   system (cpu, memory, gpu, vram)    session
-//
 // Fixed size, so the island can grow to it before it is built.
 GridLayout {
     id: root
@@ -56,7 +50,6 @@ GridLayout {
     rowSpacing: root.gap
     columnSpacing: root.gap
 
-    // ── FIRST ROW ──────────────────────────────────────────────────────────
 
     CalendarCard {
         id: calendarCard
@@ -126,9 +119,7 @@ GridLayout {
         }
     }
 
-    // ── SECOND ROW ─────────────────────────────────────────────────────────
 
-    // Volume, mic and Bluetooth together, to make room for the agents.
     AudioCard {
         id: audioCard
         Layout.row: 1
@@ -145,9 +136,7 @@ GridLayout {
         Layout.preferredHeight: root.secondHeight
     }
 
-    // ── THIRD ROW ──────────────────────────────────────────────────────────
 
-    // Processor, memory, graphics and video memory, with temperatures.
     SystemCard {
         id: systemCard
         Layout.row: 2
@@ -166,7 +155,6 @@ GridLayout {
         onClosed: root.closed()
     }
 
-    // ── ENTRANCE ───────────────────────────────────────────────────────────
     // Cards arrive in a diagonal wave from the top left (order = row +
     // column). The agents card's opacity follows its slot, so only its
     // scale is animated.

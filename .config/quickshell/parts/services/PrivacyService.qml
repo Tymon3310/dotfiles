@@ -8,7 +8,6 @@ import Quickshell.Services.Pipewire
 Singleton {
     id: root
 
-    // ── PIPEWIRE NODES TRACKER ──────────────────────────────────────────────
     readonly property PwObjectTracker tracker: PwObjectTracker {
         objects: Pipewire.nodes.values
     }
@@ -20,7 +19,6 @@ Singleton {
 
     readonly property var nodes: Pipewire.nodes.values
 
-    // Mic streams recording from input
     readonly property var inStreams: root.nodes.filter(node =>
         node.type === PwNodeType.AudioInStream)
 
@@ -52,12 +50,10 @@ Singleton {
         return names.length > 0 ? names.join(", ") : ""
     }
 
-    // Screen sharing through XDG desktop portal
     readonly property bool screenActive: root.nodes.some(node =>
         root.prop(node, "media.class") === "Video/Source"
             && /xdg-desktop-portal|xdph/.test(node.name))
 
-    // ── CAMERA INOTIFY ──────────────────────────────────────────────────────
     property var cameraHolders: []
     readonly property bool cameraActive: root.cameraHolders.length > 0
 

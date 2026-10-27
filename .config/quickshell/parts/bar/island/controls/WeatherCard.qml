@@ -1,11 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   W E A T H E R   C A R D                                                │
-// │   weather · now and the rest of the day                                  │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 import QtQuick.Layouts
@@ -14,11 +6,6 @@ import "../../../theme"
 import "../../../services"
 import "../../../components"
 
-// Current conditions and the next few hours from wttr.in, which geolocates by
-// IP, so the location is shown as part of the reading.
-//
-// One row: a single line. Two rows: now. Three: the rest of the day below it.
-// Four columns: the two side by side.
 Card {
     id: root
 
@@ -32,7 +19,6 @@ Card {
     Component.onCompleted: WeatherService.subscribe()
     Component.onDestruction: WeatherService.release()
 
-    // ── LINE ────────────────────────────────────────────────────────────────
 
     RowLayout {
         anchors.fill: parent
@@ -74,7 +60,6 @@ Card {
         }
     }
 
-    // ── CARD ────────────────────────────────────────────────────────────────
 
     GridLayout {
         anchors.fill: parent
@@ -83,7 +68,6 @@ Card {
         rowSpacing: 10
         columnSpacing: 16
 
-        // ── NOW ─────────────────────────────────────────────────────────────
 
         RowLayout {
             Layout.fillWidth: true
@@ -118,7 +102,6 @@ Card {
                         color: Theme.text
                     }
 
-                    // Pushed to the far edge.
                     Item { Layout.fillWidth: true }
 
                     Text {
@@ -165,7 +148,6 @@ Card {
             visible: !root.beside
         }
 
-        // ── REST OF THE DAY ─────────────────────────────────────────────────
 
         RowLayout {
             Layout.fillWidth: true

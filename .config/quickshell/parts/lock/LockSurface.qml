@@ -1,11 +1,3 @@
-// ╭────────────────────────────────────────────────────────────────────────────╮
-// │                                                                            │
-// │   L O C K   S U R F A C E                                                  │
-// │   per-output lock visuals, blurred wallpaper, clock and login widget      │
-// │                                                                            │
-// │   github.com/andreumassanet/impasto                                        │
-// │                                                                            │
-// ╰────────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 import QtQuick.Effects
@@ -197,9 +189,7 @@ Item {
         }
     }
 
-    // ── BACKGROUND ───────────────────────────────────────────────────────────
 
-    // Frozen desktop frame.
     Item {
         id: frame
         anchors.fill: parent
@@ -269,13 +259,11 @@ Item {
         }
     }
 
-    // ── TOP NOTCH ISLAND ─────────────────────────────────────────────────────
 
     LockIsland {
         held: root.held
     }
 
-    // ── CLOCK ────────────────────────────────────────────────────────────────
 
     Item {
         id: clockContainer
@@ -313,7 +301,6 @@ Item {
         }
     }
 
-    // ── ACCOUNT & PASSWORD (Active screen only) ──────────────────────────────
 
     LockAccount {
         id: account
@@ -334,7 +321,6 @@ Item {
         onSubmitted: password => root.submitted(password)
     }
 
-    // Hint on active screen when resting
     Text {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
@@ -349,7 +335,6 @@ Item {
         Behavior on opacity { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
     }
 
-    // Hint on secondary screen when awake
     Text {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
@@ -364,7 +349,6 @@ Item {
         Behavior on opacity { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
     }
 
-    // ── POWER ACTIONS ────────────────────────────────────────────────────────
 
     LockPower {
         opacity: (root.isActive ? 1 : 0) * root.awake * root.held
@@ -377,7 +361,6 @@ Item {
         Behavior on opacity { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
     }
 
-    // Black overlay for power actions (reboot/shutdown/logout) triggered from the lock screen
     Rectangle {
         anchors.fill: parent
         color: "black"

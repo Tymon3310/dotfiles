@@ -1,7 +1,6 @@
 import QtQuick
 import Quickshell
 
-// Cross-screen region selection and QR overlays share the coordinator's state.
 Item {
     id: crossScreenSelector
 
@@ -11,13 +10,11 @@ Item {
     visible: crossScreenSelector.controller.mode === "region" || crossScreenSelector.controller.mode === "analyze" || crossScreenSelector.controller.mode === "record"
     anchors.fill: parent
 
-    // Calculate local selection rect for this screen
     property real localSelX: crossScreenSelector.controller.selectionX - crossScreenSelector.screenX
     property real localSelY: crossScreenSelector.controller.selectionY - crossScreenSelector.screenY
     property real localSelWidth: crossScreenSelector.controller.selectionWidth
     property real localSelHeight: crossScreenSelector.controller.selectionHeight
 
-    // Clamp to screen bounds
     property real clampedX: Math.max(0, localSelX)
     property real clampedY: Math.max(0, localSelY)
     property real clampedRight: Math.min(crossScreenSelector.width, localSelX + localSelWidth)
@@ -35,7 +32,6 @@ Item {
     onMouseXChanged: canvas.requestPaint()
     onMouseYChanged: canvas.requestPaint()
 
-    // Dimming shader
     ShaderEffect {
         anchors.fill: parent
         z: 0
@@ -55,7 +51,6 @@ Item {
         fragmentShader: Qt.resolvedUrl("../shaders/dimming.frag.qsb")
     }
 
-    // Crosshair / guides
     Canvas {
         id: canvas
         anchors.fill: parent
@@ -71,13 +66,11 @@ Item {
             ctx.setLineDash([4, 4]);
 
             if (!crossScreenSelector.controller.isSelecting && regionMouseArea.containsMouse) {
-                // Crosshair at mouse cursor
                 ctx.moveTo(crossScreenSelector.mouseX, 0);
                 ctx.lineTo(crossScreenSelector.mouseX, height);
                 ctx.moveTo(0, crossScreenSelector.mouseY);
                 ctx.lineTo(width, crossScreenSelector.mouseY);
             } else {
-                // Guides around selection
                 const x = crossScreenSelector.clampedX
                 const y = crossScreenSelector.clampedY
                 const w = crossScreenSelector.clampedWidth
@@ -93,7 +86,6 @@ Item {
         }
     }
 
-    // Dimension reading pill badge
     Rectangle {
         visible: crossScreenSelector.controller.isSelecting && crossScreenSelector.clampedWidth > 20 && crossScreenSelector.clampedHeight > 20
         x: Math.min(Math.max(10, crossScreenSelector.clampedX + (crossScreenSelector.clampedWidth - width) / 2),
@@ -156,7 +148,6 @@ Item {
                 const w = ctrl.selectionWidth
                 const h = ctrl.selectionHeight
                 if (w < 5 && h < 5) {
-                    // Plain click: record the clicked monitor.
                     const gx = ctrl.selectionX
                     const gy = ctrl.selectionY
                     let sx = crossScreenSelector.screenX
@@ -190,7 +181,6 @@ Item {
         }
     }
 
-    // QR Code overlays - visible in analyze mode (lens engine)
     Repeater {
         model: crossScreenSelector.controller.mode === "analyze" && crossScreenSelector.controller.analyzeEngine === "lens"
             ? crossScreenSelector.controller.detectedQRCodes
@@ -201,13 +191,11 @@ Item {
             required property var modelData
             required property int index
 
-            // Convert image coordinates to local screen coordinates
             property real imgX: modelData.x + crossScreenSelector.controller.minScreenX
             property real imgY: modelData.y + crossScreenSelector.controller.minScreenY
             property real localX: imgX - crossScreenSelector.screenX
             property real localY: imgY - crossScreenSelector.screenY
 
-            // Only show if QR code is on this screen
             visible: localX + modelData.width > 0 && localX < crossScreenSelector.width &&
                      localY + modelData.height > 0 && localY < crossScreenSelector.height
 
@@ -223,7 +211,6 @@ Item {
 
             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
-            // QR icon badge
             Rectangle {
                 anchors.top: parent.top
                 anchors.right: parent.right
@@ -243,7 +230,6 @@ Item {
                 }
             }
 
-            // Data preview tooltip
             Rectangle {
                 visible: qrMouseArea.containsMouse
                 anchors.top: parent.bottom

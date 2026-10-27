@@ -1,6 +1,3 @@
-# -----------------------------------------------------
-# OH-MY-ZSH
-# -----------------------------------------------------
 
 # Keep PATH clean and deduplicated
 typeset -U path PATH
@@ -17,7 +14,6 @@ plugins=(
     copyfile
     copybuffer
     zsh-autocomplete
-    # dirhistory
     vscode
 )
 autoload -Uz add-zsh-hook
@@ -31,7 +27,6 @@ if [[ -o interactive && -t 0 ]] && command -v fzf >/dev/null 2>&1; then
     source <(fzf --zsh)
 fi
 
-# zsh history
 HISTFILE=~/.zsh_history
 HISTSIZE=10000
 SAVEHIST=10000
@@ -39,9 +34,6 @@ setopt appendhistory
 
 eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/EDM115-newline.omp.json)"
 
-# -----------------------------------------------------
-# Exports & PATH
-# -----------------------------------------------------
 
 # Private exports (if present)
 [ -f ~/.env ] && source ~/.env
@@ -55,26 +47,21 @@ path=(
     $path
 )
 
-# pnpm
 export PNPM_HOME="$HOME/.local/share/pnpm"
 [[ ":$PATH:" != *":$PNPM_HOME:"* ]] && path=($PNPM_HOME $path)
 
-# nvm
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
 [ -s "$NVM_DIR/bash_completion" ] && source "$NVM_DIR/bash_completion"
 
-# Golang environment variables
 export GOROOT=/usr/local/go
 export GOPATH=$HOME/go
 path=($path $GOROOT/bin $GOPATH/bin)
 export LD_LIBRARY_PATH=/usr/local/lib
 
-# Spicetify & Wakatime
 path=($path "$HOME/.spicetify" "$HOME/.wakatime")
 
 
-# Zoxide
 if command -v zoxide >/dev/null 2>&1; then
     eval "$(zoxide init zsh)"
 fi
@@ -89,9 +76,6 @@ _emptyenter() {
     fi
 }
 
-# -----------------------------------------------------
-# Aliases & Functions
-# -----------------------------------------------------
 
 source ~/.config/zshrc/aliases.zsh
 if [ -f "$HOME/custom-commands" ]; then
@@ -102,9 +86,6 @@ for f in ~/.config/zshrc/functions/*.zsh; do
     [ -f "$f" ] && source "$f"
 done
 
-# -----------------------------------------------------
-# AUTOSTART
-# -----------------------------------------------------
 
 # Don't run fastfetch in VSCode integrated terminal
 if [[ -z $VSCODE_INJECTION ]]; then

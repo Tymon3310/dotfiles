@@ -1,11 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   S E S S I O N   P A N E L                                              │
-// │   session menu · lock, log out, reboot, shut down                        │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 import QtQuick.Layouts
@@ -13,10 +5,6 @@ import QtQuick.Layouts
 import "../../theme"
 import "../../services"
 
-// The session menu. The same actions (`SessionService.actions`) and the same
-// two-press guard as the control centre's power row, in a larger,
-// keyboard-first layout: arrows move, Enter commits, and the pointer drives
-// the same selection.
 FocusScope {
     id: root
 
@@ -115,7 +103,6 @@ FocusScope {
                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                 Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
-                // Lifts a little when picked, squishes while pressed.
                 scale: tileMouse.pressed ? Theme.pressScale : tile.isSelected ? 1.03 : 1
                 Behavior on scale { NumberAnimation { duration: Theme.durationEnter; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot * 3 } }
 
@@ -151,7 +138,6 @@ FocusScope {
                     }
                 }
 
-                // The pointer drives the same selection as the arrows.
                 MouseArea {
                     id: tileMouse
                     anchors.fill: parent

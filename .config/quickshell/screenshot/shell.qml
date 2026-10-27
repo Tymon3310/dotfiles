@@ -38,7 +38,6 @@ Scope {
         { mode: "analyze", icon: "analyze", label: "Analyze" },
         { mode: "record", icon: "record", label: "Record" }
     ]
-    // Analyze engine radio: "text" (OCR) | "ai" (Gemini) | "lens" (upload)
     property string analyzeEngine: "text"
     property string aiSystemPrompt: "You are a concise desktop assistant. Your output goes directly to a system notification and the clipboard. Rules:
     - Keep the entire response under 3 to 4 short sentences.
@@ -49,21 +48,17 @@ Scope {
     property string aiPrompt: "Analyze this screenshot. If an error or issue is visible, state the cause and provide the exact fix. Otherwise, provide a short 1-2 sentence summary of what is shown."
     property bool shiftHeld: false
     property bool promptFocused: false
-    // Live modifier state for record-mode pick layers (Ctrl = monitors, Shift = window)
     property bool shiftDown: false
     property bool ctrlDown: false
 
-    // Application-wide shortcut: Escape always closes the screenshot tool
     Shortcut {
         sequence: "Escape"
         context: Qt.ApplicationShortcut
         onActivated: root.exitTool()
     }
 
-    // QR code detection for lens mode
     property var detectedQRCodes: []  // Array of {x, y, width, height, data} in image coords
 
-    // Calculate the minimum x/y offset across all screens
     // grim's combined output starts at (0,0) for the top-left of the bounding box
     property real minScreenX: {
         var minX = Infinity
@@ -80,7 +75,6 @@ Scope {
         return minY
     }
 
-    // Heuristic for primary screen: Largest area
     property var primaryScreen: {
         var maxArea = 0
         var bestScreen = Quickshell.screens[0]
@@ -95,14 +89,12 @@ Scope {
         return bestScreen
     }
 
-    // Global selection state (for cross-screen selection)
     property bool isSelecting: false
     property real globalStartX: 0
     property real globalStartY: 0
     property real globalEndX: 0
     property real globalEndY: 0
 
-    // Multi-selection state
     property var selectedWindows: [] // Array of window objects (address, x, y, width, height)
     property var selectedScreens: [] // Array of screen names
 
@@ -115,7 +107,6 @@ Scope {
     }
     readonly property int windowMultiSelectCount: root.selectedWindows.length
 
-    // Computed selection rect (normalized)
     property real selectionX: Math.min(globalStartX, globalEndX)
     property real selectionY: Math.min(globalStartY, globalEndY)
     property real selectionWidth: Math.abs(globalEndX - globalStartX)
@@ -141,7 +132,6 @@ Scope {
 
     function initializeCapture() {
 
-        // CLI args via env vars
         const envMode = root.isLoadedDynamically ? "" : (Quickshell.env("QS_MODE") || "")
         const envInstant = root.isLoadedDynamically ? "" : (Quickshell.env("QS_INSTANT") || "")
         const envId = root.isLoadedDynamically ? "" : (Quickshell.env("QS_ID") || "")
@@ -231,7 +221,6 @@ Scope {
             const doneFile = `/tmp/quickshell-screenshot-${timestamp}.done`
             captureProcess.command = ["timeout", "4", "sh", "-c", `while [ ! -f "${doneFile}" ]; do sleep 0.005; done && rm -f "${doneFile}"`]
         } else {
-            // Fallback: run grim capture itself if launched directly.
             let grabCmd = "pkill -9 -x grim 2>/dev/null; "
             for (let i = 0; i < screens.length; i++) {
                 const s = screens[i]
@@ -244,10 +233,8 @@ Scope {
         captureProcess.running = true
     }
 
-    // Temp storage for stitch command
     property var _stitchTmpFiles: []
     property string _stitchCmd: ""
-    // Instant capture geometry: [x, y, w, h]
     property var _instantGeo: null
 
     Process {
@@ -283,11 +270,9 @@ Scope {
                 root.exitTool()
                 return
             }
-            // Grim is done — show UI only for interactive captures
             if (!root.instantCapture) {
                 root.screensFrozen = true
             }
-            // Start stitch in background — root.ready = true when done
             stitchProcess.command = ["sh", "-c", root._stitchCmd]
             stitchProcess.running = true
         }
@@ -380,7 +365,6 @@ Scope {
     function toggleScreenSelection(screenName) {
         let index = selectedScreens.indexOf(screenName)
 
-        // Copy array
         let newSelection = []
         for (let i = 0; i < selectedScreens.length; i++) {
             newSelection.push(selectedScreens[i])
@@ -396,20 +380,17 @@ Scope {
     }
 
     function cleanup() {
-        // Release ScreencopyView handles before exit
         root.screensFrozen = false
         if (qrScanProcess.running) qrScanProcess.running = false
         if (tempPath) Quickshell.execDetached(["rm", "-f", tempPath])
         if (cropPath) Quickshell.execDetached(["rm", "-f", cropPath])
 
-        // Clean up raw PPM files if any remain (e.g. if cancelled before stitch)
         if (root._stitchTmpFiles && root._stitchTmpFiles.length > 0) {
             for (var i = 0; i < root._stitchTmpFiles.length; i++) {
                 Quickshell.execDetached(["rm", "-f", root._stitchTmpFiles[i]])
             }
         }
 
-        // Clean up the .done file if it exists
         const envId = root.externalTimestamp || (root.isLoadedDynamically ? "" : Quickshell.env("QS_ID")) || ""
         if (envId) {
             Quickshell.execDetached(["rm", "-f", `/tmp/quickshell-screenshot-${envId}.done`])
@@ -497,11 +478,9 @@ Scope {
             }
             return
         }
-        // Handle stitching if multiple items selected
         if (selectedWindows.length > 0 || selectedScreens.length > 0) {
             var items = []
 
-            // Collect all regions to stitch
             if (selectedWindows.length > 0) {
                 for (var i = 0; i < selectedWindows.length; i++) {
                     var w = selectedWindows[i]
@@ -525,7 +504,6 @@ Scope {
             }
 
             if (items.length > 0) {
-                // Calculate bounding box of all items
                 var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
                 for (var i = 0; i < items.length; i++) {
                     minX = Math.min(minX, items[i].x)
@@ -534,20 +512,16 @@ Scope {
                     maxY = Math.max(maxY, items[i].y + items[i].height)
                 }
 
-                // override input arguments with bounding box
                 x = minX
                 y = minY
                 width = maxX - minX
                 height = maxY - minY
-                // If we are just saving/copying, use stitching. For analyze, use bounding box.
                 if (mode !== "analyze") {
                      const picturesDir = Quickshell.env("SCREENSHOT_DIR") || Quickshell.env("XDG_SCREENSHOTS_DIR") || Quickshell.env("XDG_PICTURES_DIR") || (Quickshell.env("HOME") + "/Pictures")
                     const now = new Date()
                     const timestamp = Qt.formatDateTime(now, "yyyy-MM-dd_hh-mm-ss")
                     const outputPath = root.saveToDisk ? `${picturesDir}/screenshot-${timestamp}.png` : tempPath
 
-                    // Build magick command
-                    // Start with empty canvas
                     var cmd = `magick -size ${width}x${height} xc:none `
 
                     for (var i = 0; i < items.length; i++) {
@@ -561,7 +535,6 @@ Scope {
                     }
 
 
-                    // Add fast compression to output
                     // Note: -define applies to the write.
 
                     // Logic reuse: If editor, construct edit command. Else construct save command.

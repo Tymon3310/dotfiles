@@ -1,9 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   P A D L O C K                                                          │
-// │   vector padlock · shackle lifts and swings out when opened              │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 import QtQuick.Shapes

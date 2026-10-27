@@ -1,19 +1,10 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   S P E C T R U M                                                        │
-// │   audio spectrum bars                                                    │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// github.com/andreumassanet/impasto
 
 import QtQuick
 
 import "../theme"
 import "../services"
 
-// Audio spectrum bars driven by CavaService.
-// Bars grow from the centre line like a waveform, with a subtle floor at silence.
 Item {
     id: root
 

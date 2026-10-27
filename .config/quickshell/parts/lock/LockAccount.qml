@@ -116,7 +116,6 @@ Item {
                 }
             }
 
-            // Scanning indicator ring around avatar
             RingIndicator {
                 id: scannerRing
                 anchors.centerIn: picture
@@ -138,7 +137,6 @@ Item {
                 }
             }
 
-            // Badge checkmark if face verified
             Rectangle {
                 anchors.right: picture.right
                 anchors.bottom: picture.bottom
@@ -160,7 +158,6 @@ Item {
                 }
             }
 
-            // Click avatar to trigger face retry
             MouseArea {
                 anchors.fill: picture
                 hoverEnabled: true
@@ -171,7 +168,6 @@ Item {
                 }
             }
 
-            // Resting state: Name & hint (when not typing / unfocused)
             Column {
                 id: resting
 
@@ -218,7 +214,6 @@ Item {
                 }
             }
 
-            // Typing state: Password field (non-blocking, active concurrently with face unlock)
             TextInput {
                 id: field
 
@@ -287,7 +282,6 @@ Item {
                 }
             }
 
-            // Send Button & Spinner
             Rectangle {
                 id: send
 
@@ -307,7 +301,6 @@ Item {
                 Behavior on scale { NumberAnimation { duration: Theme.durationMedium; easing.type: Easing.OutBack } }
                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
-                // Arrow icon when ready to submit
                 Text {
                     anchors.centerIn: parent
                     anchors.horizontalCenterOffset: 1
@@ -319,7 +312,6 @@ Item {
                     visible: !LockService.authenticating
                 }
 
-                // Spinner ring when PAM authenticating
                 RingIndicator {
                     id: submitSpinner
                     anchors.centerIn: parent

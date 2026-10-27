@@ -1,11 +1,4 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   T H E M E                                                              │
-// │   design tokens · consumed by every component                            │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// github.com/andreumassanet/impasto
 
 pragma Singleton
 
@@ -13,7 +6,6 @@ import QtQuick
 import "../services"
 import "../../shared" as Shared
 
-// Shell settings extend the tokens also used by the standalone screenshot tool.
 Shared.ThemeTokens {
     id: root
 
@@ -55,7 +47,6 @@ Shared.ThemeTokens {
     durationMedium: Math.round(200 * root.motion)
     durationMorph: Math.round(380 * root.motion)
 
-    // ── MOTION LANGUAGE ──────────────────────────────────────────────────
     // Growing and arriving get a light spring (OutBack, small overshoot);
     // leaving stays a quick ease. Content inside a panel enters staggered:
     // each piece scales up from `enterScale` and fades in, `durationStagger`
@@ -77,7 +68,6 @@ Shared.ThemeTokens {
         return Qt.rgba(tint.r, tint.g, tint.b, strength)
     }
 
-    // How far a pressed control shrinks.
     readonly property real pressScale: 0.94
 
     // Capture waits for the island to reach its compact 72px rest. Retract

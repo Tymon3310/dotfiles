@@ -1,11 +1,4 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   U S A G E   B A R                                                      │
-// │   a track and how much of it has gone                                    │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// github.com/andreumassanet/impasto
 
 import QtQuick
 

@@ -1,11 +1,4 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   S E S S I O N   P I C K E R                                            │
-// │   session picker · unfolds upward                                        │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// github.com/andreumassanet/impasto
 
 import QtQuick
 

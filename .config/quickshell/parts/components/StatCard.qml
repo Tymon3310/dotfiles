@@ -1,20 +1,10 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   S T A T   C A R D                                                      │
-// │   a figure, its history and whatever detail belongs under it             │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// github.com/andreumassanet/impasto
 
 import QtQuick
 import QtQuick.Layouts
 
 import "../theme"
 
-// A header (icon, title, reading), a detail line, the sparkline, and a
-// footer row. The footer always keeps its height, so cards set side by side
-// line their graphs and footers up whether or not they fill it.
 Card {
     id: root
 

@@ -3,7 +3,6 @@ import QtQuick
 import "../theme"
 import "../services"
 
-// Clean power actions on the lock screen (Restart, Shut down).
 // Shift-clicking restart boots to UEFI setup.
 Row {
     id: root

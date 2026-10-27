@@ -1,9 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   R I N G   I N D I C A T O R                                            │
-// │   circular progress arc · used for scanning animation                    │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 import QtQuick.Shapes

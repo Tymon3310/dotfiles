@@ -1,11 +1,4 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   S P A R K L I N E                                                      │
-// │   a series over time · filled area and stroke                            │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// github.com/andreumassanet/impasto
 
 import QtQuick
 import QtQuick.Shapes
@@ -19,7 +12,6 @@ Item {
     id: root
 
     property var values: []
-    // Zero scales to the series maximum, for rates with no natural ceiling;
     // otherwise this is a fixed ceiling.
     property real maximum: 1
     property color stroke: Theme.accent

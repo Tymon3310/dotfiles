@@ -1,6 +1,5 @@
 import QtQuick
 
-// Mode controls and AI prompt on the primary screen.
 Rectangle {
     id: bottomNotch
 
@@ -86,7 +85,6 @@ Rectangle {
                     implicitHeight: 40
                     radius: Theme.radiusMedium - 2
 
-                    // The active fill is the sliding highlight underneath.
                     color: !active && btnMouse.containsMouse ? Theme.islandSurfaceHover : "transparent"
                     border.color: !active && btnMouse.containsMouse ? Theme.islandBorder : "transparent"
                     border.width: 1
@@ -94,11 +92,9 @@ Rectangle {
                     Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
-                    // Squish while pressed.
                     scale: btnMouse.pressed ? 0.92 : 1
                     Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutBack; easing.overshoot: 2 } }
 
-                    // Pop in one after another as the toolbar rises.
                     function enter(): void {
                         modeBtn.opacity = 0
                         enterAnim.restart()
@@ -189,7 +185,6 @@ Rectangle {
                 }
             }
 
-            // Save toggle - for region/window/screen modes
             Row {
                 id: saveRow
                 opacity: (bottomNotch.controller.mode === "region" || bottomNotch.controller.mode === "window" || bottomNotch.controller.mode === "screen") ? 1 : 0
@@ -256,7 +251,6 @@ Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 2
 
-                    // Stitch count hint
                     Rectangle {
                         visible: bottomNotch.controller.selectedScreens.length > 0 || bottomNotch.controller.windowMultiSelectCount > 0
                         implicitWidth: stitchText.implicitWidth + 14
@@ -281,7 +275,6 @@ Rectangle {
                         }
                     }
 
-                    // Shift+click hint
                     Text {
                         text: "Shift+click for editor"
                         color: Theme.textMuted
@@ -289,7 +282,6 @@ Rectangle {
                         font.pixelSize: Theme.fontSizeLabel
                     }
 
-                    // Ctrl+click hint
                     Text {
                         visible: bottomNotch.controller.mode === "window" || bottomNotch.controller.mode === "screen"
                         text: "Ctrl+click to multi-select"
@@ -301,7 +293,6 @@ Rectangle {
                 }
             }
 
-            // Record options: audio sources
             Row {
                 id: recordOptionsRow
                 opacity: bottomNotch.controller.mode === "record" ? 1 : 0
@@ -427,7 +418,6 @@ Rectangle {
                 }
             }
 
-            // Analyze options: engine radio + prompt/hint
             Row {
                 id: analyzeOptionsRow
                 opacity: bottomNotch.controller.mode === "analyze" ? 1 : 0

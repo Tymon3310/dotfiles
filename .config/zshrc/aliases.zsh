@@ -1,10 +1,4 @@
-# -----------------------------------------------------
-# ALIASES
-# -----------------------------------------------------
 
-# -----------------------------------------------------
-# General
-# -----------------------------------------------------
 alias c='clear'
 alias nf='fastfetch'
 alias pf='fastfetch'
@@ -19,9 +13,6 @@ alias vim='$EDITOR'
 alias icat='kitten icat'
 # alias cat='bat'
 
-# -----------------------------------------------------
-# Git
-# -----------------------------------------------------
 alias gs="git status"
 alias ga="git add"
 # alias gaa="git add . && git commit -m"
@@ -37,14 +28,8 @@ alias guncommit='git reset --soft HEAD~1'
 
 
 
-# -----------------------------------------------------
-# Scripts
-# -----------------------------------------------------
 alias matrix='unimatrix -a -f -s 95'
 
-# -----------------------------------------------------
-# System
-# -----------------------------------------------------
 alias update-grub='sudo grub-mkconfig -o /boot/grub/grub.cfg'
 
 
@@ -53,7 +38,6 @@ alias dg='sudo downgrade'
 
 alias update="python3 ~/.config/hypr/scripts/update.py"
 
-# Dev aliases
 alias 'venvon'='_makevenv'
 alias 'venvoff'='deactivate'
 alias 'vsc'='code-insiders'

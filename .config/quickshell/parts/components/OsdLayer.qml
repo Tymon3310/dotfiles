@@ -1,9 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   O S D   L A Y E R                                                      │
-// │   what the resting island morphs into for volume, locks and the headset  │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 
@@ -26,9 +20,7 @@ Item {
 
     readonly property bool hasLevel: root.progress >= 0
 
-    // Glyphs that mean "off" / "muted".
     readonly property var offGlyphs: ["󰍭", "󰝟", "󰟎"]
-    // Glyphs that mean "charging".
     readonly property var chargingGlyphs: ["󰂄"]
 
     readonly property bool isOff: root.offGlyphs.includes(root.icon)
@@ -111,7 +103,6 @@ Item {
             }
         }
 
-        // The level, when there is one.
         Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             visible: root.hasLevel

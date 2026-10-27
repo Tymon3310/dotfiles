@@ -17,7 +17,6 @@ Rectangle {
     border.width: 1
     border.color: mouse.containsMouse ? Theme.islandBorder : "transparent"
 
-    // Squish while pressed, spring back on release.
     scale: mouse.pressed ? Theme.pressScale : 1
     Behavior on scale { NumberAnimation { duration: Theme.durationEnter; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot * 3 } }
 

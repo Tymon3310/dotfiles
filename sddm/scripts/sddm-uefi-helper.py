@@ -96,7 +96,6 @@ class HelperHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
 
     def log_message(self, format, *args):
-        # Silent
         pass
 
 

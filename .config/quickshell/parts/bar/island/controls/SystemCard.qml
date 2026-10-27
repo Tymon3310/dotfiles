@@ -1,9 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   S Y S T E M   C A R D                                                  │
-// │   processor, memory, graphics and video memory, side by side             │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 import QtQuick.Layouts
@@ -12,10 +6,6 @@ import "../../../theme"
 import "../../../services"
 import "../../../components"
 
-// Four of impasto's StatCards in a row, each with its last minute as a line
-// behind the reading (StatsService, sampled every half second). The GPU pair
-// is left out on a machine whose GPU reports no load.
-//
 // Temperatures warn in the fixed indicator hues, not the accent: yellow from
 // `warmAt`, red from `hotAt` (the GPU hot spot runs hotter by design).
 Card {
@@ -23,7 +13,6 @@ Card {
 
     Component.onCompleted: void StatsService.ready
 
-    // The last minute of the five kept.
     readonly property int span: Math.round(60000 / StatsService.pollInterval)
 
     function recent(series: var): var {
@@ -125,7 +114,6 @@ Card {
         }
     }
 
-    // A thin divider between the readings.
     component Rule: Rectangle {
         Layout.fillHeight: true
         Layout.topMargin: 6

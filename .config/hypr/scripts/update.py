@@ -68,7 +68,6 @@ class Update:
         return (REPOS.get(self.repo, DEFAULT_REPO)[2], self.name)
 
 
-# ── helpers ──────────────────────────────────────────────────────────────────
 
 def warn(text: str) -> None:
     click.secho(f"warning: {text}", fg="yellow", err=True)
@@ -94,7 +93,6 @@ def heading(text: str, color: str = "cyan") -> None:
     click.secho(f"\n:: {text}", fg=color, bold=True)
 
 
-# ── gathering ────────────────────────────────────────────────────────────────
 
 def parse_arrow(line: str):
     """'pkg old -> new' (checkupdates, yay -Qua) -> (pkg, old, new)."""
@@ -218,7 +216,6 @@ def gather(aur: bool, flatpak: bool, news: bool):
     return updates, results.get("news", [])
 
 
-# ── display ──────────────────────────────────────────────────────────────────
 
 def version_diff(old: str, new: str) -> str:
     """'old -> new' with only the changed tail of the new version highlighted."""
@@ -272,7 +269,6 @@ def show_list(updates: list[Update]) -> None:
         )
 
 
-# ── choosing ─────────────────────────────────────────────────────────────────
 
 def parse_skip(text: str, updates: list[Update]) -> set[int]:
     """Numbers, ranges (3-7) and package names, separated by spaces or commas."""
@@ -291,7 +287,6 @@ def parse_skip(text: str, updates: list[Update]) -> set[int]:
     return {i for i in chosen if 1 <= i <= len(updates)}
 
 
-# ── updating ─────────────────────────────────────────────────────────────────
 
 def update_system(run_list: list[Update], skipped: list[Update]) -> int | None:
     names = [u.name for u in run_list if u.repo != "flatpak"]
@@ -361,7 +356,6 @@ def extra_checks(pacnew: bool, orphans: bool, interactive: bool) -> None:
         check_orphans(interactive)
 
 
-# ── main ─────────────────────────────────────────────────────────────────────
 
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})
 @click.option("--yes", "-y", is_flag=True, help="Update everything without asking.")

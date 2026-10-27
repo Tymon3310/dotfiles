@@ -1,13 +1,6 @@
 #!/usr/bin/env python3
 
-# ╭──────────────────────────────────────────────────────────────────────────╮
-# │                                                                          │
-# │   W E A T H E R                                                          │
-# │   current weather and forecast                                           │
-# │                                                                          │
-# │   github.com/andreumassanet/impasto                                      │
-# │                                                                          │
-# ╰──────────────────────────────────────────────────────────────────────────╯
+# github.com/andreumassanet/impasto
 
 """One wttr.in reading, reduced to what the weather card shows.
 

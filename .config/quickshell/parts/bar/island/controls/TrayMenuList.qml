@@ -1,9 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   T R A Y   M E N U   L I S T                                            │
-// │   a tray item's menu, drawn in the island                                │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 import QtQuick.Controls
@@ -12,11 +6,6 @@ import Quickshell
 
 import "../../../theme"
 
-// A header with the application's icon and name, then its menu as a column of
-// pills. Check boxes are drawn as small switches and radio items as dots, on
-// the trailing edge; an entry with children slides its submenu in from the
-// right, and the header becomes the way back.
-//
 // Give it the `menu` (and optionally the `item`) from TrayWidget.menuRequested.
 // `contentHeight` is what it wants, for a host that sizes the island to fit.
 Item {
@@ -61,7 +50,6 @@ Item {
         return `${text ?? ""}`.replace(/&(?!&)/g, "").replace(/^_/, "")
     }
 
-    // Replays the slide on every page change.
     onCurrentChanged: slide.restart()
 
     QsMenuOpener {
@@ -77,7 +65,6 @@ Item {
         return false
     }
 
-    // ── HEADER ──────────────────────────────────────────────────────────────
     //
     // The application at the top level; the submenu's name, with a way back,
     // below it.
@@ -169,7 +156,6 @@ Item {
         }
     }
 
-    // ── ENTRIES ─────────────────────────────────────────────────────────────
 
     ListView {
         id: list
@@ -303,7 +289,6 @@ Item {
                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     }
 
-                    // Check box: a small switch.
                     Rectangle {
                         visible: entry.checkable
                         Layout.preferredWidth: 26
@@ -325,7 +310,6 @@ Item {
                         }
                     }
 
-                    // Radio: a ring, filled when chosen.
                     Rectangle {
                         visible: entry.radio
                         Layout.preferredWidth: 13

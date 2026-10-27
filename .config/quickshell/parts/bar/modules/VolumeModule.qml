@@ -1,11 +1,4 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   V O L U M E   M O D U L E                                              │
-// │   volume · sink level ring, slider when open                             │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// github.com/andreumassanet/impasto
 
 import QtQuick
 import QtQuick.Layouts
@@ -14,7 +7,6 @@ import "../../theme"
 import "../../services"
 import "../../components"
 
-// Output volume, headset battery and output/microphone mute controls.
 Item {
     id: root
 
@@ -27,7 +19,6 @@ Item {
         anchors.margins: 14
         spacing: 14
 
-        // Output level and device.
         RingIndicator {
             Layout.preferredWidth: 56
             Layout.preferredHeight: 56

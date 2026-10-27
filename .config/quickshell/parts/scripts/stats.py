@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
 
-# ╭──────────────────────────────────────────────────────────────────────────╮
-# │                                                                          │
-# │   S T A T S                                                              │
-# │   one snapshot of what the machine is doing                              │
-# │                                                                          │
-# │   github.com/andreumassanet/impasto                                      │
-# │                                                                          │
-# ╰──────────────────────────────────────────────────────────────────────────╯
 
 """CPU, memory, disk, network and temperature from /proc and /sys.
 
@@ -131,7 +123,6 @@ def disks():
     return entries[:4]
 
 
-# ── SENSORS ──────────────────────────────────────────────────────────────────
 #
 # Found once, then read every tick: a read is one small sysfs file.
 
@@ -323,7 +314,6 @@ if __name__ == "__main__":
         else:
             print(json.dumps(snapshot()))
     except (KeyboardInterrupt, BrokenPipeError):
-        # The reader closed the pipe.
         pass
     except Exception as error:  # a stats panel must never take the shell down
         sys.stderr.write(f"stats failed: {error}\n")

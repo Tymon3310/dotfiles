@@ -18,7 +18,6 @@ Singleton {
     property bool paused: false
     property int elapsed: 0
     property string outputPath: ""
-    // Audio sources of the current recording (fixed at launch by gsr).
     property bool audioSystem: true
     property bool audioMic: false
     property bool starting: false
@@ -81,7 +80,6 @@ Singleton {
             String(root.pausedSince)])
     }
 
-    // Take over state from a probe result ("<pid>\n<state file>").
     function adopt(text: string): void {
         const lines = text.trim().split("\n")
         const out = lines[1] || ""
@@ -237,7 +235,6 @@ Singleton {
         }
     }
 
-    // One-shot pre-launch guard for start().
     readonly property Process check: Process {
         running: false
         command: ["sh", "-c", root.probeScript, "sh", root.stateFile]

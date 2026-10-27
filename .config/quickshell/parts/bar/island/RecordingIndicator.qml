@@ -4,7 +4,6 @@ import "../../theme"
 import "../../services"
 import "../../components"
 
-// Recording state in the island: "on air" badge + status + elapsed + pause/stop.
 // The status label and timer live in fixed-width slots so the buttons never
 // shift when Recording <-> Paused toggles or the digits roll over.
 Row {

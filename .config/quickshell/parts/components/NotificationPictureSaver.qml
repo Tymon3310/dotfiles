@@ -1,9 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   N O T I F I C A T I O N   P I C T U R E   S A V E R                    │
-// │   the one place an in-memory notification picture is written to a file   │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 
@@ -58,7 +52,6 @@ Item {
         asynchronous: true
         cache: false
         fillMode: Image.PreserveAspectFit
-        // Only ever shown small in the history; a thumbnail is enough.
         sourceSize.width: 200
 
         onStatusChanged: {

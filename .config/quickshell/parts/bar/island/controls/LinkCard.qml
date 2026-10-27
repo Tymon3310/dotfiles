@@ -1,9 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   L I N K   C A R D                                                      │
-// │   throughput and round trips, for a wired machine                        │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 import QtQuick.Layouts
@@ -21,21 +15,18 @@ Card {
     Component.onCompleted: PingService.subscribe()
     Component.onDestruction: PingService.release()
 
-    // The last minute of the five kept, so the line moves visibly.
     readonly property int span: Math.round(60000 / StatsService.pollInterval)
 
     RowLayout {
         anchors.fill: parent
         spacing: 16
 
-        // ── THROUGHPUT ──────────────────────────────────────────────────────
 
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 6
 
-            // DOWN Rate
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -82,7 +73,6 @@ Card {
                 }
             }
 
-            // UP Rate
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -136,7 +126,6 @@ Card {
             color: Theme.hairline
         }
 
-        // ── ROUND TRIPS ─────────────────────────────────────────────────────
 
         ColumnLayout {
             Layout.preferredWidth: 168

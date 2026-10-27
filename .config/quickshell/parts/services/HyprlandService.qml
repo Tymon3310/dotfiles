@@ -1,11 +1,3 @@
-// ╭────────────────────────────────────────────────────────────────────────────╮
-// │                                                                            │
-// │   H Y P R L A N D   S E R V I C E                                        │
-// │   workspace state · read from the Hyprland socket, on events          │
-// │                                                                            │
-// │   github.com/andreumassanet/impasto                                        │
-// │                                                                            │
-// ╰────────────────────────────────────────────────────────────────────────────╯
 
 pragma Singleton
 
@@ -14,8 +6,6 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
 
-// Workspace state for the bar.
-//
 // Quickshell 0.3.0 ships an object model for this, but against Hyprland 0.55
 // it reports every workspace with id -1 and no monitors at all, so the widget
 // built on it can only ever highlight workspace 1. The event socket and
@@ -49,7 +39,6 @@ QtObject {
     property var activeByMonitor: ({})
     property string focusedMonitor: ""
 
-    // Fullscreen state per monitor
     property var fullscreenByMonitor: ({})
 
     function isFullscreenOn(monitor: string): bool {
@@ -68,7 +57,6 @@ QtObject {
         return root.occupiedIds.indexOf(workspaceId) >= 0
     }
 
-    // The fixed slots, plus any higher workspace that is occupied or active.
     readonly property var visibleIds: {
         const ids = []
         for (let id = 1; id <= root.slots; id++)
@@ -88,7 +76,6 @@ QtObject {
         Hyprland.dispatch(`hl.dsp.focus({ workspace = ${workspaceId} })`)
     }
 
-    // ── REQUEST SOCKET ──────────────────────────────────────────────────────
     //
     // Same protocol as hyprctl: write "j/<command>" (or "[[BATCH]]a;b"), read
     // until Hyprland closes the connection. One socket per request, so
@@ -151,7 +138,6 @@ QtObject {
         onTriggered: root.query("[[BATCH]]j/workspaces;j/monitors", text => root.applyState(text))
     }
 
-    // ── ON DEMAND ───────────────────────────────────────────────────────────
     //
     // Monitors and keybindings only matter while the settings window is open,
     // so they are queried when asked for rather than kept in step with events.
@@ -160,7 +146,6 @@ QtObject {
     property var binds: []
 
 
-    // ── WINDOWS ─────────────────────────────────────────────────────────────
     //
     // Wayland toplevels do not carry a workspace, so the list comes from
     // hyprctl and thumbnails from the toplevel, matched on title.
@@ -255,7 +240,6 @@ QtObject {
         root.loadClients()
     }
 
-    // ── BIND NAMES ──────────────────────────────────────────────────────────
     //
     // `hyprctl binds` returns a modifier mask and key; `hl.bind` wants
     // "SUPER + SHIFT + N". The keys page and `ShortcutService` share this so

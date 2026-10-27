@@ -24,7 +24,6 @@ def log(msg):
         print(f"[qr] {msg}", file=sys.stderr, flush=True)
 
 
-# --- Variants ----------------------------------------------------------------
 # A variant is a gray uint8 image plus how to map points back to the original:
 # p / scale + offset (sx/sy allow non-uniform scaling for stretched barcodes).
 # linear=True restricts decoding to 1D barcodes.
@@ -266,7 +265,6 @@ def variant_stages(rgb):
         yield "upscale", [Variant("up2", nearest_upscale(gray, 2), scale=2.0)]
 
 
-# --- Decoders ------------------------------------------------------------------
 # Each is (name, decode_all) where decode_all(variants) yields
 # (variant, xs, ys, text, format) in variant coordinates as soon as found.
 
@@ -461,7 +459,6 @@ def prefetch(gen):
         yield item
 
 
-# --- Output --------------------------------------------------------------------
 
 class Emitter:
     """Prints each code the first time it's seen; drops repeats (same text, overlapping box)."""

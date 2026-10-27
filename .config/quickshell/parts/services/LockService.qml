@@ -1,11 +1,3 @@
-// ╭────────────────────────────────────────────────────────────────────────────╮
-// │                                                                            │
-// │   L O C K   S E R V I C E                                                  │
-// │   session lock coordination, grim capture, PAM, biopass face auth          │
-// │                                                                            │
-// │   github.com/andreumassanet/impasto                                        │
-// │                                                                            │
-// ╰────────────────────────────────────────────────────────────────────────────╯
 
 pragma Singleton
 
@@ -17,9 +9,6 @@ import Quickshell.Services.Pam
 
 import "../theme"
 
-// Coordinates the session lock: takes a blurred screenshot with grim and
-// convert before showing the surface, runs PAM authentication, and holds the
-// surface up for `Theme.durationMorph` while the unlock animation finishes.
 Singleton {
     id: root
 
@@ -54,7 +43,6 @@ Singleton {
             root.activeScreen = name
     }
 
-    // ── SCREENSHOT ───────────────────────────────────────────────────────────
 
     readonly property string shotDirectory:
         `${Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"}/quickshell`
@@ -94,7 +82,6 @@ Singleton {
     signal unlocked()
     signal prepareLock()
 
-    // ── BIOPASS (FACE AUTHENTICATION) ────────────────────────────────────────
 
     property bool biopassAvailable: false
     property bool biopassRunning: false
@@ -165,7 +152,6 @@ Singleton {
         root.biopassStarting = false
     }
 
-    // ── LOCKING ──────────────────────────────────────────────────────────────
 
     // Wait for any open menus to finish retracting before capturing the screen
     readonly property Timer settleCaptureTimer: Timer {
@@ -229,7 +215,6 @@ Singleton {
         command: ["sh", "-c", `rm -f '${root.shotDirectory}'/lock*.jpg`]
     }
 
-    // ── PAM AUTHENTICATION ───────────────────────────────────────────────────
 
     property bool authenticating: false
     property bool failed: false
@@ -249,7 +234,6 @@ Singleton {
         if (password === "")
             return
 
-        // Cancel background face unlock immediately when submitting password
         root.cancelBiopass()
 
         root.failed = false
@@ -302,7 +286,6 @@ Singleton {
         }
     }
 
-    // ── UNLOCKING ────────────────────────────────────────────────────────────
 
     function release(): void {
         if (root.leaving)

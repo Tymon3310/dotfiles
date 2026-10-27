@@ -1,11 +1,4 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   A U D I O   S E R V I C E                                              │
-// │   default sink volume and mute · reactive, via pipewire                  │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// github.com/andreumassanet/impasto
 
 pragma Singleton
 
@@ -13,7 +6,6 @@ import QtQuick
 import Quickshell
 import Quickshell.Services.Pipewire
 
-// Volume state for the default output.
 //
 // Pipewire pushes changes, so nothing here polls and the OSD reacts on the
 // same frame the key is pressed. A sink has to be bound through a tracker
@@ -30,7 +22,6 @@ Singleton {
     readonly property string sourceIcon: root.sourceMuted ? "󰍭" : "󰍬"
     readonly property int sourceVolume: root.sourceReady ? Math.round(root.source.audio.volume * 100) : 0
 
-    // What the output is called, for labels ("" until known).
     readonly property string sinkDescription: root.sink
         ? (root.sink.description || root.sink.nickname || root.sink.name || "") : ""
 

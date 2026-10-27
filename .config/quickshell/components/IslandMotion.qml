@@ -4,12 +4,10 @@ import Quickshell
 import "../parts/theme"
 import "../parts/services"
 
-// Startup and lock choreography, separate from the panel's layout and routing.
 Scope {
     id: root
     required property var island
 
-    // ── ANIMATION STATES (STARTUP, UNLOCK, LOCK & PANELS) ────────────────────
 
     property real notchYOffset: -root.island.capsuleH - root.island.barTopMargin - 20
     property real islandsEmergeProgress: 0.0
@@ -66,7 +64,6 @@ Scope {
         ScriptAction { script: root.unfurling = false }
     }
 
-    // Side islands retraction (into notch) - relaxed and smooth
     NumberAnimation {
         id: sideIslandsRetractAnimation
         target: root.island

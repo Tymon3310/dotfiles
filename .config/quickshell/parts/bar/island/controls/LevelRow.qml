@@ -35,7 +35,6 @@ RowLayout {
         }
     }
 
-    // The whole strip is the hit area.
     Item {
         id: track
 

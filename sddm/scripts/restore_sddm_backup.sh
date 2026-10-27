@@ -26,7 +26,6 @@ if [ ! -d "$BACKUP_DIR" ]; then
     exit 1
 fi
 
-# 1. Restore PAM configs
 for pamf in "$BACKUP_DIR"/sddm*; do
     if [ -f "$pamf" ]; then
         target="/etc/pam.d/$(basename "$pamf")"
@@ -35,7 +34,6 @@ for pamf in "$BACKUP_DIR"/sddm*; do
     fi
 done
 
-# 2. Restore SDDM configs
 if [ -f "$BACKUP_DIR/sddm.conf" ]; then
     echo "Restoring /etc/sddm.conf..."
     cp -pv "$BACKUP_DIR/sddm.conf" /etc/sddm.conf
@@ -46,16 +44,13 @@ if [ -d "$BACKUP_DIR/sddm.conf.d" ]; then
     cp -rpv "$BACKUP_DIR/sddm.conf.d"/* /etc/sddm.conf.d/ 2>/dev/null || true
 fi
 
-# Remove impasto config override
 rm -f /etc/sddm.conf.d/zz-impasto.conf /etc/sddm.conf.d/90-impasto.conf
 
-# Re-enable autologin if it was backed up
 if [ -f /etc/sddm.conf.d/99-autologin.conf.bak ]; then
     echo "Restoring 99-autologin.conf..."
     mv -v /etc/sddm.conf.d/99-autologin.conf.bak /etc/sddm.conf.d/99-autologin.conf
 fi
 
-# 3. Restore Xsetup and Xstop
 if [ -f "$BACKUP_DIR/Xsetup" ]; then
     echo "Restoring /usr/share/sddm/scripts/Xsetup..."
     cp -pv "$BACKUP_DIR/Xsetup" /usr/share/sddm/scripts/Xsetup
@@ -66,7 +61,6 @@ if [ -f "$BACKUP_DIR/Xstop" ]; then
     cp -pv "$BACKUP_DIR/Xstop" /usr/share/sddm/scripts/Xstop
 fi
 
-# 4. Stop helper daemon
 pkill -f sddm-uefi-helper 2>/dev/null || true
 rm -f /run/sddm-helper-token
 

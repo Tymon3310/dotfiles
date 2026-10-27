@@ -1,11 +1,4 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   T H E M E                                                              │
-// │   login screen design tokens                                             │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// github.com/andreumassanet/impasto
 
 pragma Singleton
 
@@ -14,7 +7,6 @@ import QtQuick
 QtObject {
     id: root
 
-    // ── COLOUR ──────────────────────────────────────────────────────────────
 
     readonly property color island: "#000000"
     readonly property color islandSurface: "#141414"
@@ -35,7 +27,6 @@ QtObject {
     readonly property color indicatorWarn: "#ffd60a"
     readonly property color indicatorBad: "#ff453a"
 
-    // ── METRIC ──────────────────────────────────────────────────────────────
 
     readonly property int capsuleHeight: 32
     readonly property int barTopMargin: 4
@@ -46,7 +37,6 @@ QtObject {
     readonly property int radiusLarge: 18
     readonly property int radiusPill: 999
 
-    // ── TYPE ────────────────────────────────────────────────────────────────
 
     readonly property string fontFamily: "Google Sans, Inter, Cantarell, SF Pro Text, sans-serif"
     readonly property string fontMono: "Google Sans Code NF, JetBrainsMono Nerd Font, monospace"
@@ -57,7 +47,6 @@ QtObject {
     readonly property int fontSizeLarge: 16
     readonly property int fontSizeClock: 92
 
-    // ── MOTION ──────────────────────────────────────────────────────────────
 
     readonly property int durationFast: 140
     readonly property int durationMedium: 200

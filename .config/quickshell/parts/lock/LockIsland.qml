@@ -18,7 +18,6 @@ Item {
 
     // The locked notch stays compact, then matches the desktop at handoff.
     readonly property int lockedWidth: 72
-    // Unlocked notch matches IslandBar rest width
     readonly property real unlockedWidth: IslandMetrics.notchWidth
 
     // Morph width between locked compact padlock and full media/clock bar.
@@ -36,7 +35,6 @@ Item {
     // driven by the animated `held` prop. A Behavior on top would chase a
     // moving target and feel laggy/floaty.
 
-    // Fillets attaching notch to top screen edge
     NotchFillet {
         anchors.right: body.left
         anchors.top: parent.top
@@ -60,7 +58,6 @@ Item {
         bottomRightRadius: Theme.radiusLarge
         clip: true
 
-        // 1. Padlock in the notch while locked (with Biopass visual feedback)
         Padlock {
             id: padlock
             anchors.centerIn: parent

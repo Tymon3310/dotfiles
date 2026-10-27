@@ -1,11 +1,4 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   P I L L   B U T T O N                                                  │
-// │   capsule action · fills with the accent when active                     │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// github.com/andreumassanet/impasto
 
 import QtQuick
 import QtQuick.Layouts
@@ -40,7 +33,6 @@ Rectangle {
         : (mouse.containsMouse ? Theme.accent : Theme.islandBorder)
     border.width: 1
 
-    // Squish while pressed, spring back on release.
     scale: mouse.pressed ? Theme.pressScale : 1
     Behavior on scale { NumberAnimation { duration: Theme.durationEnter; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot * 3 } }
 

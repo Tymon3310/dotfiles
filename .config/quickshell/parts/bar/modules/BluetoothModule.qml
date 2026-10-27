@@ -1,11 +1,4 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   B L U E T O O T H   M O D U L E                                        │
-// │   bluetooth · connected devices, radio switch, device menu & pairing     │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// github.com/andreumassanet/impasto
 
 import QtQuick
 import QtQuick.Layouts
@@ -20,7 +13,6 @@ Item {
 
     property bool showDevices: false
 
-    // ── OVERVIEW VIEW ───────────────────────────────────────────────
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 14
@@ -108,7 +100,6 @@ Item {
             Layout.fillWidth: true
             spacing: 14
 
-            // Clickable figure to open the device menu
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
@@ -187,7 +178,6 @@ Item {
         }
     }
 
-    // ── DEVICE MENU VIEW ────────────────────────────────────────────
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 12
@@ -196,7 +186,6 @@ Item {
         opacity: root.showDevices ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
-        // Menu Header
         RowLayout {
             Layout.fillWidth: true
             spacing: 8
@@ -227,7 +216,6 @@ Item {
             }
         }
 
-        // Scrollable device list
         ListView {
             id: devList
             Layout.fillWidth: true
@@ -283,7 +271,6 @@ Item {
                         color: devItem.modelData.connected ? Theme.text : Theme.textMuted
                     }
 
-                    // Status badge
                     Text {
                         text: devItem.modelData.connected ? "● Connected" : (devMouse.containsMouse ? "Connect" : "Paired")
                         font.family: Theme.fontFamily
@@ -304,7 +291,6 @@ Item {
                 }
             }
 
-            // Empty state when no paired devices
             Item {
                 anchors.fill: parent
                 visible: BluetoothService.devices.length === 0

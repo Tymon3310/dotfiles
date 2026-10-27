@@ -1,11 +1,4 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   I C O N   B U T T O N                                                  │
-// │   square icon action                                                     │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// github.com/andreumassanet/impasto
 
 import QtQuick
 
@@ -32,7 +25,6 @@ Rectangle {
         : (mouse.containsMouse ? Theme.islandBorder : "transparent")
     border.width: 1
 
-    // Squish while pressed, spring back on release.
     scale: mouse.pressed ? Theme.pressScale : 1
     Behavior on scale { NumberAnimation { duration: Theme.durationEnter; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot * 3 } }
 

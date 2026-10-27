@@ -1,8 +1,3 @@
-// Output volume, mic and Bluetooth in one card: the output device, a level
-// row each for output and mic, then a row of pills (mute, mic, Bluetooth with
-// its connected count). The Bluetooth
-// device list opens in place. Replaces the separate Volume and Bluetooth
-// cards so the dashboard has room for the agents card.
 
 import QtQuick
 import QtQuick.Layouts
@@ -19,7 +14,6 @@ Card {
 
     property bool showDevices: false
 
-    // ── OVERVIEW ────────────────────────────────────────────────────────────
 
     ColumnLayout {
         anchors.fill: parent
@@ -95,7 +89,6 @@ Card {
                 onClicked: AudioService.toggleSourceMute()
             }
 
-            // Bluetooth on/off, with how many devices are connected.
             PillButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 0
@@ -118,7 +111,6 @@ Card {
         }
     }
 
-    // ── BLUETOOTH DEVICES ───────────────────────────────────────────────────
 
     ColumnLayout {
         anchors.fill: parent

@@ -1,11 +1,4 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   M A I N                                                                │
-// │   sddm login screen · impasto aesthetics, lockscreen animations & face   │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// github.com/andreumassanet/impasto
 
 import QtQuick
 import QtQuick.Shapes
@@ -18,7 +11,6 @@ Rectangle {
 
     color: "#000000"
 
-    // ── BACKGROUND ──────────────────────────────────────────────────────────
     // Full 5K native resolution image (5120x3200) loaded uncompressed without blur or downsampling
 
     Image {
@@ -45,7 +37,6 @@ Rectangle {
         }
     }
 
-    // ── TOP NOTCH ISLAND ────────────────────────────────────────────────────
 
     LockIsland {
         id: topIsland
@@ -66,7 +57,6 @@ Rectangle {
         }
     }
 
-    // ── AWAKE & AUTHENTICATION STATE ────────────────────────────────────────
 
     readonly property bool isPrimary: (typeof primaryScreen !== "undefined" ? primaryScreen : true)
     property bool awake: false
@@ -290,7 +280,6 @@ Rectangle {
         }
     }
 
-    // ── POWER FADEOUT STATE & EXECUTION ─────────────────────────────────────
     property bool fadingOut: false
     property string pendingPowerAction: ""
     property string pendingPassword: ""
@@ -336,7 +325,6 @@ Rectangle {
         sddmCommitTimer.start()
     }
 
-    // ── FULL-SCREEN FADEOUT ──────────────────────────────────────────────────
     // Power actions dissolve the whole screen to black. Logins instead morph:
     // the black of the pill (password) or island (face) floods outward until it
     // covers the screen, with the source element riding on top and fading last.
@@ -465,7 +453,6 @@ Rectangle {
         }
     }
 
-    // ── WAKE-UP FULLSCREEN TAP AREA ─────────────────────────────────────────
     // At z: 50, but PowerRow and SessionPicker are at z: 60, allowing power actions
     // to be clicked directly without waking up or triggering the camera!
 
@@ -477,7 +464,6 @@ Rectangle {
         onClicked: root.wakeUp()
     }
 
-    // ── CLOCK (MORPHS FROM CENTER TO COMPACT POSITION) ──────────────────────
 
     property date now: new Date()
 
@@ -550,7 +536,6 @@ Rectangle {
         }
     }
 
-    // ── ACCOUNT PILL (LOCKSCREEN MORPHING CAPSULE) ──────────────────────────
 
     AccountPill {
         id: account
@@ -615,7 +600,6 @@ Rectangle {
         }
     }
 
-    // ── POWER AND SESSION (z: 60 to sit above sleepTapArea) ──────────────────
 
     PowerRow {
         z: 60
@@ -648,7 +632,6 @@ Rectangle {
         currentIndex: sessionModel.lastIndex
     }
 
-    // ── KEYBOARD INTERACTION ────────────────────────────────────────────────
 
     focus: true
     Component.onCompleted: {

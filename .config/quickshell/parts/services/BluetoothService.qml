@@ -1,11 +1,4 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   B L U E T O O T H   S E R V I C E                                      │
-// │   adapter state and what is connected to it                              │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// github.com/andreumassanet/impasto
 
 pragma Singleton
 
@@ -13,7 +6,6 @@ import QtQuick
 import Quickshell
 import Quickshell.Bluetooth
 
-// The default adapter, flattened for the control centre.
 //
 // `enabled` on the adapter is writable, so nothing shells out here: the toggle
 // is a property assignment and the state comes back over D-Bus.
@@ -24,7 +16,6 @@ Singleton {
     readonly property bool available: root.adapter !== null
     readonly property bool enabled: root.available && root.adapter.enabled
 
-    // Everything BlueZ currently knows about, listed or not.
     readonly property var allDevices: {
         if (!root.available || !root.adapter.devices)
             return []
@@ -66,7 +57,6 @@ Singleton {
     readonly property var devices: {
         const listed = root.allDevices.filter(device => root.isNamed(device)
             || device.paired || device.connected || device.pairing)
-        // Connected first, then paired, then whatever else is in range.
         return listed.sort((a, b) => {
             if (a.connected !== b.connected) return a.connected ? -1 : 1
             if (a.paired !== b.paired) return a.paired ? -1 : 1
@@ -74,7 +64,6 @@ Singleton {
         })
     }
 
-    // Everything else, shown in a collapsed second list.
     readonly property var unnamedDevices: {
         const rest = root.allDevices.filter(device => !(root.isNamed(device)
             || device.paired || device.connected || device.pairing))

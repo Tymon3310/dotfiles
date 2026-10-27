@@ -1,11 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   A C C O U N T   P I L L                                                │
-// │   morphing login capsule · face unlock & password authentication         │
-// │                                                                          │
-// │   matches impasto lockscreen aesthetics & animations                     │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 
@@ -202,7 +194,6 @@ Item {
             z: -1
         }
 
-        // ── AVATAR ──────────────────────────────────────────────────────────
         Item {
             id: avatarHolder
             x: root.inset
@@ -288,7 +279,6 @@ Item {
             }
         }
 
-        // ── RESTING STATE CONTAINER ─────────────────────────────────────────
         Item {
             id: restingArea
             anchors.left: avatarHolder.right
@@ -377,7 +367,6 @@ Item {
             }
         }
 
-        // ── TYPING STATE (PASSWORD INPUT) ───────────────────────────────────
         TextInput {
             id: field
 
@@ -443,7 +432,6 @@ Item {
             }
         }
 
-        // ── SEND / SPINNER BUTTON ───────────────────────────────────────────
         Rectangle {
             id: send
 
@@ -511,7 +499,6 @@ Item {
         }
     }
 
-    // ── STATUS / ERROR / CAPS LOCK ──────────────────────────────────────────
     Text {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: pill.bottom
@@ -525,7 +512,6 @@ Item {
         color: root.capsLock ? Theme.indicatorWarn : Theme.indicatorBad
     }
 
-    // ── MULTI-USER POPUP SHEET ──────────────────────────────────────────────
     Capsule {
         id: sheet
 

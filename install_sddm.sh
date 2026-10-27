@@ -13,7 +13,6 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# 1. Back up existing config once (never overwrite an earlier backup)
 BACKUP_DIR="$DOTFILES_DIR/system_backups/sddm_pam_backup"
 mkdir -p "$BACKUP_DIR"
 backup() {
@@ -31,20 +30,16 @@ backup /usr/share/sddm/scripts/Xstop
 cp -pv "$DOTFILES_DIR/sddm/scripts/restore_sddm_backup.sh" "$DOTFILES_DIR/system_backups/restore_sddm_backup.sh"
 chmod 755 "$DOTFILES_DIR/system_backups/restore_sddm_backup.sh"
 
-# 2. Install theme
 echo "Installing theme to $THEME_DST..."
 mkdir -p "$THEME_DST"
-# Clean sync theme files
 rm -rf "$THEME_DST"/*
 cp -rp "$THEME_SRC"/* "$THEME_DST"/
 find "$THEME_DST" -type d -exec chmod 755 {} +
 find "$THEME_DST" -type f -exec chmod 644 {} +
 
-# 3. Create faces directory
 mkdir -p /var/lib/impasto/faces
 chmod 755 /var/lib/impasto/faces
 
-# 4. Install UEFI helper script and integrate into SDDM Xsetup / Xstop
 echo "Installing SDDM UEFI reboot helper & password validation helper..."
 mkdir -p /usr/share/sddm/scripts
 install -m 755 -v "$DOTFILES_DIR/sddm/scripts/sddm-uefi-helper.py" /usr/share/sddm/scripts/
@@ -54,7 +49,6 @@ if [ -f /usr/share/sddm/scripts/Xsetup ]; then
     if ! grep -q "sddm-uefi-helper" /usr/share/sddm/scripts/Xsetup; then
         cat << 'XSETUP' >> /usr/share/sddm/scripts/Xsetup
 
-# Reset any stale UEFI reboot state and start SDDM helper daemon
 busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager SetRebootToFirmwareSetup b false 2>/dev/null || true
 pkill -f sddm-uefi-helper 2>/dev/null || true
 python3 /usr/share/sddm/scripts/sddm-uefi-helper.py &
@@ -66,24 +60,20 @@ if [ -f /usr/share/sddm/scripts/Xstop ]; then
     if ! grep -q "sddm-uefi-helper" /usr/share/sddm/scripts/Xstop; then
         cat << 'XSTOP' >> /usr/share/sddm/scripts/Xstop
 
-# Stop SDDM helper daemon
 pkill -f sddm-uefi-helper 2>/dev/null || true
 XSTOP
     fi
 fi
 
-# 5. Install SDDM config override & clean up competing overrides
 echo "Configuring SDDM theme..."
 mkdir -p /etc/sddm.conf.d
 
-# Clean up older numbered config
 rm -f /etc/sddm.conf.d/90-impasto.conf
 
 # zz- prefix sorts after all other .conf files so our settings win.
 # (AMD_DEBUG=nodcc in the file avoids DCC tile corruption on AMD GPUs under X11.)
 install -m 644 -v "$DOTFILES_DIR/sddm/etc/sddm.conf.d/zz-impasto.conf" /etc/sddm.conf.d/zz-impasto.conf
 
-# Disable competing Current= lines in existing configuration files
 if [ -f /etc/sddm.conf.d/sddm.conf ]; then
     sed -i 's/^Current=simple-sddm/#Current=simple-sddm/' /etc/sddm.conf.d/sddm.conf
 fi
@@ -91,7 +81,6 @@ if [ -f /etc/sddm.conf.d/kde_settings.conf ]; then
     sed -i 's/^Current=breeze/#Current=breeze/' /etc/sddm.conf.d/kde_settings.conf
 fi
 
-# Also set directly in /etc/sddm.conf (highest precedence)
 if [ -f /etc/sddm.conf ]; then
     if grep -q "\[Theme\]" /etc/sddm.conf; then
         sed -i '/\[Theme\]/,/^\[/ s/^Current=.*/Current=impasto/' /etc/sddm.conf
@@ -105,24 +94,20 @@ EOF_THEME
     fi
 fi
 
-# 6. Handle autologin
 if [ -f /etc/sddm.conf.d/99-autologin.conf ]; then
     echo "Notice: /etc/sddm.conf.d/99-autologin.conf is present."
     echo "Disabling 99-autologin.conf (renaming to 99-autologin.conf.bak) so SDDM greeter displays..."
     mv /etc/sddm.conf.d/99-autologin.conf /etc/sddm.conf.d/99-autologin.conf.bak
 fi
 
-# 7. Configure PAM for SDDM Face Unlock (with faillock-safe empty password check)
 echo "Configuring PAM (/etc/pam.d/sddm) with biopass face unlock and faillock protection..."
 install -m 644 -v "$DOTFILES_DIR/sddm/etc/pam.d/sddm" /etc/pam.d/sddm
 
-# 8. Add sddm user to video group
 if id sddm >/dev/null 2>&1; then
     echo "Ensuring sddm user has access to camera (video group)..."
     usermod -aG video sddm || true
 fi
 
-# 9. Fix ownership of system_backups so non-root git operations work smoothly
 if [ -n "${SUDO_USER:-}" ]; then
     chown -R "$SUDO_USER:$SUDO_USER" "$DOTFILES_DIR/system_backups" 2>/dev/null || true
 fi

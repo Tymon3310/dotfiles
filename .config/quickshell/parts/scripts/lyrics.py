@@ -56,7 +56,6 @@ NOISE = re.compile(
 ARTIST_SPLIT = re.compile(r"\s*(?:,|&|/|\bfeat\.?|\bft\.?|\bx\b|\band\b)\s*", re.IGNORECASE)
 
 
-# ── MATCHING ────────────────────────────────────────────────────────────────
 
 def fold(text):
     """Lower case, no accents, no punctuation: 'Zszedłem Ze Sceny' ~ 'zszedlem ze sceny'."""
@@ -111,7 +110,6 @@ def score(item, artist, title, duration):
     return 0.5 * title_score + 0.3 * overlap + 0.2 * length_score
 
 
-# ── LRCLIB ──────────────────────────────────────────────────────────────────
 
 # Whether lrclib answered at all this run, so a miss can be told apart from
 # being offline.
@@ -178,7 +176,6 @@ def find(artist, title, album, duration):
     return chosen[1] if chosen else None
 
 
-# ── LRC ─────────────────────────────────────────────────────────────────────
 
 STAMP = re.compile(r"\[(\d+):(\d{1,2})(?:[.:](\d{1,3}))?\]")
 WORD = re.compile(r"<(\d+):(\d{1,2})(?:[.:](\d{1,3}))?>")
@@ -241,7 +238,6 @@ def result_of(item):
     return None
 
 
-# ── CACHE ───────────────────────────────────────────────────────────────────
 
 def cache_path(artist, title, duration):
     key = f"{fold(artist)}\n{fold(clean_title(title))}\n{round(duration or 0)}"

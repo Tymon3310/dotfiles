@@ -1,11 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   W E A T H E R   S E R V I C E                                          │
-// │   weather · current conditions and forecast                              │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 pragma Singleton
 
@@ -74,7 +66,6 @@ Singleton {
 
     function subscribe(): void {
         root.watchers += 1
-        // Only if never read or older than ten minutes.
         const minutes = (new Date().getTime() - root.readAt.getTime()) / 60000
         if (!root.available || minutes > 10)
             root.refresh()
@@ -126,7 +117,6 @@ Singleton {
                 // so otherwise an unknown place would look like no change.
                 root.placeUnknown = report.reason === "place"
                 if (report.available !== true) {
-                    // Keep the last good reading.
                     if (!root.available)
                         root.available = false
                     return

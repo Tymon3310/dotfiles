@@ -1,11 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   M E D I A   S E R V I C E                                              │
-// │   the player worth showing · mpris over d-bus                            │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 pragma Singleton
 
@@ -17,12 +9,6 @@ import Quickshell.Services.Pipewire
 
 import "."
 
-// Picks one MPRIS player and exposes it flatly: the one that is playing,
-// otherwise the first controllable one, so a paused track stays on the island.
-//
-// Spotify and MPV: browsers and other players are ignored.
-// playerctld is skipped too: it mirrors whichever
-// player is active, so it would let the others back in.
 Singleton {
     id: root
 
@@ -44,8 +30,6 @@ Singleton {
         && `${root.active.dbusName} ${root.active.identity} ${root.active.desktopEntry}`
             .toLowerCase().includes("spotify")
 
-    // ── VISUALIZER INACTIVITY TIMEOUT ─────────────────────────────
-    // After 20 seconds without playback, visualizerActive becomes false.
     property bool visualizerTimeout: false
 
     readonly property Timer visualizerTimeoutTimer: Timer {
@@ -179,7 +163,6 @@ Singleton {
             root.active.next()
     }
 
-    // `fraction` of the track's length.
     function seek(fraction: real): void {
         if (!root.canSeek)
             return
@@ -191,7 +174,6 @@ Singleton {
             root.active.previous()
     }
 
-    // ── ACTIVE PLAYER VOLUME ─────────────────────────────────────────────
     //
     // Spotify uses PipeWire streams; other players use their MPRIS volume.
     // Quickshell connects to PipeWire lazily, on the first read of a default
@@ -214,7 +196,6 @@ Singleton {
     readonly property bool volumeAvailable: root.volumeStreams.some(node => node.audio)
         || root.mprisVolumeAvailable
 
-    // Volume level 0.0 – 1.0
     readonly property real volume: {
         const node = root.volumeStreams.find(node => node.audio)
         if (node && node.audio && node.audio.volume !== undefined)

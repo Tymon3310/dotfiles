@@ -42,7 +42,6 @@ _makevenv() {
         return 0
     fi
 
-    # Check if corrupted venv directory exists and remove it
     if [ -d ".venv" ]; then
         echo "Corrupted .venv directory found, removing..."
         rm -rf .venv
@@ -58,7 +57,6 @@ _makevenv() {
 
     echo 'Venv created and activated'
 
-    # Check for requirements.txt
     if [ -f "requirements.txt" ]; then
         if gum confirm "Found requirements.txt. Install dependencies?" --selected.background '#09F'; then
             gum spin --title "Installing requirements.txt..." --spinner.foreground "#09F" -- uv pip install -r requirements.txt

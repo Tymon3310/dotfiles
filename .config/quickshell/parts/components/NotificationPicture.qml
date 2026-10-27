@@ -1,9 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   N O T I F I C A T I O N   P I C T U R E                                │
-// │   a notification's picture, its app's icon, or a bell                    │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 import Quickshell.Widgets
@@ -11,14 +5,6 @@ import Quickshell.Widgets
 import "../theme"
 import "../services"
 
-// Draws a NotificationService entry's `picture` (an avatar, a screenshot)
-// with its app's `icon` as a small badge in the corner; with no picture, the
-// icon alone; with neither, a bell. Anything that fails to load falls through
-// to the next, so a missing theme icon never shows as an empty square.
-//
-// `landscape` reports a picture wider than tall, for a host that gives it more
-// room. With `keep` on, a picture that only exists as image data is saved to
-// the cache once drawn (NotificationService.keepPicture).
 Item {
     id: root
 
@@ -63,7 +49,6 @@ Item {
             }
         }
 
-        // The app's icon, whole, when there is no picture.
         Image {
             anchors.centerIn: parent
             width: parent.width * 0.72
@@ -98,7 +83,6 @@ Item {
         asynchronous: true
     }
 
-    // The app's icon as a badge on a picture.
     Rectangle {
         visible: root.hasPicture && root.hasIcon
         width: Math.round(Math.min(root.width, root.height) * 0.46)

@@ -2,7 +2,6 @@ return {
   {
     "folke/snacks.nvim",
     opts = function(_, opts)
-      -- 1. Calculate the greeting BEFORE building the config
       local datetime = os.date(" %Y-%m-%d   %H:%M:%S")
       local hour = tonumber(os.date("%H"))
       local mesg
@@ -22,7 +21,6 @@ return {
 
       local greeting = mesg .. " | " .. datetime
 
-      -- 2. BULLETPROOF HIGHLIGHTS:
       -- Define the exact VS Code Dark Blue (#569CD6) so it never fails.
       -- (If you use VS Code Light, change this hex to "#007ACC")
       vim.api.nvim_set_hl(0, "MyDashboardBlue", { fg = "#569CD6" })
@@ -30,7 +28,6 @@ return {
       -- Link the default Snacks ASCII art highlight to our blue so the giant NeoVim logo matches
       vim.api.nvim_set_hl(0, "SnacksDashboardHeader", { link = "MyDashboardBlue" })
 
-      -- 3. Return the snacks configuration
       opts.dashboard = vim.tbl_deep_extend("force", opts.dashboard or {}, {
           enabled = true,
           preset = {

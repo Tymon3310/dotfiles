@@ -67,7 +67,6 @@ Item {
     readonly property bool hasBadges: AgentService.active || HeadsetService.connected
         || root.activeMicApps.length > 0 || root.activeCamApps.length > 0
 
-    // Background click expands to full dashboard
     MouseArea {
         id: bgMouse
         anchors.fill: parent
@@ -95,14 +94,12 @@ Item {
         anchors.rightMargin: 4
         spacing: 8
 
-        // ── 1. NOW PLAYING (Left) ─────────────────────────────────────────────
         RowLayout {
             id: mediaSection
             Layout.preferredWidth: 205
             Layout.fillHeight: true
             spacing: 8
 
-            // Album Art Thumbnail
             Item {
                 Layout.preferredWidth: 42
                 Layout.preferredHeight: 42
@@ -120,7 +117,6 @@ Item {
                         source: MediaService.artUrl
                         opacity: MediaService.available && source !== "" && status === Image.Ready ? 1 : 0
                         visible: opacity > 0
-                        // New covers fade in rather than pop.
                         Behavior on opacity { NumberAnimation { duration: Theme.durationEnter; easing.type: Easing.OutCubic } }
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
@@ -145,13 +141,11 @@ Item {
                 }
             }
 
-            // Track details, lyrics line & mini controls
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
                 spacing: 1
 
-                // Row 1 (Top): Song Title + Visualizer / Volume Feedback
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 4
@@ -172,14 +166,12 @@ Item {
                         }
                     }
 
-                    // Audio Visualizer or Volume Feedback when scrolling
                     Item {
                         Layout.preferredWidth: root.volumeFeedbackActive ? volumeRow.implicitWidth : (MediaService.playing ? 26 : 0)
                         Layout.preferredHeight: 14
                         visible: root.volumeFeedbackActive || MediaService.playing
                         clip: true
 
-                        // Volume Percentage Feedback on scroll
                         Row {
                             id: volumeRow
                             anchors.verticalCenter: parent.verticalCenter
@@ -205,7 +197,6 @@ Item {
                             }
                         }
 
-                        // Cava Spectrum Bars
                         Spectrum {
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.right: parent.right
@@ -222,7 +213,6 @@ Item {
                     }
                 }
 
-                // Row 2 (Medium): Synced Lyric Line or Artist Name
                 Item {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 13
@@ -241,7 +231,6 @@ Item {
                     }
                 }
 
-                // Row 3 (Bottom): Scrubber Bar with Track Elapsed & Total Times + Controls
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 4
@@ -254,7 +243,6 @@ Item {
                         color: Theme.textMuted
                     }
 
-                    // Progress Bar
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 2
@@ -276,7 +264,6 @@ Item {
                         color: Theme.textMuted
                     }
 
-                    // Mini Controls
                     Row {
                         Layout.leftMargin: 2
                         spacing: 8
@@ -338,16 +325,12 @@ Item {
             color: Theme.hairline
         }
 
-        // ── 2. CENTER & RIGHT: UNIFIED 3-ROW GRID ─────────────────────────────
-        // Top: Privacy, JBL, Agent
-        // Rows 2 & 3: Calendar (Left/Center) + Time & Weather (Right)
         ColumnLayout {
             id: infoSection
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignVCenter
             spacing: 3
 
-            // ── ROW 1 (TOP): BADGES (Privacy + JBL + Agent) ───────────────────
             // Hidden when empty, so the calendar and clock centre instead.
             RowLayout {
                 Layout.fillWidth: true
@@ -356,7 +339,6 @@ Item {
 
                 Item { Layout.fillWidth: true }
 
-                // AI Agent Badge
                 Rectangle {
                     visible: AgentService.active
                     Layout.alignment: Qt.AlignVCenter
@@ -398,7 +380,6 @@ Item {
                     }
                 }
 
-                // Privacy Mic Badges (e.g. Discord, Zen)
                 Repeater {
                     model: root.activeMicApps
                     Rectangle {
@@ -420,7 +401,6 @@ Item {
                     }
                 }
 
-                // Privacy Cam Badges (e.g. Zen)
                 Repeater {
                     model: root.activeCamApps
                     Rectangle {
@@ -442,7 +422,6 @@ Item {
                     }
                 }
 
-                // JBL Headset Badge
                 Rectangle {
                     visible: HeadsetService.connected
                     Layout.alignment: Qt.AlignVCenter
@@ -486,7 +465,6 @@ Item {
                 }
             }
 
-            // ── ROWS 2 & 3: CALENDAR (Perfect Column Alignment) + TIME & WEATHER ──
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 6
@@ -514,7 +492,6 @@ Item {
                             spacing: 2
                             opacity: [1.0, 0.72, 0.45, 0.25][dayCol.distance]
 
-                            // Weekday letter (Medium row)
                             Text {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 text: Qt.formatDateTime(dayCol.day, "ddd").slice(0, 1)
@@ -523,7 +500,6 @@ Item {
                                 color: dayCol.distance === 0 ? Theme.accent : Theme.textMuted
                             }
 
-                            // Day number (Bottom row)
                             Rectangle {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 width: 16
@@ -546,12 +522,10 @@ Item {
 
                 Item { Layout.fillWidth: true }
 
-                // Time (Medium row) & Weather (Bottom row)
                 ColumnLayout {
                     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
                     spacing: 1
 
-                    // Clock Time (Medium row)
                     Text {
                         Layout.alignment: Qt.AlignRight
                         text: IslandMetrics.time
@@ -561,7 +535,6 @@ Item {
                         color: Theme.text
                     }
 
-                    // Weather with Glyph (Bottom row)
                     Row {
                         Layout.alignment: Qt.AlignRight
                         spacing: 3
@@ -589,7 +562,6 @@ Item {
         }
     }
 
-    // Music first, then the calendar and clock.
     Entrance { item: mediaSection; order: 0 }
     Entrance { item: infoSection; order: 2 }
 }

@@ -5,8 +5,6 @@ import Quickshell.Wayland
 import "../parts/theme"
 import "../parts/services"
 
-// Fullscreen overlay on all monitors that creates an expanding wave
-// radiating outwards from the dynamic island to dissolve the screen into black.
 PanelWindow {
     id: root
 
@@ -44,7 +42,6 @@ PanelWindow {
         Keys.onEscapePressed: SessionService.cancel()
     }
 
-    // ── 1. BASE FADE (Catches display corners at the end of the wave) ───────
     Rectangle {
         id: baseFade
         anchors.fill: parent
@@ -52,7 +49,6 @@ PanelWindow {
         opacity: 0.0
     }
 
-    // ── 2. MAIN SOLID BLACK EXPANDING WAVE ─────────────────────────────────
     Rectangle {
         id: mainWave
         width: 0
@@ -63,11 +59,9 @@ PanelWindow {
         color: "#000000"
     }
 
-    // ── ANIMATION TIMELINE ─────────────────────────────────────────────────
     ParallelAnimation {
         id: waveAnimation
 
-        // Main Wave: Smooth solid black expansion from island to whole screen
         SequentialAnimation {
             NumberAnimation {
                 target: mainWave

@@ -9,11 +9,9 @@ Item {
     property var windows: []
     property int _activeWsId: -1
 
-    // Screen position for coordinate conversion
     property real screenX: 0
     property real screenY: 0
 
-    // Global selected windows from parent (in global coords)
     property var globalSelectedWindows: []
 
     signal checkHover(real mouseX, real mouseY)
@@ -21,7 +19,6 @@ Item {
     signal windowToggled(var windowInfo)  // Emit when ctrl+click to toggle
     signal captureRequested(bool openEditor)  // Emit when clicking on selected window
 
-    // Shader customization properties
     property real dimOpacity: Theme.captureWash.a
     property real borderRadius: Theme.radiusMedium
     property real outlineThickness: 2.0
@@ -31,7 +28,6 @@ Item {
     // Ctrl+click multi-select (off in record mode: single window only).
     property bool multiSelect: true
 
-    // Hover state (screen-local coords for display)
     property real selectionX: 0
     property real selectionY: 0
     property real selectionWidth: 0
@@ -43,7 +39,6 @@ Item {
 
 
 
-    // Removed SpringAnimations for instant responsiveness
 
     function refreshWindows() {
         if (root.visible) {
@@ -102,7 +97,6 @@ Item {
 
     Component.onCompleted: refreshWindows()
 
-    // Check if a window (in global coords) is selected
     function isWindowSelectedGlobal(windowInfo) {
         if (!windowInfo) return false
         for (var i = 0; i < globalSelectedWindows.length; i++) {
@@ -120,7 +114,6 @@ Item {
         return false
     }
 
-    // Dimming overlay (dims everything)
     Rectangle {
         anchors.fill: parent
         color: Theme.captureWash
@@ -128,7 +121,6 @@ Item {
         z: 0
     }
 
-    // Highlight for hovered window (not yet selected)
     Rectangle {
         visible: root.hasSelection && !isWindowSelectedGlobal(root.hoveredWindow)
         x: root.selectionX
@@ -142,16 +134,13 @@ Item {
         z: 1
     }
 
-    // Repeater for selected windows highlights (convert global to local)
     Repeater {
         model: root.globalSelectedWindows
 
         Rectangle {
-            // Convert global coords to local screen coords
             property real localX: modelData.x - root.screenX
             property real localY: modelData.y - root.screenY
             
-            // Only show if this window is on this screen
             visible: localX >= -modelData.width && localX < root.width &&
                      localY >= -modelData.height && localY < root.height
 
@@ -165,7 +154,6 @@ Item {
             radius: root.borderRadius
             z: 2
 
-            // Selection badge
             Rectangle {
                 anchors.top: parent.top
                 anchors.right: parent.right
@@ -187,7 +175,6 @@ Item {
         }
     }
 
-    // Window title label for hovered window
     Rectangle {
         visible: root.hasSelection && root.windowTitle
         x: root.selectionX + (root.selectionWidth - width) / 2
@@ -238,7 +225,6 @@ Item {
         }
     }
 
-    // Selection count indicator
     Rectangle {
         visible: root.globalSelectedWindows.length > 1
         anchors.bottom: parent.bottom
@@ -293,12 +279,9 @@ Item {
                 function onCheckHover(mouseX, mouseY) {
                     if (!modelData || !modelData.lastIpcObject || !modelData.lastIpcObject.at || !modelData.lastIpcObject.size) return
 
-                    // mouseX, mouseY are in screen-local coordinates from MouseArea
-                    // Get window position in screen-local coords
                     const monitorX = root.screenX
                     const monitorY = root.screenY
 
-                    // Screen-local coords for display
                     const windowX = modelData.lastIpcObject.at[0] - monitorX
                     const windowY = modelData.lastIpcObject.at[1] - monitorY
 
@@ -346,7 +329,6 @@ Item {
         }
 
         onExited: {
-            // Clear hover when mouse leaves this screen
             root.hasSelection = false
             root.windowTitle = ""
             root.windowClass = ""

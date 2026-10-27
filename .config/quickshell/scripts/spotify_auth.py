@@ -36,7 +36,6 @@ def generate_self_signed_cert():
 
 class CallbackHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
-        # Suppress logging to stdout
         pass
 
     def do_GET(self):
@@ -79,7 +78,6 @@ def main():
     client_id = ""
     client_secret = ""
 
-    # Load existing config if available
     if os.path.exists(CONFIG_PATH):
         try:
             with open(CONFIG_PATH, "r") as f:
@@ -89,7 +87,6 @@ def main():
         except:
             pass
 
-    # Prompt user for credentials if not found
     if not client_id or not client_secret:
         print("=== Spotify Developer Credentials Setup ===")
         print("Please enter the credentials from your Spotify Developer Dashboard:")
@@ -108,7 +105,6 @@ def main():
             pass
         print(f"Credentials saved to: {CONFIG_PATH}")
 
-    # Set up auth parameters
     redirect_uri = "https://127.0.0.1:8888/callback"
     scope = "user-read-playback-state playlist-read-private playlist-read-collaborative"
     
@@ -120,7 +116,6 @@ def main():
     }
     auth_url = "https://accounts.spotify.com/authorize?" + urllib.parse.urlencode(auth_params)
 
-    # Start local HTTPS server
     print("\nStarting local HTTPS authentication listener on port 8888...")
     generate_self_signed_cert()
     try:
@@ -136,11 +131,9 @@ def main():
         
     server.auth_code = None
 
-    # Open authorization URL in web browser
     print("Opening your browser to authorize the application...")
     webbrowser.open(auth_url)
 
-    # Wait for callback
     print("Waiting for callback from Spotify...")
     while server.auth_code is None:
         server.handle_request()
@@ -149,7 +142,6 @@ def main():
     server.server_close()
     print("Authorization code received!")
 
-    # Exchange authorization code for tokens
     print("Exchanging authorization code for access tokens...")
     try:
         body = urllib.parse.urlencode({
@@ -174,11 +166,9 @@ def main():
             "refresh_token": res_data["refresh_token"],
             "access_token": res_data["access_token"],
             "expires_in": res_data["expires_in"],
-            # Save token generation timestamp
             "created_at": int(time.time())
         }
         
-        # Save tokens
         with open(TOKENS_PATH, "w") as f:
             json.dump(tokens, f, indent=4)
         try:

@@ -1,11 +1,4 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   N O T I F I C A T I O N   L I S T                                      │
-// │   notification history                                                   │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// github.com/andreumassanet/impasto
 
 import QtQuick
 import QtQuick.Controls
@@ -18,7 +11,6 @@ import "../../../theme"
 import "../../../services"
 import "../../../components"
 
-// Notification history kept by the shell's notification server.
 Card {
     id: root
 
@@ -131,7 +123,6 @@ Card {
                 readonly property bool critical:
                     entry.modelData.urgency === NotificationUrgency.Critical
 
-                // Clear of the scroll bar.
                 width: ListView.view.width - 8
                 height: row.implicitHeight + 16
                 radius: Theme.radiusSmall

@@ -1,11 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   N O T I F I C A T I O N   E N T R Y                                    │
-// │   one notification on the island                                         │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 import QtQuick.Layouts
@@ -17,15 +9,6 @@ import "../../theme"
 import "../../services"
 import "../../components"
 
-// One notification on the island, from a NotificationService copy; the
-// stack (NotificationLayer) lays several out. It sizes itself to its content:
-// the body wraps (up to `maxBodyLines`), a long title widens it, and a
-// picture is shown at its own shape (a screenshot comes out landscape, an
-// avatar square). `wantWidth` × `wantHeight` is what it asks for.
-//
-// Interactions: a click anywhere runs its default action when it has one; its
-// other actions are pills under the body; the cross closes it and tells the
-// application. All by its key, so each entry acts on its own notification.
 Item {
     id: root
 
@@ -189,7 +172,6 @@ Item {
                 }
             }
 
-            // The actions, as pills.
             Flow {
                 Layout.fillWidth: true
                 Layout.topMargin: 6

@@ -45,7 +45,6 @@ def emit(event) -> None:
     sys.stdout.flush()
 
 
-# ── locks ─────────────────────────────────────────────────────────────
 
 def read_hypr_locks():
     try:
@@ -54,7 +53,6 @@ def read_hypr_locks():
         for kb in data.get('keyboards', []):
             if kb.get('main'):
                 return kb.get('capsLock', False), kb.get('numLock', False)
-        # Fallback to any keyboard
         for kb in data.get('keyboards', []):
             if kb.get('capsLock') or kb.get('numLock'):
                 return kb.get('capsLock', False), kb.get('numLock', False)
@@ -97,7 +95,6 @@ def query_state(devices, ask_hyprland=False):
     """Caps and Num Lock from the keyboards' LEDs and sysfs. Hyprland is only
     asked when asked to (after a lock key, with no LED to read): every
     `hyprctl` call is a process, and this runs ten times a second."""
-    # 1. Check evdev leds()
     evdev_caps = False
     evdev_num = False
     for dev in devices:
@@ -110,10 +107,8 @@ def query_state(devices, ask_hyprland=False):
         except Exception:
             pass
 
-    # 2. Check sysfs
     sys_caps, sys_num = read_sysfs_locks()
 
-    # 3. Check hyprctl, only as a fallback
     hypr_caps, hypr_num = read_hypr_locks() if ask_hyprland else (None, None)
 
     final_caps = evdev_caps or sys_caps or (hypr_caps is True)
@@ -268,7 +263,6 @@ def locks_main():
                 leds = has_leds(devices)
                 last_scan_time = now
 
-            # Select on devices with a 100ms timeout
             r, _, _ = select.select(devices, [], [], 0.1) if devices else ([], [], [])
 
             key_triggered = False
@@ -339,7 +333,6 @@ def locks_main():
     close_devices(devices)
 
 
-# ── headset ───────────────────────────────────────────────────────────
 # Tracks wireless headset state (mute status, battery milestones, connection)
 # exported by jbl-quantum-tray daemon into /run/user/<uid>/jbl_quantum.
 
@@ -430,7 +423,6 @@ def headset_main() -> None:
                     last_battery = battery
                     last_charging = charging
                     first_run = False
-                    # Emit initial state snapshot
                     emit({
                         "type": "init",
                         "connected": connected,
@@ -465,7 +457,6 @@ def headset_main() -> None:
                     else:
                         conn_candidate = connected
 
-                    # 2. Mic Mute change
                     if connected and mic_muted != last_mic_muted:
                         last_mic_muted = mic_muted
                         emit({
@@ -474,7 +465,6 @@ def headset_main() -> None:
                             "model": model
                         })
 
-                    # 3. Charging status change
                     if connected and charging != last_charging:
                         last_charging = charging
                         emit({
@@ -484,9 +474,7 @@ def headset_main() -> None:
                             "model": model
                         })
 
-                    # 4. Battery state updates & milestone alerts
                     if connected and battery is not None and last_battery is not None and battery != last_battery:
-                        # Emit ordinary battery reading change for persistent display
                         emit({
                             "type": "battery",
                             "battery": battery,
@@ -494,13 +482,9 @@ def headset_main() -> None:
                             "model": model
                         })
 
-                        # Emit milestone alert if crossed
                         for m in MILESTONES:
-                            # Crossed downwards (discharging)
                             crossed_down = (last_battery > m and battery <= m)
-                            # Crossed upwards (charging)
                             crossed_up = (charging and last_battery < m and battery >= m)
-                            # Exact hit
                             exact_hit = (battery == m and last_battery != m)
 
                             if crossed_down or crossed_up or exact_hit:

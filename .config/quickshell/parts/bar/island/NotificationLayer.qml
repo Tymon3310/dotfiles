@@ -1,11 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   N O T I F I C A T I O N   L A Y E R                                    │
-// │   the island while notifications are shown                               │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 import QtQuick.Layouts
@@ -13,17 +5,11 @@ import QtQuick.Layouts
 import "../../theme"
 import "../../services"
 
-// Every notification on the island (NotificationService.shown), stacked
-// newest first with a hairline between them; the older ones dimmed a little.
-// Beyond `maxShown` they wait in a queue, counted in a footer, and move up as
-// room frees.
 //
 // While the pointer is over the stack nothing on it times out
 // (NotificationService.held). With more than one shown, each body is held to
 // fewer lines so the stack stays a sensible height.
 //
-// A host reads `wantWidth` × `wantHeight` and grows the island to fit, as it
-// did for a single notification.
 Item {
     id: root
 
@@ -74,13 +60,11 @@ Item {
                 required property var modelData
                 required property int index
 
-                // Forwarded so the layer can find the widest.
                 readonly property real wantWidth: entry.wantWidth
 
                 width: column.width
                 spacing: 0
 
-                // A hairline between entries, not above the first.
                 Item {
                     width: parent.width
                     height: slot.index > 0 ? root.gap * 2 + 1 : 0
@@ -100,10 +84,8 @@ Item {
                     width: parent.width
                     notification: slot.modelData
                     maxBodyLines: root.stacked ? 4 : 8
-                    // The newest in full, the rest a step back.
                     opacity: slot.index === 0 ? 1 : 0.82
 
-                    // Slides in from above when it first arrives.
                     transform: Translate { id: arrive; y: 0 }
                     Component.onCompleted: {
                         if (root.seen[slot.modelData.key])
@@ -137,7 +119,6 @@ Item {
         }
     }
 
-    // How many are waiting for a slot.
     Text {
         anchors.bottom: parent.bottom
         anchors.horizontalCenter: parent.horizontalCenter

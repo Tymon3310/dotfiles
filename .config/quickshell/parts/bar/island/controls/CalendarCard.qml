@@ -1,11 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   C A L E N D A R   C A R D                                              │
-// │   the current month, with today marked                                   │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 import QtQuick.Layouts
@@ -15,10 +7,6 @@ import "../../../theme"
 import "../../../services"
 import "../../../components"
 
-// A month grid from plain date arithmetic; Qt's Calendar costs more to style
-// than 42 cells cost to lay out.
-//
-// Extracted without impasto's task board: no task dots, no day page.
 Card {
     id: root
 
@@ -56,7 +44,6 @@ Card {
     // Reset to the current month whenever the card is rebuilt.
     Component.onCompleted: root.offsetMonths = 0
 
-    // Paging slides the new month in from the side it comes from.
     property int lastOffset: 0
     onOffsetMonthsChanged: {
         const forward = root.offsetMonths > root.lastOffset
@@ -66,7 +53,6 @@ Card {
         monthFade.restart()
     }
 
-    // ── MONTH ───────────────────────────────────────────────────────────────
 
     ColumnLayout {
         anchors.fill: parent
@@ -174,7 +160,6 @@ Card {
 
                 Text {
                     required property string modelData
-                    // Equal shares, whatever the glyph widths.
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
                     Layout.preferredHeight: 18
@@ -210,7 +195,6 @@ Card {
                         && root.showingThisMonth
                         && cell.day === root.today.getDate()
 
-                    // Equal shares, so columns and rows stay even.
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     Layout.preferredWidth: 1
@@ -239,7 +223,6 @@ Card {
                                     return Theme.accentText
                                 return cell.inMonth ? Theme.text : Theme.textMuted
                             }
-                            // Days from the neighbouring months are dimmed.
                             opacity: cell.inMonth ? 1 : 0.35
                         }
                     }

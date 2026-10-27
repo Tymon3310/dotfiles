@@ -1,9 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   T R A Y   W I D G E T                                                  │
-// │   status notifier icons                                                  │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 import Quickshell
@@ -11,9 +5,6 @@ import Quickshell.Services.SystemTray
 
 import "../../theme"
 
-// The system tray from the dotfiles bar, redrawn on the parts' Theme. Chromeless
-// like everything else here: it draws icons only, the host draws the island.
-//
 // Left click activates, middle click is the item's secondary action, the wheel
 // scrolls it. Right click does not open anything itself: it emits
 // `menuRequested` with the menu, the icon's centre in `mapTarget` coordinates
@@ -48,7 +39,6 @@ Row {
             width: root.iconSize + 10
             height: root.height
 
-            // Hover pill, the same as the island's other buttons.
             Rectangle {
                 anchors.fill: parent
                 anchors.topMargin: 4
@@ -88,7 +78,6 @@ Row {
                         item.secondaryActivate()
                         return
                     }
-                    // Menu-only items (onlyMenu) have nothing to activate.
                     if (event.button === Qt.LeftButton && !item.onlyMenu) {
                         item.activate()
                         return

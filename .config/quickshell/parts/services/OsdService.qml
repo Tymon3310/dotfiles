@@ -6,8 +6,6 @@ import Quickshell.Io
 
 import "."
 
-// OSD Service turns transient system events (Volume, Mute, Caps Lock, Num Lock, Headset Mic & Battery)
-// into unified signals for the morphing island to display.
 Singleton {
     id: root
 
@@ -15,7 +13,6 @@ Singleton {
     // OsdService's own wiring, HeadsetService events, and NotificationService.
     signal requested(string icon, string label, real progress)
 
-    // ── Presentation state: the single owner. IslandBar binds to this. ──
     property bool active: false
     property string icon: ""
     property string label: ""
@@ -64,7 +61,6 @@ Singleton {
         onTriggered: root.armed = true
     }
 
-    // Debounce timer for audio volume changes
     readonly property Timer volumeTimer: Timer {
         interval: 16
         onTriggered: {
@@ -108,7 +104,6 @@ Singleton {
         }
     }
 
-    // Debounce timer for Spotify / media volume changes
     readonly property Timer mediaVolumeTimer: Timer {
         interval: 16
         onTriggered: {
@@ -133,7 +128,6 @@ Singleton {
         }
     }
 
-    // Headset status (JBL Quantum / wireless headset mute & battery milestones)
     readonly property Connections headset: Connections {
         target: HeadsetService
         enabled: root.armed
@@ -248,7 +242,6 @@ Singleton {
                         )
                     }
                 } catch (e) {
-                    // Ignore malformed lines
                 }
             }
         }

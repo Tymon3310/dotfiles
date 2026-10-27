@@ -4,7 +4,6 @@ import Quickshell
 import "../theme"
 import "../services"
 
-// The lock's clock: date above, then large clean time scaled to screen resolution.
 Item {
     id: root
 
@@ -34,7 +33,6 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         spacing: root.stacked ? root.stackedGap : -Math.round(root.inlineSize * 0.04)
 
-        // Date
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             text: Qt.formatDateTime(root.now, "dddd, d MMMM")
@@ -45,7 +43,6 @@ Item {
             opacity: 0.9
         }
 
-        // Inline Time
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             visible: !root.stacked
@@ -58,7 +55,6 @@ Item {
             color: Theme.text
         }
 
-        // Stacked Time (Hours over Minutes)
         Column {
             anchors.horizontalCenter: parent.horizontalCenter
             visible: root.stacked

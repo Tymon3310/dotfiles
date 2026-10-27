@@ -1,11 +1,4 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   S T A T S   S E R V I C E                                              │
-// │   machine load, and enough history to draw it                            │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
+// github.com/andreumassanet/impasto
 
 pragma Singleton
 
@@ -163,7 +156,6 @@ Singleton {
         root.ready = true
     }
 
-    // ── FORMATTING ──────────────────────────────────────────────────────────
 
     readonly property var byteUnits: ["B", "KiB", "MiB", "GiB", "TiB"]
 

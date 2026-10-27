@@ -1,7 +1,3 @@
-// What the resting island shows for a few seconds when an agent session
-// finishes, needs input or errors (AgentService.alert): a tinted icon with
-// ripples, what happened, and what the session is about. Click focuses that
-// session's window.
 
 import QtQuick
 
@@ -43,7 +39,6 @@ Item {
             width: 20
             height: 20
 
-            // Rings spreading out from the icon while the alert is up.
             Repeater {
                 model: 2
 
@@ -93,7 +88,6 @@ Item {
                 }
             }
 
-            // A small pop as the alert arrives.
             SequentialAnimation {
                 id: pop
                 NumberAnimation { target: dot; property: "scale"; from: 0.4; to: 1.15; duration: 220; easing.type: Easing.OutCubic }

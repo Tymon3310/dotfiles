@@ -1,11 +1,3 @@
-// ╭──────────────────────────────────────────────────────────────────────────╮
-// │                                                                          │
-// │   M E D I A   C A R D                                                    │
-// │   the player: track, lyrics or what comes next, and the controls         │
-// │                                                                          │
-// │   github.com/andreumassanet/impasto                                      │
-// │                                                                          │
-// ╰──────────────────────────────────────────────────────────────────────────╯
 
 import QtQuick
 import QtQuick.Layouts
@@ -15,15 +7,6 @@ import "../../../theme"
 import "../../../services"
 import "../../../components"
 
-// impasto's player card, grown for a column of its own. Between the track and
-// the controls sits one of:
-//
-//   synced lyrics   the line being sung held in the middle, larger and in
-//                   full white, its neighbours fading with distance; with
-//                   word timing the words light up as they are sung
-//   plain lyrics    the text, scrolled along with the track's progress
-//   up next         the queue (MediaService.queue), when there are no lyrics,
-//                   while they load, or for an instrumental
 Card {
     id: root
 
@@ -53,7 +36,6 @@ Card {
         visible: MediaService.available
         spacing: 10
 
-        // ── TRACK ─────────────────────────────────────────────────────────
 
         RowLayout {
             Layout.fillWidth: true
@@ -72,7 +54,6 @@ Card {
                     readonly property bool ready: source !== "" && status === Image.Ready
                     opacity: art.ready ? 1 : 0
                     visible: opacity > 0
-                    // New covers fade in rather than pop.
                     Behavior on opacity { NumberAnimation { duration: Theme.durationEnter; easing.type: Easing.OutCubic } }
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
@@ -145,7 +126,6 @@ Card {
                 Layout.alignment: Qt.AlignTop
                 spacing: 6
 
-                // Lyrics | Up next
                 Rectangle {
                     id: modeSwitch
 
@@ -162,7 +142,6 @@ Card {
                     radius: height / 2
                     color: Theme.islandSurfaceHover
 
-                    // The selected segment, sliding between the two.
                     Rectangle {
                         x: 2 + (SettingsService.mediaPreferQueue ? modeSwitch.segment : 0)
                         y: 2
@@ -219,7 +198,6 @@ Card {
                     Text { id: queueLabel; visible: false; text: "UP NEXT"; font.pixelSize: 9; font.weight: Font.DemiBold; font.letterSpacing: 0.6; font.family: Theme.fontFamily }
                 }
 
-                // No lyrics to switch to: just say what is shown.
                 Rectangle {
                     Layout.alignment: Qt.AlignRight
                     visible: !LyricsService.shown
@@ -283,7 +261,6 @@ Card {
             }
         }
 
-        // ── MIDDLE ────────────────────────────────────────────────────────
 
         Item {
             Layout.fillWidth: true
@@ -347,7 +324,6 @@ Card {
                         const words = line.modelData.words ?? []
                         if (!line.current || words.length === 0)
                             return line.modelData.text === "" ? "♪" : line.modelData.text
-                        // Sung words in the accent, the rest in dim white.
                         let out = ""
                         for (let i = 0; i < words.length; i++) {
                             const safe = words[i].text.replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -358,7 +334,6 @@ Card {
                     }
 
                     font.family: Theme.fontFamily
-                    // Padding inside the highlight pill.
                     topPadding: line.current ? 5 : 0
                     bottomPadding: line.current ? 5 : 0
                     leftPadding: 10
@@ -376,7 +351,6 @@ Card {
                 }
             }
 
-            // Edge fades, over the list.
             Rectangle {
                 visible: lyrics.visible
                 anchors.top: parent.top
@@ -399,7 +373,6 @@ Card {
                 }
             }
 
-            // ── UP NEXT ───────────────────────────────────────────────────
 
             ColumnLayout {
                 id: upNext
@@ -528,9 +501,7 @@ Card {
             }
         }
 
-        // ── PROGRESS AND CONTROLS ─────────────────────────────────────────
 
-        // Click or drag to seek.
         Item {
             Layout.fillWidth: true
             Layout.preferredHeight: 10
@@ -589,7 +560,6 @@ Card {
                 onClicked: MediaService.previous()
             }
 
-            // The main control, filled so it reads first.
             Rectangle {
                 Layout.preferredWidth: 34
                 Layout.preferredHeight: 34
