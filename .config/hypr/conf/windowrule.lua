@@ -188,6 +188,14 @@ hl.window_rule {
   workspace = "23 silent",
 }
 
+hl.window_rule {
+  name = "spotify_workspace",
+  match = {
+    class = "(spotifast)",
+  },
+  workspace = "23 silent",
+}
+
 
 hl.window_rule {
   name = "bitwarden",

@@ -9,7 +9,7 @@ hl.config({
     }
 })
 
-local split_workspaces = { per_monitor = 20, monitor_order = { "DP-1", "DP-2" } }
+local split_workspaces = { per_monitor = 20, monitor_order = { "DP-1", "DP-2", "HDMI-A-1" } }
 local per_monitor = split_workspaces.per_monitor
 local monitor_slots = {}
 
@@ -120,7 +120,10 @@ local function restore_displaced()
     end
     -- Anything left is gone or was moved by hand; forget it once every
     -- monitor is back.
-    if valid_slots[1] and valid_slots[2] then displaced = {} end
+    for slot = 1, #split_workspaces.monitor_order do
+        if not valid_slots[slot] then return end
+    end
+    displaced = {}
 end
 
 local function recover_rogue_windows()

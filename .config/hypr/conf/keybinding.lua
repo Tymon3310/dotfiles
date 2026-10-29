@@ -87,7 +87,8 @@ hl.bind("SUPER + CTRL + G", layout.recover_rogue_windows)
 
 hl.bind("SUPER + SHIFT + F", misc.toggle_btop_special)
 
-local player = "spotify"
+local player = "soloist"
+local spotify_players = "soloist,spotifast,spotify" -- ignored by the -i binds so they hit yt/vlc/etc
 hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_SINK@ 5%+"))
 hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_SINK@ 5%-"))
 hl.bind("XF86AudioMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"))
@@ -99,9 +100,9 @@ hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl -p " .. player .. " volume 0
 hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl -p " .. player .. " volume 0.05-"))
 -- bind = , XF86AudioForward, exec, playerctl -p $player next
 -- bind = , XF86AudioBackward, exec, playerctl -p $player previous
-hl.bind("XF86AudioForward", hl.dsp.exec_cmd("playerctl -i " .. player .. " position 1+"))
-hl.bind("XF86AudioRewind", hl.dsp.exec_cmd("playerctl -i " .. player .. " position 1-"))
-hl.bind("XF86AudioStop", hl.dsp.exec_cmd("playerctl -i " .. player .. " play-pause"))
+hl.bind("XF86AudioForward", hl.dsp.exec_cmd("playerctl -i " .. spotify_players .. " position 1+"))
+hl.bind("XF86AudioRewind", hl.dsp.exec_cmd("playerctl -i " .. spotify_players .. " position 1-"))
+hl.bind("XF86AudioStop", hl.dsp.exec_cmd("playerctl -i " .. spotify_players .. " play-pause"))
 hl.bind("XF86Forward", hl.dsp.exec_cmd("playerctl -p " .. player .. " position 1+"))
 hl.bind("XF86Back", hl.dsp.exec_cmd("playerctl -p " .. player .. " position 1-"))
 hl.bind("XF86HomePage", hl.dsp.exec_cmd("playerctl -p " .. player .. " next"))

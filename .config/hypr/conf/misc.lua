@@ -11,6 +11,11 @@ hl.config({
         initial_workspace_tracking = 0,
         key_press_enables_dpms = true,
         animate_manual_resizes = true,
+        force_default_wallpaper = 1,
+    },
+    render = {
+        -- Fullscreen content-type infoframes make the AOC (HDMI) go black.
+        send_content_type = false,
     }
 })
 
