@@ -82,7 +82,6 @@ Item {
             return
         root.entryStarted = true
         entryFallback.stop()
-        console.info("[lock-t] entry started")
         lockEntry.restart()
     }
 
@@ -165,7 +164,6 @@ Item {
         const wasAwake = LockService.awake
         LockService.rouse()
         if (event.key === Qt.Key_Space) {
-            console.info("[lock-t] space pressed")
             if (!LockService.biopassRunning && !LockService.biopassVerified)
                 LockService.triggerBiopass()
             Qt.callLater(account.claim)

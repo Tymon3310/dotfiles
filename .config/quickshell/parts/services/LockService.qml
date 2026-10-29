@@ -75,7 +75,6 @@ Singleton {
             } catch (error) {
                 root.xray = false
             }
-            console.info("[lock-t] session_lock_xray=" + root.xray)
         })
     }
 
@@ -110,13 +109,11 @@ Singleton {
             root.biopassStarting = false
             root.biopassRunning = true
             root.biopassFailed = false
-            console.info("[lock-t] biopass running")
         }
 
         onExited: (code, status) => {
             root.biopassStarting = false
             root.biopassRunning = false
-            console.info("[lock-t] biopass exit code=" + code)
             if (code === 0) {
                 root.biopassVerified = true
                 root.biopassFailed = false
@@ -134,7 +131,6 @@ Singleton {
             return
         if (root.biopassStarting || root.biopassRunning || root.biopassVerified || root.authenticating)
             return
-        console.info("[lock-t] biopass starting")
         // Set now, not in onStarted: a keypress triggers this twice in one
         // tick (rouse + the Space handler), and the second `running = true`
         // queued a fresh helper that started right as the unlock began —
@@ -164,7 +160,6 @@ Singleton {
     function lock(): void {
         if (root.locked || root.settleCaptureTimer.running || root.preparingLock)
             return
-        console.info("[lock-t] lock()")
         root.loadXray()
         root.rest()
         root.preparingLock = true
@@ -188,7 +183,6 @@ Singleton {
             root.shotSerial += 1
             root.shotReady = (code === 0)
             root.preparingLock = false
-            console.info("[lock-t] captured ok=" + root.shotReady)
             root.locked = true
             root.begin()
         }
@@ -290,7 +284,6 @@ Singleton {
     function release(): void {
         if (root.leaving)
             return
-        console.info("[lock-t] release (leaving)")
         root.leaving = true
         root.cancelBiopass()
         root.leave.restart()
@@ -312,7 +305,6 @@ Singleton {
             root.forget()
             root.unlocked()
             root.leaving = false
-            console.info("[lock-t] unlocked")
         }
     }
 }

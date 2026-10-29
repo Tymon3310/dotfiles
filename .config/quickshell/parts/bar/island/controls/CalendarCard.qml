@@ -14,10 +14,21 @@ Card {
     // wherever a weekday index is used.
     readonly property var weekdays: ["M", "T", "W", "T", "F", "S", "S"]
 
-    // Ticks at midnight; nothing here changes sooner.
     SystemClock {
         id: clock
         precision: SystemClock.Minutes
+    }
+
+    // "3d 4h", "4h 12m" or "12m": the two largest units.
+    function formatUptime(seconds: int): string {
+        const days = Math.floor(seconds / 86400)
+        const hours = Math.floor(seconds % 86400 / 3600)
+        const minutes = Math.floor(seconds % 3600 / 60)
+        if (days > 0)
+            return `${days}d ${hours}h`
+        if (hours > 0)
+            return `${hours}h ${minutes}m`
+        return `${minutes}m`
     }
 
     readonly property date today: clock.date
@@ -58,6 +69,60 @@ Card {
         anchors.fill: parent
         spacing: 9
 
+        // Clock, with the date and uptime beside it.
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 12
+
+            // SlidingDigits sizes itself with `width`, which a layout would
+            // override; the wrapper hands its size to the layout instead.
+            Item {
+                implicitWidth: clockDigits.width
+                implicitHeight: clockDigits.height
+
+                SlidingDigits {
+                    id: clockDigits
+                    text: Qt.formatDateTime(clock.date, "HH:mm")
+                    font: Qt.font({
+                        family: Theme.fontFamily,
+                        pixelSize: 40,
+                        weight: Font.DemiBold,
+                        features: { tnum: 1 }
+                    })
+                }
+            }
+
+            Item { Layout.fillWidth: true }
+
+            ColumnLayout {
+                spacing: 2
+
+                Text {
+                    Layout.alignment: Qt.AlignRight
+                    text: Qt.formatDateTime(clock.date, "dddd, d MMMM")
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeRegular
+                    font.weight: Font.Medium
+                    color: Theme.text
+                }
+
+                Text {
+                    Layout.alignment: Qt.AlignRight
+                    visible: StatsService.uptime > 0
+                    text: "up " + root.formatUptime(StatsService.uptime)
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeSmall
+                    color: Theme.textMuted
+                }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 1
+            color: Theme.hairline
+        }
+
         RowLayout {
             Layout.fillWidth: true
             spacing: 6
@@ -79,16 +144,7 @@ Card {
 
             Item { Layout.fillWidth: true }
 
-            // Today's weekday while showing the current month, otherwise a way
-            // back to it.
-            Text {
-                text: Qt.formatDateTime(root.today, "dddd")
-                visible: root.showingThisMonth
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeSmall
-                color: Theme.textMuted
-            }
-
+            // A way back to the current month (the clock shows today's date).
             PillButton {
                 visible: !root.showingThisMonth
                 text: "Today"

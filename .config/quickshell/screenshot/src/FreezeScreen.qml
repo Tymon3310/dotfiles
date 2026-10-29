@@ -21,7 +21,6 @@ PanelWindow {
         running: true
         repeat: false
         onTriggered: {
-            console.log("FreezeScreen: Freezing capture")
             root.frozen = true
         }
     }

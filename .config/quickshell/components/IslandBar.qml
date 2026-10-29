@@ -30,16 +30,7 @@ PanelWindow {
     property var trayMenu: null
     property var trayItem: null
 
-    // TEMPORARY open/close timing, paired with the stall watchdog in
-    // shell.qml, to find what freezes the morph. Remove once found.
-    property real dbgT0: 0
-    function dbg(what: string): void {
-        console.info("[island-t] " + what + " t=" + Math.round(Date.now() - bar.dbgT0) + "ms")
-    }
-
     onOpenIdChanged: {
-        bar.dbgT0 = Date.now()
-        bar.dbg("openId=\"" + bar.openId + "\" on " + (bar.screen ? bar.screen.name : "?"))
         if (bar.openId !== "tray") {
             bar.trayMenu = null
             bar.trayItem = null
@@ -203,7 +194,6 @@ PanelWindow {
     HyprlandFocusGrab {
         active: bar.expanded
         windows: [bar]
-        onActiveChanged: bar.dbg("focus grab active=" + active)
         onCleared: bar.close()
     }
 
@@ -224,8 +214,6 @@ PanelWindow {
             width: wsWidget.implicitWidth + 12
             radius: height / 2
             color: Theme.island
-            border.width: 1
-            border.color: Theme.hairline
 
             WorkspacesWidget {
                 id: wsWidget
@@ -290,7 +278,6 @@ PanelWindow {
                 duration: bar.growing ? Theme.durationSpring : Theme.durationIslandRetract
                 easing.type: bar.growing ? Theme.easingSpring : Theme.easing
                 easing.overshoot: Theme.springOvershoot
-                onRunningChanged: bar.dbg("morph " + (running ? "start" : "end") + " h=" + Math.round(island.height))
             }
         }
 
@@ -499,7 +486,6 @@ PanelWindow {
                     easing.type: bar.expanded ? Theme.easing : Easing.OutQuad
                 }
             }
-            onStatusChanged: bar.dbg("detail loader status=" + status)
 
             sourceComponent: {
                 switch (bar.shownId) {
@@ -592,8 +578,6 @@ PanelWindow {
             width: trayWidget.implicitWidth + 16
             radius: height / 2
             color: Theme.island
-            border.width: 1
-            border.color: Theme.hairline
             visible: !trayWidget.empty
 
             TrayWidget {
@@ -613,12 +597,8 @@ PanelWindow {
             radius: height / 2
             color: bar.openId === "session" || powerMouse.containsMouse
                 ? Theme.islandSurfaceHover : Theme.island
-            border.width: 1
-            border.color: bar.openId === "session" || powerMouse.containsMouse
-                ? Theme.islandBorder : Theme.hairline
 
             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
             Text {
                 anchors.centerIn: parent

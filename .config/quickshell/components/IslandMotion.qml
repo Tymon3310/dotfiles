@@ -169,7 +169,6 @@ Scope {
         target: LockService
 
         function onPrepareLock(): void {
-            console.info("[lock-t] island prepare")
             root.island.close()
             root.island.isDemorphed = true
             unlockEmerge.stop()
@@ -194,7 +193,6 @@ Scope {
         // by the time it disappears, the two islands have the same geometry.
         function onLeavingChanged(): void {
             if (LockService.leaving) {
-                console.info("[lock-t] island unlock start")
                 root.island.notchYOffset = 0
                 root.island.isDemorphed = false
                 if (LockService.xray && root.island.below === "")
