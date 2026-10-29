@@ -9,7 +9,7 @@ hl.config({
         kb_model = "",
         numlock_by_default = true,
         kb_options = "fkeys:basic_13-24",
-        mouse_refocus = true,
+        mouse_refocus = false, -- on steals focus back from vicinae (layer) when it opens over a window
         follow_mouse = 1,
     }
 })
