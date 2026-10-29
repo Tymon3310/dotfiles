@@ -34,5 +34,15 @@ hl.config({
             render_power = 3,
             color = 0x66000000,
         },
+
+        wobble = {
+            enabled = false,
+            stiffness = 1000,
+            damping = 1,
+        },
+
+        motion_blur = {
+            enabled = true,
+        }
     }
 })
