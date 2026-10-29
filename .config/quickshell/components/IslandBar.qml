@@ -68,7 +68,9 @@ PanelWindow {
     readonly property bool headsUpActive: (SettingsService.notificationHeadsUpMode === "always")
         || (SettingsService.notificationHeadsUpMode === "fullscreen" && bar.isFullscreen)
 
-    readonly property bool notifying: NotificationService.active && !bar.expanded && !bar.headsUpActive
+    // Popups show on one monitor only (NotificationService.popupScreen).
+    readonly property bool notifying: NotificationService.showsOn(bar.screen ? bar.screen.name : "")
+        && !bar.expanded && !bar.headsUpActive
     readonly property bool recording: ScreenRecorderService.recording
 
     // Growing (a panel, the OSD, an alert) springs; shrinking back to rest
@@ -158,11 +160,6 @@ PanelWindow {
         id: motion
         island: bar
     }
-
-    // The single place notification pictures are rendered to cache files. It
-    // has to sit in this always-mapped window so a grab is never rendered
-    // against an item that is being torn down; see the component.
-    NotificationPictureSaver {}
 
 
     anchors {
@@ -540,7 +537,7 @@ PanelWindow {
             opacity: bar.notifying ? 1 : 0
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: Theme.durationMedium } }
-            sourceComponent: NotificationLayer {}
+            sourceComponent: NotificationStack {}
         }
     }
 

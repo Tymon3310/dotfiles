@@ -33,7 +33,7 @@ PanelWindow {
     readonly property bool headsUpActive: (SettingsService.notificationHeadsUpMode === "always")
         || (SettingsService.notificationHeadsUpMode === "fullscreen" && root.isFullscreen)
 
-    readonly property bool shouldShow: NotificationService.active
+    readonly property bool shouldShow: NotificationService.showsOn(root.screenName)
         && root.headsUpActive
         && !LockService.locked
 
@@ -114,23 +114,19 @@ PanelWindow {
         y: root.cardY
         opacity: root.cardOpacity
 
-        width: Math.min(root.width - 24, notificationStack.wantWidth + 24)
-        height: notificationStack.wantHeight + 24
+        width: Math.min(root.width - 24, notificationStack.wantWidth + 16)
+        height: notificationStack.wantHeight + 16
         radius: Theme.radiusLarge + 2
-        color: "#0a0a0c"
-        border.width: 1
-        border.color: NotificationService.critical ? Theme.red : Theme.hairline
+        color: Theme.island
 
         Behavior on height {
             NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing }
         }
 
-        // Render every timed entry, just as the island does. A single-card
-        // preview lets older entries expire without ever being displayed.
-        NotificationLayer {
+        NotificationStack {
             id: notificationStack
             anchors.fill: parent
-            anchors.margins: 12
+            anchors.margins: 8
         }
     }
 }

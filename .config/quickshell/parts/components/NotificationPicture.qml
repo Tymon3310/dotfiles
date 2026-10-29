@@ -1,32 +1,28 @@
-
 import QtQuick
 import Quickshell.Widgets
 
 import "../theme"
-import "../services"
 
+// A notification's picture with the app icon as a badge, the app icon alone,
+// or a bell. `entry` is a NotificationService entry.
 Item {
     id: root
 
-    property var notification: null
-    property bool critical: false
-    property bool keep: false
+    property var entry: null
 
-    readonly property string pictureUrl: root.notification ? (root.notification.picture ?? "") : ""
-    readonly property string iconUrl: root.notification ? (root.notification.icon ?? "") : ""
+    readonly property string pictureUrl: root.entry?.picture ?? ""
+    readonly property string iconUrl: root.entry?.icon ?? ""
+    readonly property bool critical: root.entry?.critical ?? false
 
     readonly property bool hasPicture: picture.status === Image.Ready
     readonly property bool hasIcon: icon.status === Image.Ready
 
     readonly property real aspect: picture.implicitHeight > 0
         ? picture.implicitWidth / picture.implicitHeight : 1
-    readonly property bool landscape: root.hasPicture && root.aspect > 1.2
 
     ClippingRectangle {
-        id: frame
-
         anchors.fill: parent
-        radius: root.landscape ? Theme.radiusSmall : width * Theme.pictureCorner
+        radius: Math.min(width, height) * Theme.pictureCorner
         color: root.critical ? Theme.red
             : (root.hasPicture ? "transparent" : Theme.islandSurfaceHover)
 
@@ -38,20 +34,12 @@ Item {
             visible: root.hasPicture
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
-            sourceSize.width: 200
-
-            onStatusChanged: {
-                // The file is written elsewhere, by a grabber that outlives
-                // this row; grabbing here crashes when the row is rebuilt
-                // mid-grab. See NotificationPictureSaver.
-                if (status === Image.Ready && root.keep && root.notification)
-                    NotificationService.requestPictureSave(root.notification.key, root.pictureUrl)
-            }
+            sourceSize.width: 256
         }
 
         Image {
             anchors.centerIn: parent
-            width: parent.width * 0.72
+            width: parent.width * 0.66
             height: width
             source: root.hasPicture ? "" : root.iconUrl
             visible: !root.hasPicture && root.hasIcon
@@ -71,8 +59,7 @@ Item {
         }
     }
 
-    // Loads the icon either way, so `hasIcon` is known for the badge and the
-    // fallback alike.
+    // Loaded either way, so `hasIcon` is known for the badge and the fallback.
     Image {
         id: icon
 
@@ -85,11 +72,11 @@ Item {
 
     Rectangle {
         visible: root.hasPicture && root.hasIcon
-        width: Math.round(Math.min(root.width, root.height) * 0.46)
+        width: Math.round(Math.min(root.width, root.height) * 0.44)
         height: width
         radius: width * 0.3
-        x: parent.width - width + 4
-        y: parent.height - height + 4
+        x: parent.width - width + 3
+        y: parent.height - height + 3
         color: Theme.island
 
         Image {

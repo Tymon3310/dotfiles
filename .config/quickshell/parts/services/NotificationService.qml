@@ -1,4 +1,3 @@
-
 pragma Singleton
 
 import QtQuick
@@ -7,148 +6,102 @@ import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Services.Notifications
 
-// Only capabilities the island actually renders are declared; claiming more
-// makes applications send content that gets dropped.
+// The notification daemon.
+//
+// Data lives in one table, `entries` (key -> plain object). Views never hold
+// the Notification objects: the server deletes one as soon as its
+// application closes it, and a view built from a deleted object crashes
+// Quickshell. The objects sit in `live`, which no view reads.
+//
+// Two ListModels say what is shown, by key. They change in place, so a
+// delegate is built once per notification and keeps its state and animations:
+//
+//   popups   on the island (or the fullscreen overlay), newest first
+//   groups   the history, one row per application, latest activity first
+//
+// A view reads an entry with `entry(key)`, which depends on `revision`, so a
+// replaced notification (new text, progress) updates the cards showing it.
 Singleton {
     id: root
 
-    signal arrived(var notification)
+    property var entries: ({})
+    property int revision: 0
+
+    function entry(key: int): var {
+        root.revision
+        return root.entries[key] ?? null
+    }
+
+    // Keys, newest first, and the keys of each group (by `group`).
+    property var order: []
+    property var groupKeys: ({})
+    readonly property int count: root.order.length
+    readonly property int historyLimit: 50
+
+    readonly property ListModel popups: ListModel {}
+    readonly property ListModel groups: ListModel {}
+
+    // Keys waiting for a popup slot, oldest first.
+    property var queue: []
+    readonly property int maxPopups: 3
+    property int popupCount: 0
+    readonly property bool active: root.popupCount > 0
+    property bool critical: false
+
+    // The monitor the popups show on: the focused one when the first of them
+    // arrives, kept until the last one goes, so a stack never jumps screens.
+    property string popupScreen: ""
+
+    function showsOn(screenName: string): bool {
+        return root.active && (root.popupScreen === "" || root.popupScreen === screenName)
+    }
+
+    // While the pointer is over the popups nothing times out; letting go
+    // gives each at least two seconds more.
+    property bool held: false
+    property real now: Date.now()
+
+    property bool doNotDisturb: false
+
+    function toggleDoNotDisturb(): void {
+        root.doNotDisturb = !root.doNotDisturb
+        if (root.doNotDisturb)
+            root.dismissPopups()
+    }
+
+    property var live: ({})
+    property int serial: 0
 
     readonly property int defaultTimeout: SettingsService.notificationTimeout
 
-    // `shown`, `waiting` and `history` hold plain copies, never the
-    // Notification objects: the server deletes an object as soon as its
-    // application closes or replaces it, and a list still built from the
-    // deleted object crashes Quickshell (a segfault while creating the row).
-    // The objects themselves sit in `liveObjects`, a lookup by key that no
-    // list is ever built from, to tell each application what happened to its
-    // notification; an entry goes when its object does.
+    function timeoutFor(object: var): int {
+        // Critical waits for the user. Anything else that asks to stay forever
+        // is capped, or a misbehaving application owns the island.
+        if (object.urgency === NotificationUrgency.Critical)
+            return 0
+        if (object.expireTimeout > 0)
+            return Math.min(object.expireTimeout, 15000)
+        return root.defaultTimeout
+    }
+
     //
-    //   shown     on the island, newest first, at most `maxShown`
-    //   waiting   the rest, oldest first; each moves up when a slot frees,
-    //             and its time starts only then
-    property var shown: root.serverInstance === Quickshell.instanceId
-        ? (root.cacheData.shown ?? []) : []
-    property var waiting: root.serverInstance === Quickshell.instanceId
-        ? (root.cacheData.waiting ?? []) : []
-    readonly property int maxShown: 3
-
-    property bool cacheReady: false
-
-    readonly property string historyPath: {
-        const dir = Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"
-        return `${dir}/quickshell_notifications.json`
-    }
-
-    readonly property FileView historyFile: FileView {
-        path: root.historyPath
-        blockLoading: true
-        printErrors: false
-    }
-
-    property var cacheData: {
-        const raw = root.historyFile.text()
-        if (raw && raw.trim() !== "") {
-            try {
-                const parsed = JSON.parse(raw)
-                if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && Array.isArray(parsed.entries))
-                    return parsed
-                if (Array.isArray(parsed))
-                    return { instanceId: "", entries: parsed }
-            } catch (e) {
-                console.warn("[NotificationService] Failed to parse history cache:", e)
-            }
-        }
-        return { instanceId: Quickshell.instanceId, entries: [] }
-    }
-
-    readonly property string serverInstance: root.cacheData.instanceId ?? ""
-
-    property var history: root.cacheData.entries ?? []
-
-    function saveHistory(): void {
-        if (!root.cacheReady)
-            return
-        try {
-            root.historyFile.setText(JSON.stringify({
-                instanceId: Quickshell.instanceId,
-                entries: root.history,
-                shown: root.shown,
-                waiting: root.waiting,
-                deadlines: root.deadlines
-            }))
-        } catch (e) {
-            console.warn("[NotificationService] Failed to save history cache:", e)
-        }
-    }
-
-    function scheduleSave(): void {
-        if (root.cacheReady)
-            root.saveTimer.restart()
-    }
-
-    readonly property Timer saveTimer: Timer {
-        interval: 0
-        onTriggered: root.saveHistory()
-    }
-
-    Component.onCompleted: {
-        // Freeze the loaded generation's state before writing the cache.
-        root.cacheData = root.cacheData
-        root.cacheReady = true
-        root.scheduleSave()
-    }
-
-    onHistoryChanged: root.scheduleSave()
-    onShownChanged: root.scheduleSave()
-    onWaitingChanged: root.scheduleSave()
-    onDeadlinesChanged: root.scheduleSave()
-
-    readonly property int historyLimit: 50
-
-    property var liveObjects: ({})
-    property int serial: {
-        let max = 0
-        for (const entry of root.history) {
-            if (entry && typeof entry.key === "number" && entry.key > max)
-                max = entry.key
-        }
-        return max
-    }
-
-    // When each shown one times out, by key (absent: never). Kept apart from
-    // the entries so extending one does not rebuild the list.
-    property var deadlines: root.serverInstance === Quickshell.instanceId
-        ? (root.cacheData.deadlines ?? {}) : ({})
-
-    property bool held: false
-
+    // Pictures and icons.
     //
     // Quickshell folds `notify-send -i NAME` into `image` as
     // "image://icon/NAME", so an icon name and a real picture (an avatar, a
-    // screenshot) arrive in the same field. They are told apart here:
-    //
-    //   picture   a real image: image data, a file, an image-path hint
-    //   icon      the application's icon: the name it sent if the theme has
-    //             it, else its desktop entry's, found by id or by app name
-    //
-    // Either may be empty; NotificationPicture shows what loads.
+    // screenshot) arrive in the same field and are told apart here.
 
     function isThemeIcon(url: string): bool {
-        // "image://icon/name", not "image://icon//some/file.png".
         return url.startsWith("image://icon/") && !url.startsWith("image://icon//")
     }
 
-    // `-i /usr/share/icons/.../app.png`: a file, but an application icon.
     function isIconFile(url: string): bool {
         return url.startsWith("image://icon//") && /\/(icons|pixmaps)\//.test(url)
     }
 
-    // "image://icon//home/me/shot.png" is a plain file routed through
-    // Quickshell's icon provider, which loads it as an icon: sometimes at a
-    // 2×2 size, failing, and then drawing its pink-and-black "missing" square
-    // while reporting success, so nothing falls back. As a file:// URL Qt's
-    // own loader reads it, and a missing file is an error that falls through.
+    // "image://icon//home/me/shot.png" is a plain file sent through the icon
+    // provider, which can load it at 2×2 or draw its "missing" square while
+    // reporting success. As a file:// URL a missing file is a plain error.
     function fileUrl(url: string): string {
         if (!url.startsWith("image://icon//"))
             return url
@@ -156,21 +109,26 @@ Singleton {
         return `file://${path}`
     }
 
-    function pictureOf(notification: var): string {
-        const image = `${notification.image ?? ""}`
+    // Image data (`image://qsimage/…`) only exists while its object does.
+    function isImageData(url: string): bool {
+        return url.startsWith("image://qsimage")
+    }
+
+    function pictureOf(object: var): string {
+        const image = `${object.image ?? ""}`
         if (image === "" || root.isThemeIcon(image) || root.isIconFile(image))
             return ""
         return root.fileUrl(image)
     }
 
-    function iconOf(notification: var): string {
-        const image = `${notification.image ?? ""}`
+    function iconOf(object: var): string {
+        const image = `${object.image ?? ""}`
         if (root.isIconFile(image))
             return root.fileUrl(image)
         const names = []
         if (root.isThemeIcon(image))
             names.push(decodeURIComponent(image.slice("image://icon/".length).split("?")[0]))
-        const appIcon = `${notification.appIcon ?? ""}`
+        const appIcon = `${object.appIcon ?? ""}`
         if (appIcon.startsWith("/"))
             return `file://${appIcon}`
         if (appIcon.startsWith("file://"))
@@ -179,13 +137,10 @@ Singleton {
             return root.fileUrl(appIcon)
         if (appIcon !== "")
             names.push(appIcon)
-        const entry = (notification.desktopEntry ? DesktopEntries.byId(notification.desktopEntry) : null)
-            ?? DesktopEntries.heuristicLookup(notification.appName ?? "")
-        if (entry && entry.icon)
-            names.push(entry.icon)
+        const desktop = root.desktopEntryOf(object)
+        if (desktop && desktop.icon)
+            names.push(desktop.icon)
         for (const name of names) {
-            // A desktop entry's Icon= may be an absolute file, which comes
-            // back through the icon provider too.
             const path = Quickshell.iconPath(name, true)
             if (path !== "")
                 return root.fileUrl(path)
@@ -193,464 +148,545 @@ Singleton {
         return ""
     }
 
-    // A picture handed over as image data only lives as long as the
-    // notification, so a copy is rendered to a file once drawn and the history
-    // is pointed at that.
-    function keepPicture(key: int, url: string): void {
-        root.history = root.history.map(entry =>
-            entry.key === key ? Object.assign({}, entry, { picture: url }) : entry)
-        const update = list => list.map(entry =>
-            entry.key === key ? Object.assign({}, entry, { picture: url }) : entry)
-        root.shown = update(root.shown)
-        root.waiting = update(root.waiting)
+    function desktopEntryOf(object: var): var {
+        return (object.desktopEntry ? DesktopEntries.byId(object.desktopEntry) : null)
+            ?? DesktopEntries.heuristicLookup(object.appName ?? "")
     }
 
-    // The copy is made by a standalone grabber (NotificationPictureSaver), not
-    // by the row showing the picture: a grab renders on a later frame, and Qt
-    // frees the grab along with the item it grabbed, so one started from a row
-    // that is then rebuilt (or from the heads-up popup as it closes) crashes
-    // Quickshell. See that component. Requests wait here and go out one at a
-    // time to whichever grabber lives in an on-screen window.
-    property var pictureSavers: []
-    property var pictureQueue: []
-    // One grab at a time; a grabber asked for a second image while the first
-    // is still rendering would lose it.
-    property bool pictureBusy: false
-    // Keys already queued or being grabbed, so a row that is rebuilt before
-    // the file is ready does not ask again.
-    property var pictureSaving: ({})
-
-    function registerPictureSaver(saver: var): void {
-        if (root.pictureSavers.indexOf(saver) < 0)
-            root.pictureSavers = root.pictureSavers.concat([saver])
-        root.pumpPictureSaves()
-    }
-
-    function unregisterPictureSaver(saver: var): void {
-        root.pictureSavers = root.pictureSavers.filter(item => item !== saver)
-    }
-
-    function requestPictureSave(key: int, url: string): void {
-        if (!url || !url.startsWith("image://qsimage") || root.pictureSaving[key])
-            return
-        const saving = Object.assign({}, root.pictureSaving)
-        saving[key] = true
-        root.pictureSaving = saving
-        root.pictureQueue = root.pictureQueue.concat([{
-            key: key,
-            url: url,
-            path: Quickshell.cachePath(`notification-${key}.png`)
-        }])
-        root.pumpPictureSaves()
-    }
-
-    function pumpPictureSaves(): void {
-        if (root.pictureBusy || root.pictureQueue.length === 0)
-            return
-        const saver = root.pictureSavers[0]
-        if (!saver)
-            return
-        const next = root.pictureQueue[0]
-        root.pictureQueue = root.pictureQueue.slice(1)
-        root.pictureBusy = true
-        saver.save(next.key, next.url, next.path)
-    }
-
-    function pictureSaveFinished(key: int): void {
-        root.pictureBusy = false
-        const saving = Object.assign({}, root.pictureSaving)
-        delete saving[key]
-        root.pictureSaving = saving
-        root.pumpPictureSaves()
-    }
-
-    function snapshot(notification: var): var {
-        root.serial += 1
+    function read(object: var): var {
+        const appName = `${object.appName ?? ""}`
+        const desktop = root.desktopEntryOf(object)
         return {
-            picture: root.pictureOf(notification),
-            icon: root.iconOf(notification),
-            key: root.serial,
-            id: notification.id,
-            summary: notification.summary ?? "",
-            body: notification.body ?? "",
-            appName: notification.appName ?? "",
-            appIcon: notification.appIcon ?? "",
-            desktopEntry: notification.desktopEntry ?? "",
-            image: notification.image ?? "",
-            urgency: notification.urgency,
-            expireTimeout: notification.expireTimeout,
-            actions: (notification.actions ?? [])
-                .map(action => ({ identifier: action.identifier, text: action.text ?? "" })),
-            time: Date.now()
+            id: object.id,
+            appName: appName !== "" ? appName : (desktop?.name ?? "Notification"),
+            desktopEntry: `${object.desktopEntry ?? ""}`,
+            group: (`${object.desktopEntry ?? ""}` || appName || "other").toLowerCase(),
+            summary: `${object.summary ?? ""}`,
+            body: `${object.body ?? ""}`,
+            picture: root.pictureOf(object),
+            icon: root.iconOf(object),
+            critical: object.urgency === NotificationUrgency.Critical,
+            actions: (object.actions ?? [])
+                .map(action => ({ identifier: action.identifier, text: `${action.text ?? ""}` })),
+            timeout: root.timeoutFor(object)
         }
     }
 
-    readonly property bool active: root.shown.length > 0
-    readonly property bool critical: root.shown.some(entry => root.isCritical(entry))
-
-    function isCritical(entry: var): bool {
-        return entry.urgency === NotificationUrgency.Critical
-    }
+    //
+    // Arrival.
 
     readonly property NotificationServer server: NotificationServer {
-        id: server
-
-        // Survives a config reload, so editing the shell does not drop a
-        // notification that is on screen.
+        // Survives a config reload; tracked notifications are handed to the
+        // new generation again.
         keepOnReload: true
 
         bodySupported: true
         bodyMarkupSupported: true
         bodyImagesSupported: true
         imageSupported: true
-        actionIconsSupported: true
         actionsSupported: true
-        // The history is the shell's own and does not survive a restart, so
-        // persistence is not claimed.
+        actionIconsSupported: true
         persistenceSupported: false
         extraHints: ["image-data", "image_data", "icon-image"]
 
-        onNotification: notification => {
-            // Claude Code's notifications (idle reminders, permission
-            // prompts) are dropped: the island's agent badge already shows
-            // when a session is waiting or needs input.
-            if (notification.summary === "Claude Code") {
-                notification.dismiss()
-                return
-            }
+        onNotification: object => root.receive(object)
+    }
 
-            // Tracking keeps the object alive past this handler; without it
-            // the notification is destroyed as soon as the signal returns.
-            notification.tracked = true
+    function receive(object: var): void {
+        // Claude Code's own reminders: the island's agent badge already shows
+        // when a session needs input.
+        if (object.summary === "Claude Code") {
+            object.dismiss()
+            return
+        }
 
-            // Reattach live objects to the restored queue and its original
-            // deadlines. Replayed notifications must not get a fresh timeout.
-            const isSameServer = (root.serverInstance === Quickshell.instanceId)
-            const existing = isSameServer
-                ? root.history.concat(root.shown, root.waiting)
-                    .find(entry => entry.id === notification.id)
-                : null
+        if (root.isHeadsetNotice(object)) {
+            object.expire()
+            return
+        }
 
-            if (existing) {
-                const key = existing.key
-                const live = Object.assign({}, root.liveObjects)
-                live[key] = notification
-                root.liveObjects = live
-                notification.closed.connect(() => root.forget(key))
-                // Older caches held only history. Recover any still-live
-                // banners using their original arrival time, or expire them.
-                if (root.cacheData.shown === undefined) {
-                    const timeout = root.timeoutFor(existing)
-                    const deadline = existing.time + timeout
-                    if (timeout > 0 && deadline <= Date.now()) {
-                        // The server registers replayed objects after this
-                        // handler returns, so expiration must wait until then.
-                        Qt.callLater(() => root.retireKey(key))
-                    } else {
-                        root.enqueue(existing)
-                        if (timeout > 0 && root.shown.some(entry => entry.key === key)) {
-                            const deadlines = Object.assign({}, root.deadlines)
-                            deadlines[key] = deadline
-                            root.deadlines = deadlines
-                        }
-                    }
+        // Tracking keeps the object alive past this handler.
+        object.tracked = true
+
+        // After a reload the server hands back what it still tracks: attach it
+        // to its restored history entry instead of showing it again.
+        if (root.restoredGeneration) {
+            for (const key of root.order) {
+                const e = root.entries[key]
+                if (e.id === object.id && !(key in root.live)) {
+                    root.attach(key, object)
+                    return
                 }
-                return
             }
+        }
 
-            root.present(notification)
+        root.serial += 1
+        const key = root.serial
+        const data = root.read(object)
+        data.key = key
+        data.time = Date.now()
+        root.entries[key] = data
+        root.attach(key, object)
+        root.addToHistory(key)
+        root.revision += 1
+
+        if (root.doNotDisturb && !data.critical)
+            root.retire(key)
+        else
+            root.popUp(key)
+    }
+
+    // Some headset utilities announce connections as notifications; the OSD
+    // already shows those, so they become an OSD instead of a second card.
+    function isHeadsetNotice(object: var): bool {
+        const appName = `${object.appName ?? ""}`.toLowerCase()
+        const isHeadsetApp = /\b(jbl[-_]quantum|headsetcontrol|jbl-quantum-tray)\b/i.test(appName)
+            || (HeadsetService.model !== "" && appName.includes(HeadsetService.model.toLowerCase()))
+        const text = `${object.summary ?? ""} ${object.body ?? ""}`
+        if (!isHeadsetApp || !/\b(online|connected|offline|disconnected)\b/i.test(text))
+            return false
+        const connected = !/\b(offline|disconnected)\b/i.test(text)
+        const battery = HeadsetService.battery
+        OsdService.requested(
+            connected ? "󰋋" : "󰟎",
+            connected ? `Headset Connected${connected && battery >= 0 ? ` · ${battery}%` : ""}`
+                : "Headset Disconnected",
+            connected && battery >= 0 ? battery / 100.0 : -1)
+        return true
+    }
+
+    function attach(key: int, object: var): void {
+        root.live[key] = object
+        root.entries[key].alive = true
+        object.closed.connect(() => root.handleClosed(key))
+        // A replacement updates the object in place, one property at a time;
+        // the changes are gathered and applied once.
+        const changed = () => root.markChanged(key)
+        object.summaryChanged.connect(changed)
+        object.bodyChanged.connect(changed)
+        object.imageChanged.connect(changed)
+        object.appIconChanged.connect(changed)
+        object.actionsChanged.connect(changed)
+        object.urgencyChanged.connect(changed)
+    }
+
+    property var changedKeys: ({})
+
+    function markChanged(key: int): void {
+        root.changedKeys[key] = true
+        root.applyChanges.restart()
+    }
+
+    readonly property Timer applyChanges: Timer {
+        interval: 0
+        onTriggered: {
+            const keys = Object.keys(root.changedKeys).map(Number)
+            root.changedKeys = {}
+            for (const key of keys)
+                root.replaced(key)
+        }
+    }
+
+    // New content for a notification already here: refresh it, move it to the
+    // top of the history and show it again (a progress update just refreshes
+    // a popup that is still up).
+    function replaced(key: int): void {
+        const object = root.live[key]
+        const old = root.entries[key]
+        if (!object || !old)
+            return
+        const data = root.read(object)
+        data.key = key
+        data.time = Date.now()
+        root.entries[key] = data
+        root.removeFromHistory(key)
+        root.addToHistory(key)
+        root.revision += 1
+
+        if (root.popupIndex(key) >= 0)
+            root.startTimer(key)
+        else if (!root.doNotDisturb || data.critical)
+            root.popUp(key)
+    }
+
+    //
+    // Popups.
+
+    function popupIndex(key: int): int {
+        for (let i = 0; i < root.popups.count; i++) {
+            if (root.popups.get(i).key === key)
+                return i
+        }
+        return -1
+    }
+
+    function popUp(key: int): void {
+        if (root.popupIndex(key) >= 0 || root.queue.indexOf(key) >= 0)
+            return
+        if (root.popups.count === 0)
+            root.popupScreen = HyprlandService.focusedMonitor
+        if (root.popups.count < root.maxPopups) {
+            root.insertPopup(key)
+            return
+        }
+        // A critical one never waits: the oldest ordinary one steps back to
+        // the front of the queue.
+        if (root.entries[key].critical) {
+            for (let i = root.popups.count - 1; i >= 0; i--) {
+                const bumped = root.popups.get(i).key
+                if (!root.entries[bumped].critical) {
+                    root.popups.remove(i)
+                    root.queue = [bumped].concat(root.queue)
+                    root.insertPopup(key)
+                    return
+                }
+            }
+            root.queue = [key].concat(root.queue)
+            return
+        }
+        root.queue = root.queue.concat([key])
+    }
+
+    function insertPopup(key: int): void {
+        root.startTimer(key)
+        root.popups.insert(0, { key: key })
+        root.updatePopupState()
+    }
+
+    function startTimer(key: int): void {
+        const e = root.entries[key]
+        root.now = Date.now()
+        e.deadline = e.timeout > 0 ? root.now + e.timeout : 0
+        e.remaining = e.timeout
+        root.revision += 1
+    }
+
+    function hidePopup(key: int): void {
+        root.queue = root.queue.filter(k => k !== key)
+        const index = root.popupIndex(key)
+        if (index < 0)
+            return
+        root.popups.remove(index)
+        while (root.popups.count < root.maxPopups && root.queue.length > 0) {
+            const next = root.queue[0]
+            root.queue = root.queue.slice(1)
+            root.insertPopup(next)
+        }
+        root.updatePopupState()
+    }
+
+    function updatePopupState(): void {
+        root.popupCount = root.popups.count
+        let critical = false
+        for (let i = 0; i < root.popups.count; i++)
+            critical = critical || root.entries[root.popups.get(i).key].critical
+        root.critical = critical
+        if (root.popups.count === 0) {
+            root.popupScreen = ""
+            root.held = false
         }
     }
 
     readonly property Timer tick: Timer {
-        interval: 250
+        interval: 100
         repeat: true
-        running: root.shown.length > 0
+        running: root.popupCount > 0 && !root.held
         onTriggered: {
-            if (root.held)
-                return
-            const now = Date.now()
-            for (const entry of root.shown) {
-                const deadline = root.deadlines[entry.key]
-                if (deadline !== undefined && deadline <= now)
-                    root.retireKey(entry.key)
+            root.now = Date.now()
+            const expired = []
+            for (let i = 0; i < root.popups.count; i++) {
+                const e = root.entries[root.popups.get(i).key]
+                if (e.deadline > 0 && e.deadline <= root.now)
+                    expired.push(e.key)
             }
+            for (const key of expired)
+                root.retire(key)
         }
     }
 
-    // Letting go of the stack gives everything on it a moment more.
     onHeldChanged: {
-        if (root.held)
+        const now = Date.now()
+        for (let i = 0; i < root.popups.count; i++) {
+            const e = root.entries[root.popups.get(i).key]
+            if (e.timeout <= 0)
+                continue
+            if (root.held)
+                e.remaining = Math.max(0, e.deadline - now)
+            else
+                e.deadline = now + Math.max(e.remaining, 2000)
+        }
+        root.now = now
+        root.revision += 1
+    }
+
+    // Time left as a fraction, for the popup's countdown line.
+    function progressOf(key: int): real {
+        const e = root.entry(key)
+        if (!e || e.timeout <= 0)
+            return 1
+        const remaining = root.held ? e.remaining : e.deadline - root.now
+        return Math.max(0, Math.min(1, remaining / e.timeout))
+    }
+
+    //
+    // Leaving.
+
+    // Off the popups but kept in the history. The object is kept too when it
+    // still has a use there: actions to run (Discord opens the channel), or a
+    // picture that only exists as image data. Otherwise it is expired now, so
+    // a sender waiting on it (`notify-send --wait`) is answered.
+    function retire(key: int): void {
+        root.hidePopup(key)
+        const object = root.live[key]
+        const e = root.entries[key]
+        if (!object || !e)
             return
-        const soon = Date.now() + 2000
-        const deadlines = Object.assign({}, root.deadlines)
-        for (const key in deadlines)
-            deadlines[key] = Math.max(deadlines[key], soon)
-        root.deadlines = deadlines
+        if (e.actions.length === 0 && !root.isImageData(e.picture))
+            root.release(key, "expire")
     }
 
-    function timeoutFor(notification: var): int {
-        // Critical urgency waits for the user. Anything else that asks to stay
-        // forever is capped, or a misbehaving application owns the island.
-        if (root.isCritical(notification))
-            return 0
-        if (notification.expireTimeout > 0)
-            return Math.min(notification.expireTimeout, 15000)
-        return root.defaultTimeout
-    }
-
-    function present(object: var): void {
-        const notification = root.snapshot(object)
-
-        // Some headset utilities also send a desktop "Headset Online"
-        // notification. The headset monitor already reports connection state
-        // through OsdService, so translate matching notices to the same OSD
-        // presentation rather than showing a second, differently styled card.
-        const appName = (notification.appName ?? "").toLowerCase()
-        const isHeadsetApp = /\b(jbl[-_]quantum|headsetcontrol|jbl-quantum-tray)\b/i.test(appName)
-            || (HeadsetService.model !== "" && appName.includes(HeadsetService.model.toLowerCase()))
-        const headsetNotice = `${notification.summary ?? ""} ${notification.body ?? ""}`
-        if (isHeadsetApp
-                && /\b(online|connected|offline|disconnected)\b/i.test(headsetNotice)) {
-            const connected = !/\b(offline|disconnected)\b/i.test(headsetNotice)
-            const battery = HeadsetService.battery
-            const suffix = connected && battery >= 0 ? ` · ${battery}%` : ""
-            OsdService.requested(
-                connected ? "\udb80\udecb" : "\udb81\udfce",
-                connected ? `Headset Connected${suffix}` : "Headset Disconnected",
-                connected && battery >= 0 ? battery / 100.0 : -1
-            )
+    // Let go of the live object: "expire", "dismiss", or "" when the
+    // application already closed it.
+    function release(key: int, how: string): void {
+        const object = root.live[key]
+        delete root.live[key]
+        const e = root.entries[key]
+        if (e) {
+            e.alive = false
+            if (root.isImageData(e.picture))
+                e.picture = ""
+            root.revision += 1
+        }
+        if (object && how === "expire")
             object.expire()
-            return
-        }
-
-        const oldHistory = root.history
-        root.history = [notification].concat(root.history).slice(0, root.historyLimit)
-
-        if (oldHistory.length >= root.historyLimit) {
-            const dropped = oldHistory.slice(root.historyLimit - 1)
-            for (const item of dropped) {
-                if (!root.shown.some(e => e.key === item.key) && !root.waiting.some(e => e.key === item.key)) {
-                    root.dismissKey(item.key)
-                }
-            }
-        }
-
-        // Critical notifications ignore do-not-disturb. One that never reaches
-        // the island is expired at once, so a sender waiting on it
-        // (`notify-send --wait`) is not left hanging.
-        const key = notification.key
-        const live = Object.assign({}, root.liveObjects)
-        live[key] = object
-        root.liveObjects = live
-        // The application closed it, or it was expired or dismissed here.
-        object.closed.connect(() => root.forget(key))
-
-        if (root.doNotDisturb && !root.isCritical(notification)) {
-            root.retireKey(key)
-            return
-        }
-
-        root.enqueue(notification)
-        root.arrived(notification)
-    }
-
-    function enqueue(notification: var): void {
-        if (root.shown.length < root.maxShown) {
-            root.show(notification)
-        } else if (root.isCritical(notification)) {
-            // A critical one never waits: the oldest ordinary one steps back
-            // to the front of the queue, its time reset.
-            const bumped = root.shown.slice().reverse().find(entry => !root.isCritical(entry))
-            if (bumped) {
-                root.shown = root.shown.filter(entry => entry.key !== bumped.key)
-                const deadlines = Object.assign({}, root.deadlines)
-                delete deadlines[bumped.key]
-                root.deadlines = deadlines
-                root.waiting = [bumped].concat(root.waiting)
-                root.show(notification)
-            } else {
-                root.waiting = [notification].concat(root.waiting)
-            }
-        } else {
-            root.waiting = root.waiting.concat([notification])
-        }
-    }
-
-    function show(notification: var): void {
-        const timeout = root.timeoutFor(notification)
-        if (timeout > 0) {
-            const deadlines = Object.assign({}, root.deadlines)
-            deadlines[notification.key] = Date.now() + timeout
-            root.deadlines = deadlines
-        }
-        root.shown = [notification].concat(root.shown)
-    }
-
-    function promoteWaiting(): void {
-        while (root.shown.length < root.maxShown && root.waiting.length > 0) {
-            const next = root.waiting[0]
-            root.waiting = root.waiting.slice(1)
-            root.show(next)
-        }
-    }
-
-    function hideKey(key: int): void {
-        root.shown = root.shown.filter(entry => entry.key !== key)
-        root.waiting = root.waiting.filter(entry => entry.key !== key)
-        const deadlines = Object.assign({}, root.deadlines)
-        delete deadlines[key]
-        root.deadlines = deadlines
-        root.promoteWaiting()
-    }
-
-    // Drop a live object without calling it; it may already have been deleted.
-    function forget(key: int): void {
-        if (!(key in root.liveObjects))
-            return
-        const live = Object.assign({}, root.liveObjects)
-        delete live[key]
-        root.liveObjects = live
-        root.hideKey(key)
-    }
-
-    // Timed out on deadline or explicitly dismissed: notifies the sending application via expire(),
-    // freeing callers like notify-send --wait, while keeping the plain snapshot in history.
-    function dismissKey(key: int): void {
-        const object = root.liveObjects[key]
-        root.forget(key)
-        if (object)
-            object.expire()
-    }
-
-    // Off the island (timed out, dismissed in bulk, do-not-disturb) but still
-    // in the history. One with actions stays alive so clicking it in the
-    // history can still run them (Discord opens the channel); one without is
-    // expired at once, freeing callers like notify-send --wait.
-    function retireKey(key: int): void {
-        root.hideKey(key)
-        const object = root.liveObjects[key]
-        if (object && (object.actions ?? []).length === 0)
-            root.dismissKey(key)
-    }
-
-    // The user closed it (its cross): the application is told it was dismissed.
-    function closeKey(key: int): void {
-        const object = root.liveObjects[key]
-        root.forget(key)
-        if (object)
+        else if (object && how === "dismiss")
             object.dismiss()
     }
 
-    // Runs one of its actions ("default" for a click on it).
-    function invokeKey(key: int, identifier: string): void {
-        const object = root.liveObjects[key]
-        root.forget(key)
-        if (!object)
+    function handleClosed(key: int): void {
+        if (!(key in root.live))
             return
-        const action = (object.actions ?? []).find(a => a.identifier === identifier)
+        root.release(key, "")
+        root.hidePopup(key)
+    }
+
+    // The user closed a popup: gone from the island, kept in the history.
+    function close(key: int): void {
+        root.hidePopup(key)
+        root.release(key, "dismiss")
+    }
+
+    // Removed from the history (and the island, if it is up).
+    function remove(key: int): void {
+        root.hidePopup(key)
+        root.release(key, "dismiss")
+        root.removeFromHistory(key)
+        delete root.entries[key]
+        root.revision += 1
+    }
+
+    function dismissPopups(): void {
+        const keys = root.queue.slice()
+        for (let i = 0; i < root.popups.count; i++)
+            keys.push(root.popups.get(i).key)
+        for (const key of keys)
+            root.retire(key)
+    }
+
+    function clearGroup(group: string): void {
+        for (const key of (root.groupKeys[group] ?? []).slice())
+            root.remove(key)
+    }
+
+    function clearHistory(): void {
+        for (const key of root.order.slice())
+            root.remove(key)
+    }
+
+    //
+    // Clicks.
+
+    // The live object is dropped before an action runs: invoking can make the
+    // server close (and delete) it on the spot.
+    function invoke(key: int, identifier: string): void {
+        const object = root.live[key]
+        const action = object ? (object.actions ?? []).find(a => a.identifier === identifier) : null
+        if (action)
+            delete root.live[key]
+        root.remove(key)
         if (action)
             action.invoke()
     }
 
-    // Popups and history use the same snapshots. Prefer a live default action,
-    // then fall back to the saved URL, screenshot path or application identity.
-    function activate(notification: var): void {
-        if (!notification)
+    // A click on the card: its default action while the application still
+    // listens, else whatever it points at.
+    function activate(key: int): void {
+        const object = root.live[key]
+        const e = root.entries[key]
+        if (!e)
             return
-        if (!root.invokeDefaultAction(notification))
-            root.openTarget(notification)
-        root.hideKey(notification.key)
-    }
-
-    function invokeDefaultAction(notification: var): bool {
-        const object = root.liveObjects[notification.key]
-        if (!object)
-            return false
-        const actions = object.actions ?? []
-        const action = actions.find(a => a.identifier === "default")
-            ?? (actions.length > 0 ? actions[0] : null)
-        if (!action || typeof action.invoke !== "function")
-            return false
-        try {
+        const actions = object ? (object.actions ?? []) : []
+        const action = actions.find(a => a.identifier === "default") ?? actions[0]
+        if (action)
+            delete root.live[key]
+        root.remove(key)
+        if (action)
             action.invoke()
-            return true
-        } catch (e) {
-            console.warn("[NotificationService] Error invoking action:", e)
-            return false
-        }
+        else
+            root.openTarget(e)
     }
 
-    function openTarget(notification: var): void {
-        const text = `${notification.summary ?? ""} ${notification.body ?? ""}`
-        const urlMatch = text.match(/https?:\/\/[^\s<>"']+/)
-        if (urlMatch) {
-            Qt.openUrlExternally(urlMatch[0])
+    function openTarget(e: var): void {
+        const url = `${e.summary} ${e.body}`.match(/https?:\/\/[^\s<>"']+/)
+        if (url) {
+            Qt.openUrlExternally(url[0])
             return
         }
-
-        // Screenshot notifications carry their saved file as the image hint,
-        // but have no application desktop entry to launch.
-        if ((notification.appName ?? "").toLowerCase() === "screenshot") {
-            const image = notification.picture ?? ""
-            if (`${image}`.startsWith("file://")) {
-                Qt.openUrlExternally(image)
-                return
-            }
+        // Screenshots carry their file as the picture.
+        if (e.group === "screenshot" && e.picture.startsWith("file://")) {
+            Qt.openUrlExternally(e.picture)
+            return
         }
-
-        root.focusOrLaunchApp(
-            notification.appName ?? "",
-            notification.desktopEntry ?? ""
-        )
-    }
-
-    function focusOrLaunchApp(appName: string, desktopEntry: string): void {
-        const id = desktopEntry || appName
-        if (id && /^[\w.\-]+$/.test(id)) {
+        const id = e.desktopEntry || e.appName
+        if (/^[\w.\-]+$/.test(id))
             Hyprland.dispatch(`hl.dsp.focus({ window = "class:${id.toLowerCase()}" })`)
-        }
+        const desktop = root.desktopEntryOf(e)
+        if (desktop)
+            desktop.execute()
+    }
 
-        const entry = (desktopEntry ? DesktopEntries.byId(desktopEntry) : null)
-            ?? DesktopEntries.heuristicLookup(appName)
-        if (entry && typeof entry.execute === "function") {
-            try {
-                entry.execute()
-            } catch (e) {
-                console.warn("[NotificationService] Error executing desktop entry:", e)
+    //
+    // History.
+
+    function addToHistory(key: int): void {
+        const group = root.entries[key].group
+        root.order = [key].concat(root.order)
+        const keys = root.groupKeys[group] ?? []
+        root.groupKeys[group] = [key].concat(keys)
+        root.groupKeysChanged()
+
+        let index = -1
+        for (let i = 0; i < root.groups.count; i++) {
+            if (root.groups.get(i).group === group) {
+                index = i
+                break
             }
+        }
+        if (index < 0)
+            root.groups.insert(0, { group: group })
+        else if (index > 0)
+            root.groups.move(index, 0, 1)
+
+        while (root.order.length > root.historyLimit)
+            root.remove(root.order[root.order.length - 1])
+        root.scheduleSave()
+    }
+
+    function removeFromHistory(key: int): void {
+        const e = root.entries[key]
+        if (!e)
+            return
+        root.order = root.order.filter(k => k !== key)
+        const keys = (root.groupKeys[e.group] ?? []).filter(k => k !== key)
+        if (keys.length > 0) {
+            root.groupKeys[e.group] = keys
         } else {
-            console.warn("[NotificationService] No desktop entry for notification:", appName, desktopEntry)
-        }
-    }
-
-    // Everything off the island and out of the queue.
-    function dismiss(): void {
-        for (const entry of root.shown.concat(root.waiting))
-            root.retireKey(entry.key)
-    }
-
-    function clearHistory(): void {
-        for (const entry of root.history) {
-            if (!root.shown.some(e => e.key === entry.key) && !root.waiting.some(e => e.key === entry.key)) {
-                root.dismissKey(entry.key)
+            delete root.groupKeys[e.group]
+            for (let i = 0; i < root.groups.count; i++) {
+                if (root.groups.get(i).group === e.group) {
+                    root.groups.remove(i)
+                    break
+                }
             }
         }
-        root.history = []
+        root.groupKeysChanged()
+        root.scheduleSave()
     }
 
-    function remove(notification: var): void {
-        root.history = root.history.filter(entry => entry.key !== notification.key)
-        root.dismissKey(notification.key)
+    // "now", "5m", "2h", "3d".
+    property real minuteNow: Date.now()
+    readonly property Timer minuteTick: Timer {
+        interval: 30000
+        repeat: true
+        running: root.count > 0
+        onTriggered: root.minuteNow = Date.now()
     }
 
-    // Do Not Disturb state, toggled from the notification center. Not kept
-    // across restarts.
-    property bool doNotDisturb: false
+    function ago(time: real): string {
+        const minutes = Math.floor((root.minuteNow - time) / 60000)
+        if (minutes < 1)
+            return "now"
+        if (minutes < 60)
+            return `${minutes}m`
+        if (minutes < 1440)
+            return `${Math.floor(minutes / 60)}h`
+        return `${Math.floor(minutes / 1440)}d`
+    }
 
-    function toggleDoNotDisturb(): void {
-        root.doNotDisturb = !root.doNotDisturb
-        if (root.doNotDisturb)
-            root.dismiss()
+    //
+    // The history survives reloads and restarts (until logout: the file is
+    // in the runtime directory). Popups are not restored.
+
+    readonly property FileView historyFile: FileView {
+        path: `${Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"}/quickshell_notifications.json`
+        blockLoading: true
+        printErrors: false
+    }
+
+    // True when the history came from this same Quickshell instance (a config
+    // reload), so the server's tracked objects can be matched to it.
+    property bool restoredGeneration: false
+    property bool loaded: false
+
+    function load(): void {
+        let saved = null
+        try {
+            saved = JSON.parse(root.historyFile.text() || "null")
+        } catch (e) {
+            saved = null
+        }
+        const list = saved && Array.isArray(saved.history) ? saved.history : []
+        root.restoredGeneration = saved?.instanceId === Quickshell.instanceId
+        // Oldest first, so each lands on top of the one before.
+        for (const e of list.slice().reverse()) {
+            if (!e || typeof e.key !== "number" || typeof e.group !== "string")
+                continue
+            if (root.isImageData(e.picture ?? ""))
+                e.picture = ""
+            e.alive = false
+            root.entries[e.key] = e
+            root.serial = Math.max(root.serial, e.key)
+            root.addToHistory(e.key)
+        }
+        root.revision += 1
+        root.loaded = true
+    }
+
+    function scheduleSave(): void {
+        if (root.loaded)
+            root.saveTimer.restart()
+    }
+
+    readonly property Timer saveTimer: Timer {
+        interval: 500
+        onTriggered: root.historyFile.setText(JSON.stringify({
+            instanceId: Quickshell.instanceId,
+            history: root.order.map(key => {
+                const e = Object.assign({}, root.entries[key])
+                delete e.deadline
+                delete e.remaining
+                return e
+            })
+        }))
+    }
+
+    Component.onCompleted: root.load()
+
+    // quickshell ipc call notifications <dismiss|clear|toggleDnd>
+    readonly property IpcHandler ipc: IpcHandler {
+        target: "notifications"
+        function dismiss(): void { root.dismissPopups() }
+        function clear(): void { root.clearHistory() }
+        function toggleDnd(): void { root.toggleDoNotDisturb() }
     }
 }

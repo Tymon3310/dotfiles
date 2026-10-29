@@ -1,16 +1,15 @@
-// github.com/andreumassanet/impasto
-
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import Quickshell.Widgets
-
-import Quickshell.Services.Notifications
 
 import "../../../theme"
 import "../../../services"
 import "../../../components"
+import ".."
 
+// The dashboard's notification history, grouped by application, the most
+// recently active group first. A group shows its newest notification; the
+// rest unfold from its header.
 Card {
     id: root
 
@@ -31,7 +30,7 @@ Card {
             }
 
             Rectangle {
-                visible: NotificationService.history.length > 0
+                visible: NotificationService.count > 0
                 implicitWidth: Math.max(18, count.implicitWidth + 10)
                 implicitHeight: 17
                 radius: height / 2
@@ -40,7 +39,7 @@ Card {
                 Text {
                     id: count
                     anchors.centerIn: parent
-                    text: NotificationService.history.length
+                    text: NotificationService.count
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.DemiBold
@@ -50,8 +49,17 @@ Card {
 
             Item { Layout.fillWidth: true }
 
+            IconButton {
+                icon: NotificationService.doNotDisturb ? "󰂛" : "󰂚"
+                iconSize: 13
+                iconColor: NotificationService.doNotDisturb ? Theme.accent : Theme.textMuted
+                implicitWidth: 24
+                implicitHeight: 22
+                onClicked: NotificationService.toggleDoNotDisturb()
+            }
+
             Text {
-                visible: NotificationService.history.length > 0
+                visible: NotificationService.count > 0
                 text: "Clear"
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSmall
@@ -73,27 +81,25 @@ Card {
         Text {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: NotificationService.history.length === 0
+            visible: NotificationService.count === 0
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
-            text: "Nothing new"
+            text: NotificationService.doNotDisturb ? "Do not disturb is on" : "Nothing new"
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeSmall
             color: Theme.textMuted
         }
 
-        // Scrolls; every entry is as tall as its text, nothing elided. The
-        // service keeps the newest 50 and drops the oldest.
         ListView {
             id: list
 
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: NotificationService.history.length > 0
+            visible: NotificationService.count > 0
             clip: true
-            spacing: 6
+            spacing: 10
             boundsBehavior: Flickable.StopAtBounds
-            model: NotificationService.history
+            model: NotificationService.groups
 
             ScrollBar.vertical: ScrollBar {
                 policy: list.contentHeight > list.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
@@ -105,125 +111,86 @@ Card {
                 }
             }
 
-            // For "2 min ago"; refreshed each minute.
-            property real now: Date.now()
+            delegate: Column {
+                id: group
 
-            Timer {
-                interval: 60000
-                running: list.visible
-                repeat: true
-                onTriggered: list.now = Date.now()
-            }
+                required property string group
 
-            delegate: Rectangle {
-                id: entry
-
-                required property var modelData
-
-                readonly property bool critical:
-                    entry.modelData.urgency === NotificationUrgency.Critical
+                readonly property var keys: NotificationService.groupKeys[group.group] ?? []
+                readonly property var newest: NotificationService.entry(group.keys[0] ?? -1)
+                property bool expanded: false
 
                 width: ListView.view.width - 8
-                height: row.implicitHeight + 16
-                radius: Theme.radiusSmall
-                color: (entryMouse.containsMouse || entryHover.hovered) ? Theme.rowHover : Theme.rowRest
+                spacing: 4
 
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                // Header: icon, app, how many, and the group's controls.
+                Item {
+                    width: parent.width
+                    height: 20
 
-                RowLayout {
-                    id: row
+                    HoverHandler { id: headerHover }
 
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.topMargin: 8
-                    anchors.leftMargin: 9
-                    anchors.rightMargin: 34
-                    spacing: 9
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 2
+                        spacing: 6
 
-                    NotificationPicture {
-                        Layout.preferredWidth: 30
-                        Layout.preferredHeight: 30
-                        Layout.alignment: Qt.AlignTop
-                        notification: entry.modelData
-                        critical: entry.critical
-                    }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        Layout.alignment: Qt.AlignTop
-                        spacing: 2
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: entry.modelData.summary
-                            wrapMode: Text.Wrap
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.weight: Font.DemiBold
-                            color: Theme.text
+                        NotificationPicture {
+                            Layout.preferredWidth: 16
+                            Layout.preferredHeight: 16
+                            entry: group.newest ? Object.assign({}, group.newest, { picture: "", critical: false }) : null
                         }
 
                         Text {
-                            Layout.fillWidth: true
-                            visible: text !== ""
-                            text: entry.modelData.body ?? ""
-                            textFormat: Text.StyledText
-                            wrapMode: Text.Wrap
+                            text: group.newest?.appName ?? ""
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeLabel
+                            font.weight: Font.DemiBold
+                            font.capitalization: Font.AllUppercase
+                            font.letterSpacing: 0.4
+                            color: Theme.textMuted
+                        }
+
+                        Text {
+                            visible: group.keys.length > 1
+                            text: group.keys.length
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeLabel
                             color: Theme.textMuted
-                            linkColor: Theme.accent
-                            onLinkActivated: link => {
-                                Qt.openUrlExternally(link)
-                            }
+                            opacity: 0.6
                         }
 
-                        Text {
-                            Layout.fillWidth: true
-                            text: {
-                                const minutes = Math.floor((list.now - (entry.modelData.time ?? list.now)) / 60000)
-                                const age = minutes < 1 ? "now"
-                                    : minutes < 60 ? `${minutes} min ago`
-                                    : `${Math.floor(minutes / 60)} h ago`
-                                return `${entry.modelData.appName} · ${age}`
-                            }
-                            elide: Text.ElideRight
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 9
-                            color: Theme.textMuted
-                            opacity: 0.7
+                        Item { Layout.fillWidth: true }
+
+                        IconButton {
+                            visible: group.keys.length > 1
+                            icon: group.expanded ? "󰅃" : "󰅀"
+                            iconSize: 11
+                            implicitWidth: 20
+                            implicitHeight: 18
+                            onClicked: group.expanded = !group.expanded
+                        }
+
+                        IconButton {
+                            opacity: headerHover.hovered ? 1 : 0
+                            icon: "󰅖"
+                            iconSize: 10
+                            implicitWidth: 20
+                            implicitHeight: 18
+                            onClicked: NotificationService.clearGroup(group.group)
                         }
                     }
-
                 }
 
-                // Keep the whole row's click target above its passive text and
-                // image children, while the dismiss button sits above it.
-                MouseArea {
-                    id: entryMouse
-                    anchors.fill: parent
-                    z: 1
-                    cursorShape: Qt.PointingHandCursor
-                    hoverEnabled: true
-                    onClicked: NotificationService.activate(entry.modelData)
-                }
+                Repeater {
+                    model: group.expanded ? group.keys : group.keys.slice(0, 1)
 
-                IconButton {
-                    anchors.top: parent.top
-                    anchors.topMargin: 8
-                    anchors.right: parent.right
-                    anchors.rightMargin: 8
-                    z: 2
-                    opacity: (entryMouse.containsMouse || entryHover.hovered) ? 1 : 0
-                    Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
-                    icon: "󰅖"
-                    iconSize: 11
-                    onClicked: NotificationService.remove(entry.modelData)
-                }
-
-                HoverHandler {
-                    id: entryHover
+                    NotificationCard {
+                        required property int modelData
+                        key: modelData
+                        width: group.width
+                        popup: false
+                    }
                 }
             }
         }
