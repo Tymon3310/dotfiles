@@ -16,7 +16,3 @@ echo "YOU ARE IN BASH, TYPE ZSH FOR MORE FULL FEATURED SHELL"
 
 export PATH="$HOME/.local/bin:$HOME/.wakatime:$PATH"
 command -v terminal-wakatime >/dev/null 2>&1 && eval "$(terminal-wakatime init)"
-
-if [ -z "$WAYLAND_DISPLAY" ] && [ "$(tty 2>/dev/null)" = "/dev/tty8" ]; then
-	exec start-hyprland
-fi

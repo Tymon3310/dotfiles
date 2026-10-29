@@ -101,3 +101,66 @@ tomp3 () {
     return 1
   fi
 }
+
+# Start the normal desktop session from SSH, the same one the SDDM greeter
+# starts. SDDM is restarted with a one-off autologin, which is removed again
+# straight after, so the next boot shows the greeter as usual.
+# The desktop is locked once it is up; pass -u / --unlocked to leave it open.
+start-remote-hyprland() {
+    local lock=1 session=hyprland.desktop
+    local conf=/etc/sddm.conf.d/zz-remote-autologin.conf
+    case "$1" in
+        -u|--unlocked) lock=0 ;;
+        "") ;;
+        *) echo "usage: start-remote-hyprland [-u|--unlocked]" >&2; return 2 ;;
+    esac
+
+    _desktop_session_id() {
+        local id
+        for id in ${(f)"$(loginctl list-sessions --no-legend | awk -v u="$USER" '$3 == u {print $1}')"}; do
+            [[ $(loginctl show-session "$id" -p Type --value) == (wayland|x11) ]] && { print -r -- "$id"; return 0 }
+        done
+        return 1
+    }
+
+    local id
+    if id=$(_desktop_session_id); then
+        echo "A desktop session is already running (session $id)."
+        return 0
+    fi
+
+    sudo -v || return 1
+    {
+        printf '[Autologin]\nUser=%s\nSession=%s\nRelogin=false\n' "$USER" "$session" \
+            | sudo tee "$conf" >/dev/null || return 1
+        echo "Restarting SDDM to log in..."
+        sudo systemctl restart sddm || return 1
+        local i
+        for i in {1..60}; do
+            id=$(_desktop_session_id) && break
+            sleep 0.5
+        done
+    } always {
+        sudo rm -f "$conf"
+    }
+    if [[ -z $id ]]; then
+        echo "No desktop session appeared after 30 s; see: journalctl -b -u sddm" >&2
+        return 1
+    fi
+    echo "Hyprland is up (session $id)."
+
+    (( lock )) || return 0
+    # Quickshell owns the lock screen and finds its instance by Wayland
+    # display, which an SSH shell doesn't have: take it from Hyprland.
+    local wl
+    for i in {1..40}; do
+        wl=$(hyprctl instances -j 2>/dev/null | jq -r 'max_by(.time).wl_socket // empty')
+        if [[ -n $wl ]] && WAYLAND_DISPLAY=$wl ~/.config/quickshell/scripts/qs-ipc.sh call lock trigger >/dev/null 2>&1; then
+            echo "Desktop locked."
+            return 0
+        fi
+        sleep 0.5
+    done
+    echo "Could not lock the desktop (Quickshell did not answer); it is unlocked!" >&2
+    return 1
+}

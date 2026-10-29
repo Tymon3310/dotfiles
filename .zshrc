@@ -1,9 +1,3 @@
-
-# tty8 starts Hyprland straight away, before any plugins or fastfetch load
-if [ -z "$WAYLAND_DISPLAY" ] && [ "$(tty 2>/dev/null)" = "/dev/tty8" ]; then
-	exec start-hyprland
-fi
-
 # Keep PATH clean and deduplicated
 typeset -U path PATH
 
