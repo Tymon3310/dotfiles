@@ -164,7 +164,27 @@ local function schedule_workspace_recovery()
     end, { timeout = 150, type = "oneshot" })
 end
 
-local wallpaper_restart_pending = false
+-- The wallpaper engine loses a returning output, so it is restarted once the
+-- monitors have settled. Every monitor event pushes the restart back: one
+-- monitor returning can make the others re-modeset, and an engine started
+-- in the middle of that leaves a mapped but blank surface on one of them.
+local wallpaper_restart_wanted = false
+local wallpaper_generation = 0
+
+local function push_wallpaper_restart()
+    wallpaper_generation = wallpaper_generation + 1
+    local generation = wallpaper_generation
+    hl.timer(function()
+        if generation ~= wallpaper_generation or not wallpaper_restart_wanted then return end
+        wallpaper_restart_wanted = false
+        hl.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/wallpaper-restart.sh")
+    end, { timeout = 2500, type = "oneshot" })
+end
+
+local function on_monitor_removed()
+    schedule_workspace_recovery()
+    push_wallpaper_restart()
+end
 
 local function schedule_workspace_restore()
     -- After Hyprland has moved the persistent workspaces back.
@@ -173,19 +193,12 @@ local function schedule_workspace_restore()
         recover_rogue_windows()
     end, { timeout = 150, type = "oneshot" })
 
-    -- The wallpaper engine loses the returning output; restart it once the
-    -- monitor has settled (one restart even if several come back at once).
-    if not wallpaper_restart_pending then
-        wallpaper_restart_pending = true
-        hl.timer(function()
-            wallpaper_restart_pending = false
-            hl.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/wallpaper-restart.sh")
-        end, { timeout = 2000, type = "oneshot" })
-    end
+    wallpaper_restart_wanted = true
+    push_wallpaper_restart()
 end
 
 local function setup_events()
-    hl.on("monitor.removed", schedule_workspace_recovery)
+    hl.on("monitor.removed", on_monitor_removed)
     hl.on("monitor.added", schedule_workspace_restore)
 end
 

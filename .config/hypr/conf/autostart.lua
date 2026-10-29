@@ -11,7 +11,9 @@ hl.on("hyprland.start", function()
     hl.exec_cmd(SCRIPTS .. "/gtk.sh")
     hl.exec_cmd("hypridle")
     hl.exec_cmd("wl-paste --watch cliphist store")
-    hl.exec_cmd("quickshell")
+    -- Hyprland closing each query socket logs a warning; HyprlandService is the
+    -- only socket user, so muting the category hides nothing else.
+    hl.exec_cmd("quickshell --log-rules 'quickshell.io.socket.warning=false'")
     hl.exec_cmd("kbuildsycoca6 --noincremental")
     hl.exec_cmd("playerctld daemon")
     hl.exec_cmd("vicinae server")
