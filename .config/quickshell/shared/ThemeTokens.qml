@@ -1,4 +1,4 @@
-// Common design tokens, derived from impasto (GPL-3.0; see parts/LICENSE).
+// Common design tokens, shared by the desktop shell and the screenshot tool.
 import QtQuick
 
 QtObject {

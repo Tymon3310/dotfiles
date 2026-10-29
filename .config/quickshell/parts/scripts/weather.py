@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-# github.com/andreumassanet/impasto
-
 """One wttr.in reading, reduced to what the weather card shows.
 
 With no place configured, wttr.in locates the request by IP, which needs no

@@ -1,4 +1,4 @@
-// Concave bezel corner, derived from impasto (GPL-3.0; see parts/LICENSE).
+// Concave bezel corner where a notch meets the screen edge.
 import QtQuick
 import QtQuick.Shapes
 

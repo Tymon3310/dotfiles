@@ -1,5 +1,3 @@
-// github.com/andreumassanet/impasto
-
 import "../theme"
 import "../../shared" as Shared
 

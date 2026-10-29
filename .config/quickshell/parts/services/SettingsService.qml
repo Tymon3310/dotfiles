@@ -1,11 +1,9 @@
-// github.com/andreumassanet/impasto
-
 pragma Singleton
 
 import QtQuick
 import Quickshell
 
-// Stand-in for impasto's SettingsService: only the keys the parts under
+// The shell's preferences: only the keys the parts under
 // `parts/` read, as plain properties. Nothing is saved; assign a property
 // (`SettingsService.barHeight = 30`) or call `set()` to change it for this run.
 Singleton {
