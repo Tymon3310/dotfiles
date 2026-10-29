@@ -54,7 +54,6 @@ hl.bind("SUPER + SHIFT + S", hl.dsp.exec_cmd(pref.SCREENSHOT))
 hl.bind("SUPER + SHIFT + R", hl.dsp.exec_cmd(pref.RECORD))
 hl.bind("SUPER + V", hl.dsp.exec_cmd(pref.CLIP))
 hl.bind("SUPER + L", hl.dsp.exec_cmd(pref.LOCK))
-hl.bind("CTRL + SHIFT + 2", hl.dsp.global("com.t3tools.T3Code:capture-window"))
 
 layout.setup_events()
 
