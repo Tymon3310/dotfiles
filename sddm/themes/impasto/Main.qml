@@ -1,6 +1,7 @@
 // github.com/andreumassanet/impasto
 
 import QtQuick
+import QtQuick.Window
 import QtQuick.Shapes
 import QtQuick.Effects
 
@@ -25,16 +26,66 @@ Rectangle {
         mipmap: false
     }
 
-    // Let the wallpaper stay vivid while gently protecting the clock and
-    // controls from bright or busy areas of the image.
+    // The wallpaper goes out of focus as the greeter appears (the blur
+    // strength follows `reveal`), like the desktop's lock screen.
+    property real reveal: 0
+    property real clockReveal: 0
+    SequentialAnimation {
+        running: true
+        PauseAnimation { duration: 150 }
+        ParallelAnimation {
+            NumberAnimation { target: root; property: "reveal"; to: 1; duration: 700; easing.type: Easing.OutCubic }
+            SequentialAnimation {
+                PauseAnimation { duration: 180 }
+                NumberAnimation { target: root; property: "clockReveal"; to: 1; duration: 600; easing.type: Easing.OutCubic }
+            }
+        }
+    }
+
+    MultiEffect {
+        anchors.fill: parent
+        source: bgImage
+        blurEnabled: true
+        blur: root.reveal
+        blurMax: 48
+        brightness: -0.04 * root.reveal
+    }
+
     Rectangle {
         anchors.fill: parent
+        color: "#bf000000"
+        opacity: 0.22 * root.reveal
+    }
+
+    // Darker towards the bottom, where the clock and the controls sit.
+    Rectangle {
+        anchors.fill: parent
+        opacity: root.reveal
         gradient: Gradient {
-            GradientStop { position: 0.0; color: "#08000000" }
-            GradientStop { position: 0.42; color: "#10000000" }
-            GradientStop { position: 0.72; color: "#38000000" }
-            GradientStop { position: 1.0; color: "#a8000000" }
+            GradientStop { position: 0.0; color: "#00000000" }
+            GradientStop { position: 0.45; color: "#10000000" }
+            GradientStop { position: 0.75; color: "#50000000" }
+            GradientStop { position: 1.0; color: "#b0000000" }
         }
+    }
+
+    // Shared by the clock and the password: the corner's inset.
+    readonly property int marginX: Math.round(root.width * 0.055)
+    readonly property int marginBottom: Math.round(root.height * 0.09)
+    readonly property int timeSize: Math.round(root.height * 0.2)
+
+    // One wake animation for the bottom-left block: the clock lifts first and
+    // the password follows into the room it leaves; going back, the password
+    // leaves first and the clock settles after.
+    property real awakeP: root.awake ? 1 : 0
+    Behavior on awakeP {
+        NumberAnimation { duration: 460; easing.type: root.awake ? Easing.OutCubic : Easing.InOutCubic }
+    }
+    readonly property real pillReveal: Math.max(0, Math.min(1, (root.awakeP - 0.4) / 0.6))
+
+    // Date, time: each rises in on its own.
+    function part(index: int): real {
+        return Math.max(0, Math.min(1, (root.clockReveal - index * 0.12) / 0.76))
     }
 
 
@@ -59,6 +110,53 @@ Rectangle {
 
 
     readonly property bool isPrimary: (typeof primaryScreen !== "undefined" ? primaryScreen : true)
+
+    // Each screen plays a part instead of showing the same login three
+    // times: the primary one logs in; the others, left to right, show a
+    // greeting (pointing at the login screen) and the day as a calendar
+    // page. Each screen runs its own greeter, so a key or click on a side
+    // screen makes that one a login screen too: a password is never typed
+    // into a field nobody can see.
+    property bool claimed: false
+
+    // KWin gives the keyboard to the greeter shown last, often a side
+    // screen's. The primary one asks for it once all are up.
+    Timer {
+        interval: 600
+        running: root.isPrimary
+        onTriggered: {
+            if (root.Window.window)
+                root.Window.window.requestActivate()
+        }
+    }
+
+    // A key on a side screen with the mouse elsewhere: point at the login
+    // screen instead of opening one here.
+    property bool sideHint: false
+    Timer {
+        id: sideHintTimer
+        interval: 2500
+        onTriggered: root.sideHint = false
+    }
+    HoverHandler { id: screenHover }
+    readonly property var primaryInfo: Qt.application.screens.length > 0
+        ? Qt.application.screens[0] : null
+    readonly property var sideNames: {
+        const list = []
+        for (let i = 1; i < Qt.application.screens.length; i++)
+            list.push(Qt.application.screens[i])
+        return list.sort((a, b) => a.virtualX - b.virtualX).map(s => s.name)
+    }
+    readonly property string role: {
+        if (root.isPrimary || root.claimed || Qt.application.screens.length <= 1)
+            return "main"
+        return root.sideNames.indexOf(Screen.name) === 0 ? "greeting" : "date"
+    }
+    property real mainFade: root.role === "main" ? 1 : 0
+    Behavior on mainFade { NumberAnimation { duration: 380; easing.type: Easing.OutCubic } }
+    // Where the login screen is, from here.
+    readonly property bool loginOnLeft: root.primaryInfo
+        ? root.primaryInfo.virtualX < Screen.virtualX : true
     property bool awake: false
 
     property bool authenticating: false
@@ -111,6 +209,8 @@ Rectangle {
     }
 
     function wakeUp(): void {
+        root.claimed = true
+        root.sideHint = false
         if (!root.awake) {
             root.awake = true
             Qt.callLater(account.claim)
@@ -475,57 +575,54 @@ Rectangle {
         onTriggered: root.now = new Date()
     }
 
+    // Bottom left: the date and a very large time, lifted to make room for
+    // the password when awake.
     Item {
         id: clockContainer
 
-        readonly property real restY: Math.round((root.height - clockCol.implicitHeight) / 2 - 30)
-        readonly property real awakeY: Math.max(68, Math.round(root.height * 0.14))
-
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: clockContainer.restY + (clockContainer.awakeY - clockContainer.restY) * (root.awake ? 1 : 0)
+        x: root.marginX
+        y: root.height - root.marginBottom - height - root.awakeP * (account.pillHeight + 22)
+        opacity: root.mainFade
+        visible: opacity > 0.01
         width: clockCol.implicitWidth
         height: clockCol.implicitHeight
-        scale: root.awake ? 0.86 : 1.0
-        transformOrigin: Item.Top
-
-        Behavior on y {
-            NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing }
-        }
-        Behavior on scale {
-            NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing }
-        }
 
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowBlur: 0.8
-            shadowOpacity: 0.6
+            shadowBlur: 1
+            shadowOpacity: 0.5
             shadowVerticalOffset: 3
             shadowColor: Theme.island
         }
 
         Column {
             id: clockCol
-            anchors.centerIn: parent
-            spacing: 2
 
             Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: Qt.formatDateTime(root.now, "HH:mm")
+                x: Math.round(root.timeSize * 0.035)
+                text: Qt.formatDateTime(root.now, "dddd, d MMMM")
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeClock
-                font.weight: Font.Light
+                font.pixelSize: Math.max(15, Math.round(root.height * 0.016))
+                font.weight: Font.Medium
+                font.letterSpacing: 0.3
                 color: Theme.text
+                opacity: 0.85 * root.part(0)
+                transform: Translate { y: 14 * (1 - root.part(0)) }
             }
 
             Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: Qt.formatDateTime(root.now, "dddd, d MMMM")
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeLarge
+                text: Qt.formatDateTime(root.now, "HH:mm")
+                font.family: "Google Sans Display"
+                font.pixelSize: root.timeSize
                 font.weight: Font.Normal
+                font.letterSpacing: -root.timeSize * 0.03
+                font.features: { "tnum": 1 }
                 color: Theme.text
-                opacity: 0.85
+                height: Math.round(root.timeSize * 0.92)
+                verticalAlignment: Text.AlignVCenter
+                opacity: root.part(1)
+                transform: Translate { y: 24 * (1 - root.part(1)) }
             }
         }
 
@@ -537,23 +634,130 @@ Rectangle {
     }
 
 
+    // Side screen: a greeting, pointing at where to log in.
+    Column {
+        anchors.centerIn: parent
+        anchors.verticalCenterOffset: -Math.round(root.height * 0.03)
+        spacing: Math.round(root.height * 0.012)
+        opacity: (root.role === "greeting" ? 1 : 0) * root.clockReveal
+        visible: opacity > 0.01
+        Behavior on opacity { NumberAnimation { duration: 380 } }
+
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: {
+                const hour = root.now.getHours()
+                return hour < 5 ? qsTr("Good night")
+                    : hour < 12 ? qsTr("Good morning")
+                    : hour < 18 ? qsTr("Good afternoon")
+                    : qsTr("Good evening")
+            }
+            font.family: "Google Sans Display"
+            font.pixelSize: Math.round(root.height * 0.085)
+            color: Theme.text
+        }
+
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: root.loginOnLeft ? qsTr("←   log in on the left") : qsTr("log in on the right   →")
+            font.family: Theme.fontFamily
+            font.pixelSize: Math.round(root.height * 0.02)
+            color: Theme.text
+            opacity: 0.55
+        }
+    }
+
+    Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: Math.round(root.height * 0.12)
+        opacity: root.sideHint ? 0.9 : 0
+        visible: opacity > 0.01
+        Behavior on opacity { NumberAnimation { duration: 200 } }
+        text: root.loginOnLeft ? qsTr("←   Click the login screen to type") : qsTr("Click the login screen to type   →")
+        font.family: Theme.fontFamily
+        font.pixelSize: Math.round(root.height * 0.02)
+        font.weight: Font.Medium
+        color: Theme.text
+    }
+
+    Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 28
+        visible: root.role === "greeting"
+        text: sddm.hostName
+        font.family: Theme.fontMono
+        font.pixelSize: Theme.fontSizeSmall
+        color: Theme.text
+        opacity: 0.35 * root.clockReveal
+    }
+
+    // Side screen: the day, as a calendar page, beside the month.
+    Row {
+        anchors.centerIn: parent
+        anchors.verticalCenterOffset: -Math.round(root.height * 0.02)
+        spacing: Math.round(root.width * 0.07)
+        opacity: (root.role === "date" ? 1 : 0) * root.clockReveal
+        visible: opacity > 0.01
+        Behavior on opacity { NumberAnimation { duration: 380 } }
+
+        Column {
+            anchors.verticalCenter: parent.verticalCenter
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: Qt.formatDateTime(root.now, "dddd").toUpperCase()
+                font.family: Theme.fontFamily
+                font.pixelSize: Math.round(root.height * 0.02)
+                font.weight: Font.DemiBold
+                font.letterSpacing: Math.round(root.height * 0.006)
+                color: Theme.accent
+            }
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: Qt.formatDateTime(root.now, "d")
+                font.family: "Google Sans Display"
+                font.pixelSize: Math.round(root.height * 0.36)
+                color: Theme.text
+                height: Math.round(root.height * 0.36 * 0.95)
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: Qt.formatDateTime(root.now, "MMMM yyyy")
+                font.family: Theme.fontFamily
+                font.pixelSize: Math.round(root.height * 0.024)
+                color: Theme.text
+                opacity: 0.6
+            }
+        }
+
+        MonthGrid {
+            anchors.verticalCenter: parent.verticalCenter
+            today: root.now
+            cell: Math.round(root.height * 0.055)
+            fontFamily: Theme.fontFamily
+            textColor: Theme.text
+            accentColor: Theme.accent
+            accentTextColor: Theme.accentText
+        }
+    }
+
     AccountPill {
         id: account
 
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: Math.round(root.height * 0.20) - (root.awake ? 0 : 28)
-        opacity: root.awake ? 1 : 0
+        // Under the clock, lined up with the date.
+        x: root.marginX + Math.round(root.timeSize * 0.035) - 2
+        y: root.height - root.marginBottom - account.pillHeight + 12 * (1 - root.pillReveal)
+        opacity: root.pillReveal
+        scale: 0.98 + 0.02 * root.pillReveal
+        transformOrigin: Item.Left
         visible: opacity > 0
         // Sit above the black blob that floods out of it, then fade at the end
         z: root.exitFrom === "pill" && root.exitP > 0 ? 10000 : 10
-
-        Behavior on anchors.bottomMargin {
-            NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing }
-        }
-        Behavior on opacity {
-            NumberAnimation { duration: Theme.durationMedium; easing.type: Theme.easing }
-        }
 
         awake: root.awake
         users: userModel
@@ -587,8 +791,8 @@ Rectangle {
     Text {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 48
-        opacity: root.awake ? 0 : 0.65
+        anchors.bottomMargin: 28
+        opacity: root.awake ? 0 : 0.5 * root.clockReveal * root.mainFade
         visible: opacity > 0
         text: qsTr("Click anywhere or press any key to unlock")
         font.family: Theme.fontFamily
@@ -603,10 +807,11 @@ Rectangle {
 
     PowerRow {
         z: 60
-        anchors.left: parent.left
-        anchors.leftMargin: 20
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: 20
+        anchors.right: parent.right
+        anchors.rightMargin: 24
+        anchors.top: parent.top
+        anchors.topMargin: 18
+        visible: root.role === "main"
         opacity: root.awake ? 1.0 : 0.6
         Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
@@ -622,10 +827,11 @@ Rectangle {
         z: 60
 
         anchors.right: parent.right
-        anchors.rightMargin: 20
+        anchors.rightMargin: root.marginX
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 20
-        opacity: root.awake ? 1.0 : 0.6
+        anchors.bottomMargin: root.marginBottom
+        visible: root.role === "main"
+        opacity: (root.awake ? 1.0 : 0.6) * root.clockReveal
         Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
         sessions: sessionModel
@@ -639,6 +845,12 @@ Rectangle {
         root.readHelperToken()
     }
     Keys.onPressed: event => {
+        if (root.role !== "main" && !screenHover.hovered) {
+            root.sideHint = true
+            sideHintTimer.restart()
+            event.accepted = true
+            return
+        }
         if (event.key === Qt.Key_Space && !account.hasText) {
             if (!root.awake)
                 root.wakeUp()

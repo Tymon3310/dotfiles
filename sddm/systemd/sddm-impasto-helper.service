@@ -1,0 +1,15 @@
+# The Impasto greeter's helper (reboot to firmware, cancelling a face scan).
+# Under X11, Xsetup starts it and Xstop ends it; neither script runs for a
+# Wayland greeter, so this unit runs it alongside SDDM instead.
+[Unit]
+Description=SDDM Impasto greeter helper
+PartOf=sddm.service
+After=sddm.service
+
+[Service]
+ExecStartPre=-/usr/bin/busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager SetRebootToFirmwareSetup b false
+ExecStart=/usr/bin/python3 /usr/share/sddm/scripts/sddm-uefi-helper.py
+Restart=on-failure
+
+[Install]
+WantedBy=sddm.service
