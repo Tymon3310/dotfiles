@@ -1,5 +1,3 @@
-// github.com/andreumassanet/impasto
-
 pragma Singleton
 
 import QtQuick

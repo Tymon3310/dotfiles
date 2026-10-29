@@ -44,7 +44,7 @@ if [ -d "$BACKUP_DIR/sddm.conf.d" ]; then
     cp -rpv "$BACKUP_DIR/sddm.conf.d"/* /etc/sddm.conf.d/ 2>/dev/null || true
 fi
 
-rm -f /etc/sddm.conf.d/zz-impasto.conf /etc/sddm.conf.d/90-impasto.conf
+rm -f /etc/sddm.conf.d/zz-nocturne.conf /etc/sddm.conf.d/zz-impasto.conf /etc/sddm.conf.d/90-impasto.conf
 
 if [ -f /etc/sddm.conf.d/99-autologin.conf.bak ]; then
     echo "Restoring 99-autologin.conf..."

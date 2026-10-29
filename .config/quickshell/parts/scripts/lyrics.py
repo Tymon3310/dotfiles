@@ -35,7 +35,7 @@ import urllib.parse
 import urllib.request
 
 API = "https://lrclib.net/api"
-AGENT = "quickshell-island-lyrics/1.0 (https://github.com/andreumassanet/impasto)"
+AGENT = "quickshell-island-lyrics/1.0 (https://github.com/Tymon3310/dotfiles)"
 TIMEOUT = 6
 MISS_TTL = 24 * 3600
 

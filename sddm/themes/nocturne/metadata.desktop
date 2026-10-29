@@ -1,0 +1,16 @@
+# nocturne: the SDDM side of the Quickshell lock screen.
+# Started from impasto (github.com/andreumassanet/impasto, GPL-3.0; see
+# LICENSE) and since rewritten.
+
+# No ConfigFile: the theme's values are fixed in components/Theme.qml.
+
+[SddmGreeterTheme]
+Name=nocturne
+Description=The lock screen, before there is a desktop behind it
+Author=Tymon3310
+License=GPL-3.0
+Type=sddm-theme
+Version=2.0
+Website=https://github.com/Tymon3310/dotfiles
+QtVersion=6
+MainScript=Main.qml

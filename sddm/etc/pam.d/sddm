@@ -19,7 +19,7 @@ auth            [default=die]   pam_deny.so
 # 5. Face recognized: SDDM tears the greeter down the moment PAM succeeds, so
 #    tell the theme first (it plays the tick + morph to black on this marker),
 #    give the animation time to finish, then end the stack with success.
-auth            optional        pam_echo.so impasto:face-verified
+auth            optional        pam_echo.so nocturne:face-verified
 auth            optional        pam_exec.so quiet /usr/bin/sleep 0.8
 auth            [default=done]  pam_permit.so
 

@@ -1,5 +1,3 @@
-// github.com/andreumassanet/impasto
-
 import QtQuick
 import QtQuick.Window
 import QtQuick.Shapes
@@ -372,7 +370,7 @@ Rectangle {
         function onInformationMessage(infoMsg: string): void {
             // Sent by pam.d/sddm after the face matches, then PAM pauses so
             // the tick and island morph can play before SDDM drops the greeter.
-            if (infoMsg.trim() === "impasto:face-verified") {
+            if (infoMsg.trim() === "nocturne:face-verified") {
                 root.acceptFace()
                 return
             }

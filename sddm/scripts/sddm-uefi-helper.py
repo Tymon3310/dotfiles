@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SDDM Impasto Helper Daemon
+nocturne SDDM helper daemon
 Listens on http://127.0.0.1:18293 for power signals from SDDM greeter.
 Sets systemd-logind RebootToFirmwareSetup securely, and lets the greeter
 cancel a running face scan so a typed password doesn't wait for it.

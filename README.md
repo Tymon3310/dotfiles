@@ -13,7 +13,7 @@ Looking for NixOS? Check out my (WIP) [flakes.nix](https://github.com/tymon3310/
 - **Terminal:** Kitty
 - **Shell:** Zsh + Oh My Zsh + Oh-My-Posh
 - **Launcher & Clipboard:** Vicinae
-- **Display Manager:** SDDM (custom *Impasto* theme with biopass face unlock)
+- **Display Manager:** SDDM (custom *nocturne* theme with biopass face unlock, Wayland greeter)
 - **File Manager:** Dolphin (GUI) / Yazi (TUI)
 - **Editor:** Neovim
 
@@ -35,13 +35,13 @@ The script will:
 
 ### SDDM & Face Unlock (Optional)
 
-To apply the custom Impasto SDDM theme, camera face unlock (`biopass`), and the UEFI reboot helper:
+To apply the custom nocturne SDDM theme, camera face unlock (`biopass`), and the UEFI reboot helper:
 
 ```bash
 sudo ./install_sddm.sh
 ```
 
-- Test the greeter: `sddm-greeter-qt6 --test-mode --theme /usr/share/sddm/themes/impasto`
+- Test the greeter: `sddm-greeter-qt6 --test-mode --theme /usr/share/sddm/themes/nocturne`
 - Revert back anytime: `sudo ./system_backups/restore_sddm_backup.sh`
 
 ## Keybinds
@@ -60,3 +60,8 @@ Modifier: `SUPER` (Windows key)
 - `SUPER + Shift + S` / `Print` — Screenshot (Quickshell)
 - `SUPER + L` — Lock screen
 - `SUPER + 1-9, 0` — Workspaces (per-monitor)
+
+## Credits
+
+- Started from [ML4W dotfiles](https://github.com/mylinuxforwork/dotfiles).
+- The SDDM theme (*nocturne*) and parts of the Quickshell components (`.config/quickshell/parts/`) began as [impasto](https://github.com/andreumassanet/impasto) by Andreu Massanet, GPL-3.0; those folders keep its license.

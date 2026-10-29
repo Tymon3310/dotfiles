@@ -11,7 +11,7 @@ set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CONF=/etc/sddm.conf.d/zz-wayland.conf
-UNIT=/etc/systemd/system/sddm-impasto-helper.service
+UNIT=/etc/systemd/system/sddm-nocturne-helper.service
 SDDM_HOME=/var/lib/sddm
 
 if [ "$EUID" -ne 0 ]; then
@@ -22,9 +22,9 @@ fi
 case "${1:-}" in
 on)
     install -m 644 -v "$DOTFILES_DIR/sddm/etc/sddm.conf.d/zz-wayland.conf" "$CONF"
-    install -m 644 -v "$DOTFILES_DIR/sddm/systemd/sddm-impasto-helper.service" "$UNIT"
+    install -m 644 -v "$DOTFILES_DIR/sddm/systemd/sddm-nocturne-helper.service" "$UNIT"
     systemctl daemon-reload
-    systemctl enable sddm-impasto-helper.service
+    systemctl enable sddm-nocturne-helper.service
 
     # The greeter's KWin keeps its own monitor setup. Start it from the
     # user's (same layout and primary screen), with HDR forced off.
@@ -49,7 +49,7 @@ PY
     ;;
 off)
     rm -fv "$CONF"
-    systemctl disable sddm-impasto-helper.service 2>/dev/null || true
+    systemctl disable sddm-nocturne-helper.service 2>/dev/null || true
     rm -fv "$UNIT"
     systemctl daemon-reload
     echo "X11 greeter on (as before) from the next reboot or sddm restart."

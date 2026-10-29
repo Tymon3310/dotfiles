@@ -3,7 +3,7 @@ import QtQuick
 // A month as a grid: the month's name, the weekdays (Monday first), and six
 // weeks of days with today marked. Plain QtQuick only, so the same file
 // serves the lock screen and the SDDM theme (a copy lives in
-// sddm/themes/impasto/components/; keep the two the same).
+// sddm/themes/nocturne/components/; keep the two the same).
 Item {
     id: root
 

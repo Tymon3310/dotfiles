@@ -1,8 +1,8 @@
-# The Impasto greeter's helper (reboot to firmware, cancelling a face scan).
+# The nocturne greeter's helper (reboot to firmware, cancelling a face scan).
 # Under X11, Xsetup starts it and Xstop ends it; neither script runs for a
 # Wayland greeter, so this unit runs it alongside SDDM instead.
 [Unit]
-Description=SDDM Impasto greeter helper
+Description=SDDM nocturne greeter helper
 PartOf=sddm.service
 After=sddm.service
 
