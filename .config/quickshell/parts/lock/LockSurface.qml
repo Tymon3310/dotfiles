@@ -12,6 +12,33 @@ Item {
     property string screenName: ""
     readonly property bool isActive: (Quickshell.screens.length <= 1) || (screenName !== "" && screenName === LockService.activeScreen)
 
+    // Each screen plays a part, so three monitors read as one lock rather
+    // than three copies: "main" where you unlock (the clock and password),
+    // then the others left to right: "stage" (the music, large, or the day
+    // as a calendar page) and "info" (weather, agents, what arrived).
+    // Unlocking from another screen moves the parts with you.
+    readonly property var others: Quickshell.screens
+        .filter(s => s.name !== LockService.activeScreen)
+        .sort((a, b) => a.x - b.x)
+        .map(s => s.name)
+    readonly property string role: {
+        if (root.isActive)
+            return "main"
+        const index = root.others.indexOf(root.screenName)
+        if (root.others.length === 1)
+            return (MediaService.available && MediaService.title !== "") ? "stage" : "info"
+        return index === 0 ? "stage" : "info"
+    }
+    // The music has its own screen when there is more than one.
+    readonly property bool stageElsewhere: Quickshell.screens.length > 1
+
+    property real mainFade: root.role === "main" ? 1 : 0
+    property real stageFade: root.role === "stage" ? 1 : 0
+    property real infoFade: root.role === "info" ? 1 : 0
+    Behavior on mainFade { NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing } }
+    Behavior on stageFade { NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing } }
+    Behavior on infoFade { NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing } }
+
     signal submitted(string password)
 
     function claim(): void {
@@ -34,19 +61,19 @@ Item {
             property: "lockReveal"
             from: 0
             to: 1
-            duration: Math.round(380 * Theme.motion)
+            duration: Math.round(520 * Theme.motion)
             easing.type: Easing.OutCubic
         }
 
         SequentialAnimation {
-            PauseAnimation { duration: Math.round(80 * Theme.motion) }
+            PauseAnimation { duration: Math.round(120 * Theme.motion) }
             NumberAnimation {
                 target: root
                 property: "clockReveal"
                 from: 0
                 to: 1
                 // No overshoot here: OutBack wobble on the big clock reads as lag.
-                duration: Math.round(280 * Theme.motion)
+                duration: Math.round(520 * Theme.motion)
                 easing.type: Easing.OutCubic
             }
         }
@@ -57,7 +84,11 @@ Item {
     // the decoder ever stalls.
     property bool entryStarted: false
 
+    // When this lock began; the clock counts notifications since.
+    property real lockedAt: Date.now()
+
     function armEntry(): void {
+        root.lockedAt = Date.now()
         root.entryStarted = false
         root.lockReveal = 0
         root.clockReveal = 0
@@ -123,15 +154,40 @@ Item {
 
     property real awake: LockService.awake ? 1 : 0
 
+    // One wake animation drives the whole bottom-left block: the clock lifts
+    // first and the password follows into the room it leaves (pillReveal);
+    // going back to rest, the password leaves first and the clock settles
+    // after. Waking eases out, so it answers on the next frame; resting
+    // eases in and out.
     Behavior on awake {
-        NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing }
+        NumberAnimation {
+            duration: Math.round(460 * Theme.motion)
+            easing.type: LockService.awake ? Easing.OutCubic : Easing.InOutCubic
+        }
+    }
+
+    readonly property real pillReveal: Math.max(0, Math.min(1, (root.awake - 0.4) / 0.6))
+
+    // Fades the password between screens when the active one changes.
+    property real activeFade: root.isActive ? 1 : 0
+    Behavior on activeFade { NumberAnimation { duration: Theme.durationMedium; easing.type: Theme.easing } }
+
+    // The typed text is cleared once the pill has gone, not while it fades
+    // (it would shrink to its resting width on the way out).
+    Timer {
+        id: clearLater
+        interval: Math.round(500 * Theme.motion)
+        onTriggered: {
+            if (!LockService.awake)
+                account.clear()
+        }
     }
 
     Connections {
         target: LockService
         function onAwakeChanged(): void {
             if (!LockService.awake) {
-                account.clear()
+                clearLater.restart()
                 root.forceActiveFocus()
             } else if (root.isActive) {
                 Qt.callLater(account.claim)
@@ -154,7 +210,7 @@ Item {
         // Escape dismisses without rousing (rousing would start face auth).
         if (event.key === Qt.Key_Escape) {
             if (LockService.awake) {
-                account.clear()
+                clearLater.restart()
                 LockService.rest()
                 root.forceActiveFocus()
             }
@@ -220,42 +276,74 @@ Item {
         }
     }
 
-    // Frost the whole frozen screenshot in place. The blur is STATIC (rendered
-    // once per lock); only its opacity animates — fading the blurred layer in
-    // over the sharp desktop on lock and out again on unlock. Animating the
-    // blur radius itself would re-run a fullscreen blur every frame.
+    // The frozen desktop goes out of focus as the lock arrives and comes back
+    // into focus as it leaves: the blur strength itself follows the reveal
+    // (re-blurred each frame of the animation; the GPU keeps up easily),
+    // rather than a blurred copy fading over a sharp one.
+    readonly property real focusOut: root.lockReveal * root.held
+
     MultiEffect {
         anchors.fill: parent
         source: blurShot
         visible: blurShot.status === Image.Ready && root.held > 0.01
-        opacity: root.lockReveal * root.held
         blurEnabled: true
-        blur: 1
+        blur: root.focusOut
         blurMax: SettingsService.lockBlur
-        brightness: (root.screenName === "DP-1" ? 0.05 : -0.02)
-        contrast: (root.screenName === "DP-1" ? 0.08 : 0.0)
+        brightness: (root.screenName === "DP-1" ? 0.05 : -0.02) * root.focusOut
+        contrast: (root.screenName === "DP-1" ? 0.08 : 0.0) * root.focusOut
         saturation: 0.0
     }
 
-    // Balanced scrim for clear legibility without gloom or washout
+    // While music plays, the cover washes the background in its colours.
+    // A tiny decode, blurred: only its colours matter.
+    Image {
+        id: artWash
+
+        readonly property bool wanted: MediaService.available && MediaService.artUrl !== ""
+            && artWash.status === Image.Ready
+
+        anchors.fill: parent
+        source: MediaService.artUrl
+        sourceSize: Qt.size(6, 6)
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+        smooth: true
+        opacity: (artWash.wanted ? 0.45 : 0) * root.lockReveal * root.held
+        visible: opacity > 0.01
+
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            blurEnabled: true
+            blur: 1
+            blurMax: 64
+            // Darkened and pushed towards colour: a tint, never a lighter
+            // screen (a pale cover would otherwise grey everything out).
+            brightness: -0.6
+            saturation: 0.7
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         color: Theme.scrim
-        opacity: 0.16 * root.held
+        opacity: 0.22 * root.held
     }
 
-    // A soft lower vignette keeps the password capsule readable without
-    // flattening the captured wallpaper behind the clock.
+    // Darker towards the bottom, where the clock and the controls sit.
     Rectangle {
         anchors.fill: parent
         opacity: root.held
         gradient: Gradient {
             GradientStop { position: 0.0; color: "#00000000" }
-            GradientStop { position: 0.48; color: "#08000000" }
-            GradientStop { position: 0.76; color: "#34000000" }
-            GradientStop { position: 1.0; color: "#96000000" }
+            GradientStop { position: 0.45; color: "#10000000" }
+            GradientStop { position: 0.75; color: "#50000000" }
+            GradientStop { position: 1.0; color: "#b0000000" }
         }
     }
+
+    // Shared by the clock, the password and the media: the corners' inset.
+    readonly property int marginX: Math.round(root.width * 0.055)
+    readonly property int marginBottom: Math.round(root.height * 0.09)
 
 
     LockIsland {
@@ -263,22 +351,21 @@ Item {
     }
 
 
+    // Bottom left: the clock, lifted to make room for the password when
+    // awake.
     Item {
         id: clockContainer
 
-        readonly property real restY: Math.round((root.height - clock.height) / 2 - 40)
-        readonly property real awakeY: root.isActive
-            ? Math.max(70, Math.round(root.height * 0.15))
-            : clockContainer.restY
+        readonly property real lift: root.isActive ? root.awake * (account.pillHeight + 22) : 0
 
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: clockContainer.restY + (clockContainer.awakeY - clockContainer.restY) * root.awake
+        x: root.marginX
+        y: root.height - root.marginBottom - height - lift
         width: clock.width
         height: clock.height
-        opacity: root.held * root.clockReveal
-        scale: (root.isActive ? (1 - 0.08 * root.awake) : 1)
-            * (0.92 + 0.08 * root.clockReveal)
-        transformOrigin: Item.Top
+        // Each line of the clock rises in on its own (LockClock.reveal);
+        // leaving plays the same in reverse as `held` falls.
+        opacity: root.mainFade
+        visible: opacity > 0.01
 
         // No Behaviors here: y/scale are already continuously animated via
         // the `awake`/`clockReveal` props. A Behavior on top would chase a
@@ -296,6 +383,8 @@ Item {
         LockClock {
             id: clock
             screenHeight: root.height
+            reveal: root.clockReveal * root.held
+            since: root.lockedAt
         }
     }
 
@@ -304,27 +393,66 @@ Item {
         id: account
 
         visible: root.isActive
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: Math.round(root.height * 0.20) - 24 * (1 - root.awake)
-        opacity: (root.isActive ? 1 : 0) * root.awake * root.held
-        scale: 0.97 + 0.03 * root.awake
-        transformOrigin: Item.Center
-
-        // No Behaviors on geometry: bottomMargin/scale already move smoothly
-        // via the animated `awake` prop; chasing them would lag. Opacity keeps
-        // its Behavior for the `isActive` step when switching screens.
-        Behavior on opacity { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
+        // Under the clock, its pill lined up with the date.
+        x: root.marginX + Math.round(clock.timeSize * 0.035) - 2
+        y: root.height - root.marginBottom - account.pillHeight + 12 * (1 - root.pillReveal)
+        opacity: root.activeFade * root.pillReveal * root.held
+        scale: 0.98 + 0.02 * root.pillReveal
+        transformOrigin: Item.Left
 
         onSubmitted: password => root.submitted(password)
+    }
+
+    LockStage {
+        anchors.fill: parent
+        opacity: root.stageFade
+        visible: opacity > 0.01
+        reveal: root.clockReveal * root.held
+    }
+
+    LockInfo {
+        anchors.fill: parent
+        opacity: root.infoFade
+        visible: opacity > 0.01
+        reveal: root.clockReveal * root.held
+        since: root.lockedAt
+    }
+
+    // Above the media: the song's lyrics, when they are synced.
+    LockLyrics {
+        anchors.right: parent.right
+        anchors.rightMargin: root.marginX
+        y: media.y - height - 18
+        // A wrapped line makes the block taller: glide up, not jump.
+        Behavior on y { NumberAnimation { duration: Math.round(300 * Theme.motion); easing.type: Easing.OutCubic } }
+        screenHeight: root.height
+        maxWidth: Math.round(root.width * 0.38)
+        wanted: media.visible
+        visible: wanted && shown
+        opacity: media.reveal
+        transform: Translate { x: 40 * (1 - media.reveal) }
+    }
+
+    // Bottom right: what is playing.
+    LockMedia {
+        id: media
+        anchors.right: parent.right
+        anchors.rightMargin: root.marginX
+        y: root.height - root.marginBottom - height
+        screenHeight: root.height
+        visible: root.isActive && shown && !root.stageElsewhere
+        // Slides in from the right edge, a beat after the clock.
+        readonly property real reveal: Math.max(0, Math.min(1, (root.clockReveal * root.held - 0.25) / 0.75))
+        opacity: reveal
+        transform: Translate { x: 40 * (1 - media.reveal) }
     }
 
     Text {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 48
+        anchors.bottomMargin: 28
         visible: root.isActive
-        opacity: (1 - root.awake) * root.held * root.clockReveal * 0.65
+        opacity: (1 - root.awake) * root.held * root.clockReveal * 0.5
         text: "Click anywhere or press any key to unlock"
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSizeSmall
@@ -351,10 +479,10 @@ Item {
     LockPower {
         opacity: (root.isActive ? 1 : 0) * root.awake * root.held
         visible: opacity > 0
-        anchors.left: parent.left
-        anchors.leftMargin: 24
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: 24
+        anchors.right: parent.right
+        anchors.rightMargin: 24
+        anchors.top: parent.top
+        anchors.topMargin: 18
 
         Behavior on opacity { NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing } }
     }
