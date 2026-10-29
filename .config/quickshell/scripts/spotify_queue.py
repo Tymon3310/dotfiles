@@ -2,6 +2,7 @@
 """Stream Spotify queue changes as JSON; playback state belongs to MPRIS."""
 
 import base64
+import fcntl
 import json
 import os
 import signal
@@ -146,8 +147,15 @@ class SpotifyQueueWorker:
             self.last_queue = queue
 
     def run(self):
+        parent = os.getppid()
         while True:
-            requested = self.changed.wait(timeout=8)
+            # A track change asks right away; otherwise a slow check catches
+            # queue edits made in Spotify. (Every 8 s used up the API quota.)
+            requested = self.changed.wait(timeout=45)
+            # The Quickshell that started this is gone (a preview, a crash):
+            # stop, rather than keep polling Spotify for nobody.
+            if os.getppid() != parent:
+                os._exit(0)
             self.changed.clear()
             if requested:
                 # Give Spotify's Web API time to catch up with local metadata.
@@ -225,8 +233,27 @@ class SpotifyQueueListener:
         self.worker.changed.set()
 
 
+def wait_for_turn():
+    """One worker asks Spotify at a time, across every Quickshell running
+    (the desktop, a preview): the rest wait here and take over if it stops.
+    A waiting worker still leaves when its own Quickshell does."""
+    path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "spotify-queue.lock")
+    handle = open(path, "w")
+    parent = os.getppid()
+    while True:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return handle
+        except BlockingIOError:
+            if os.getppid() != parent:
+                os._exit(0)
+            time.sleep(5)
+
+
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal.SIG_DFL)
+    # Held for the life of the process; the kernel frees it on exit.
+    turn = wait_for_turn()
     prune_art()
     listener = SpotifyQueueListener()
     GLib.MainLoop().run()
