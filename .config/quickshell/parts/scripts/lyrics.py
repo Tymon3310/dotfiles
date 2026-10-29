@@ -157,6 +157,18 @@ def candidates(artist, title, album, duration):
             yield from results
 
 
+MIN_SYNCED_LINES = 5
+
+
+def synced_line_count(text):
+    """Timestamped lines that have words."""
+    count = 0
+    for line in text.splitlines():
+        if STAMP.match(line) and STAMP.sub("", line).strip():
+            count += 1
+    return count
+
+
 def find(artist, title, album, duration):
     best_synced = best_plain = None
     for item in candidates(artist, title, album, duration):
@@ -164,10 +176,15 @@ def find(artist, title, album, duration):
         if value is None:
             continue
         if item.get("syncedLyrics"):
+            # Some records hold a stub (a single line): keep looking, and
+            # let a fuller one win; a stub is used only if nothing else is.
+            stub = synced_line_count(item["syncedLyrics"]) < MIN_SYNCED_LINES
+            if stub:
+                value *= 0.5
             if not best_synced or value > best_synced[0]:
                 best_synced = (value, item)
-            # An exact, synced match will not be beaten.
-            if value > 0.95:
+            # An exact, full synced match will not be beaten.
+            if value > 0.95 and not stub:
                 break
         elif item.get("plainLyrics") or item.get("instrumental"):
             if not best_plain or value > best_plain[0]:
