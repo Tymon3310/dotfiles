@@ -148,7 +148,7 @@ step_links() {
     for item in "$DOTFILES_DIR/.config"/*; do
         if [[ -e "$item" ]]; then link "$item" "$HOME/.config/$(basename "$item")"; fi
     done
-    for file in .zshrc .bashrc .tmux.conf .tmux.conf.local .gtkrc-2.0 .Xresources; do
+    for file in .zshrc .bashrc .tmux.conf .gtkrc-2.0 .Xresources; do
         if [[ -f "$DOTFILES_DIR/$file" ]]; then link "$DOTFILES_DIR/$file" "$HOME/$file"; fi
     done
     if [[ -f "$DOTFILES_DIR/.config/vim/vimrc" ]]; then

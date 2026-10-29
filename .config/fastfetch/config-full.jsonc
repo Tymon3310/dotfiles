@@ -1,0 +1,398 @@
+// Full dump: every fastfetch module, grouped. Run: fastfetch -c ~/.config/fastfetch/config-full.jsonc
+// Modules with nothing to report on this machine (battery, wifi, zpool...) are hidden.
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": {
+    "source": "~/.config/fastfetch/archlinuxa.png",
+    "height": 16
+  },
+  "display": {
+    "separator": "  ",
+    "key": {
+      "width": 18
+    },
+    "showErrors": false
+  },
+  "modules": [
+    "break",
+    {
+      "type": "custom",
+      "format": "\u001b[1;31mSystem"
+    },
+    {
+      "type": "os",
+      "key": " ├ OS",
+      "keyColor": "31"
+    },
+    {
+      "type": "kernel",
+      "key": " ├ Kernel",
+      "keyColor": "31"
+    },
+    {
+      "type": "initsystem",
+      "key": " ├ Init",
+      "keyColor": "31"
+    },
+    {
+      "type": "bootmgr",
+      "key": " ├ Bootloader",
+      "keyColor": "31"
+    },
+    {
+      "type": "bios",
+      "key": " ├ BIOS",
+      "keyColor": "31"
+    },
+    {
+      "type": "packages",
+      "key": " ├ Packages",
+      "keyColor": "31"
+    },
+    {
+      "type": "shell",
+      "key": " ├ Shell",
+      "keyColor": "31"
+    },
+    {
+      "type": "editor",
+      "key": " ├ Editor",
+      "keyColor": "31"
+    },
+    {
+      "type": "locale",
+      "key": " ├ Locale",
+      "keyColor": "31"
+    },
+    {
+      "type": "users",
+      "key": " ├ Users",
+      "keyColor": "31"
+    },
+    {
+      "type": "uptime",
+      "key": " ├ Uptime",
+      "keyColor": "31"
+    },
+    {
+      "type": "datetime",
+      "key": " ├ Date",
+      "keyColor": "31"
+    },
+    {
+      "type": "processes",
+      "key": " ├ Processes",
+      "keyColor": "31"
+    },
+    {
+      "type": "loadavg",
+      "key": " ├ Load",
+      "keyColor": "31"
+    },
+    {
+      "type": "version",
+      "key": " ├ Fastfetch",
+      "keyColor": "31"
+    },
+    "break",
+    {
+      "type": "custom",
+      "format": "\u001b[1;32mDesktop"
+    },
+    {
+      "type": "de",
+      "key": " ├ DE",
+      "keyColor": "32"
+    },
+    {
+      "type": "wm",
+      "key": " ├ WM",
+      "keyColor": "32"
+    },
+    {
+      "type": "wmtheme",
+      "key": " ├ WM theme",
+      "keyColor": "32"
+    },
+    {
+      "type": "lm",
+      "key": " ├ Login manager",
+      "keyColor": "32"
+    },
+    {
+      "type": "theme",
+      "key": " ├ Theme",
+      "keyColor": "32"
+    },
+    {
+      "type": "icons",
+      "key": " ├ Icons",
+      "keyColor": "32"
+    },
+    {
+      "type": "font",
+      "key": " ├ Font",
+      "keyColor": "32"
+    },
+    {
+      "type": "cursor",
+      "key": " ├ Cursor",
+      "keyColor": "32"
+    },
+    {
+      "type": "wallpaper",
+      "key": " ├ Wallpaper",
+      "keyColor": "32"
+    },
+    {
+      "type": "terminal",
+      "key": " ├ Terminal",
+      "keyColor": "32"
+    },
+    {
+      "type": "terminalfont",
+      "key": " ├ Term font",
+      "keyColor": "32"
+    },
+    {
+      "type": "terminalsize",
+      "key": " ├ Term size",
+      "keyColor": "32"
+    },
+    {
+      "type": "terminaltheme",
+      "key": " ├ Term theme",
+      "keyColor": "32"
+    },
+    {
+      "type": "player",
+      "key": " ├ Player",
+      "keyColor": "32"
+    },
+    {
+      "type": "media",
+      "key": " ├ Media",
+      "keyColor": "32"
+    },
+    "break",
+    {
+      "type": "custom",
+      "format": "\u001b[1;33mHardware"
+    },
+    {
+      "type": "host",
+      "key": " ├ Host",
+      "keyColor": "33"
+    },
+    {
+      "type": "chassis",
+      "key": " ├ Chassis",
+      "keyColor": "33"
+    },
+    {
+      "type": "board",
+      "key": " ├ Board",
+      "keyColor": "33"
+    },
+    {
+      "type": "cpu",
+      "key": " ├ CPU",
+      "keyColor": "33"
+    },
+    {
+      "type": "cpucache",
+      "key": " ├ CPU cache",
+      "keyColor": "33"
+    },
+    {
+      "type": "cpuusage",
+      "key": " ├ CPU usage",
+      "keyColor": "33"
+    },
+    {
+      "type": "gpu",
+      "key": " ├ GPU",
+      "keyColor": "33"
+    },
+    {
+      "type": "opengl",
+      "key": " ├ OpenGL",
+      "keyColor": "33"
+    },
+    {
+      "type": "opencl",
+      "key": " ├ OpenCL",
+      "keyColor": "33"
+    },
+    {
+      "type": "vulkan",
+      "key": " ├ Vulkan",
+      "keyColor": "33"
+    },
+    {
+      "type": "codec",
+      "key": " ├ Codec",
+      "keyColor": "33"
+    },
+    {
+      "type": "memory",
+      "key": " ├ Memory",
+      "keyColor": "33"
+    },
+    {
+      "type": "physicalmemory",
+      "key": " ├ RAM sticks",
+      "keyColor": "33"
+    },
+    {
+      "type": "swap",
+      "key": " ├ Swap",
+      "keyColor": "33"
+    },
+    {
+      "type": "physicaldisk",
+      "key": " ├ Drives",
+      "keyColor": "33"
+    },
+    {
+      "type": "disk",
+      "key": " ├ Disk",
+      "keyColor": "33"
+    },
+    {
+      "type": "btrfs",
+      "key": " ├ Btrfs",
+      "keyColor": "33"
+    },
+    {
+      "type": "zpool",
+      "key": " ├ Zpool",
+      "keyColor": "33"
+    },
+    {
+      "type": "diskio",
+      "key": " ├ Disk I/O",
+      "keyColor": "33"
+    },
+    {
+      "type": "display",
+      "key": " ├ Display",
+      "keyColor": "33"
+    },
+    {
+      "type": "monitor",
+      "key": " ├ Monitor",
+      "keyColor": "33"
+    },
+    {
+      "type": "brightness",
+      "key": " ├ Brightness",
+      "keyColor": "33"
+    },
+    {
+      "type": "sound",
+      "key": " ├ Sound",
+      "keyColor": "33"
+    },
+    {
+      "type": "camera",
+      "key": " ├ Camera",
+      "keyColor": "33"
+    },
+    {
+      "type": "tpm",
+      "key": " ├ TPM",
+      "keyColor": "33"
+    },
+    {
+      "type": "battery",
+      "key": " ├ Battery",
+      "keyColor": "33"
+    },
+    {
+      "type": "poweradapter",
+      "key": " ├ Power",
+      "keyColor": "33"
+    },
+    "break",
+    {
+      "type": "custom",
+      "format": "\u001b[1;34mDevices"
+    },
+    {
+      "type": "keyboard",
+      "key": " ├ Keyboard",
+      "keyColor": "34"
+    },
+    {
+      "type": "mouse",
+      "key": " ├ Mouse",
+      "keyColor": "34"
+    },
+    {
+      "type": "gamepad",
+      "key": " ├ Gamepad",
+      "keyColor": "34"
+    },
+    {
+      "type": "bluetooth",
+      "key": " ├ Bluetooth",
+      "keyColor": "34"
+    },
+    {
+      "type": "bluetoothradio",
+      "key": " ├ BT radio",
+      "keyColor": "34"
+    },
+    "break",
+    {
+      "type": "custom",
+      "format": "\u001b[1;36mNetwork"
+    },
+    {
+      "type": "localip",
+      "key": " ├ Local IP",
+      "keyColor": "36",
+      "showIpv6": true,
+      "showMac": true,
+      "showSpeed": true,
+      "showMtu": true,
+      "showAllIps": true
+    },
+    {
+      "type": "wifi",
+      "key": " ├ Wifi",
+      "keyColor": "36"
+    },
+    {
+      "type": "dns",
+      "key": " ├ DNS",
+      "keyColor": "36"
+    },
+    {
+      "type": "netio",
+      "key": " ├ Net I/O",
+      "keyColor": "36"
+    },
+    {
+      "type": "publicip",
+      "key": " ├ Public IP",
+      "keyColor": "36",
+      "timeout": 1500
+    },
+    {
+      "type": "weather",
+      "key": " ├ Weather",
+      "keyColor": "36",
+      "timeout": 1500
+    },
+    "break",
+    {
+      "type": "top",
+      "key": "Top",
+      "keyColor": "35"
+    },
+    "break",
+    "colors"
+  ]
+}
