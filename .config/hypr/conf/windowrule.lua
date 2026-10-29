@@ -98,28 +98,6 @@ hl.window_rule({
 })
 
 hl.window_rule {
-  name = "pavucontrol_main",
-  match = {
-    class = "(.*org.pulseaudio.pavucontrol.*)",
-  },
-  float = true,
-  size = "700 600",
-  center = true,
-  pin = true,
-}
-
-hl.window_rule {
-  name = "pavucontrol_qt",
-  match = {
-    class = "(.*pavucontrol-qt.*)",
-  },
-  float = true,
-  size = "700 600",
-  center = true,
-  pin = true,
-}
-
-hl.window_rule {
   name = "pwvucontrol",
   match = {
     class = "(.*com.saivert.pwvucontrol.*)",
@@ -183,15 +161,7 @@ hl.window_rule {
 hl.window_rule {
   name = "spotify_workspace",
   match = {
-    class = "(spotify)",
-  },
-  workspace = "23 silent",
-}
-
-hl.window_rule {
-  name = "spotify_workspace",
-  match = {
-    class = "(spotifast)",
+    class = "(spotify|spotifast)",
   },
   workspace = "23 silent",
 }
@@ -205,7 +175,7 @@ hl.window_rule {
   float = true,
   size = "1200 700",
   center = true,
-  no_screen_share = 0,
+  no_screen_share = 1,
 }
 
 hl.window_rule {
@@ -239,14 +209,6 @@ hl.layer_rule {
     namespace = "vicinae",
   },
   dim_around = true,
-}
-
-hl.layer_rule {
-  name = "notify",
-  match = {
-    namespace = "swaync-notification-window",
-  },
-  animation = "slide right",
 }
 
 

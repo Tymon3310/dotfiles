@@ -54,6 +54,7 @@ hl.bind("SUPER + SHIFT + S", hl.dsp.exec_cmd(pref.SCREENSHOT))
 hl.bind("SUPER + SHIFT + R", hl.dsp.exec_cmd(pref.RECORD))
 hl.bind("SUPER + V", hl.dsp.exec_cmd(pref.CLIP))
 hl.bind("SUPER + L", hl.dsp.exec_cmd(pref.LOCK))
+hl.bind("CTRL + SHIFT + 2", hl.dsp.global("com.t3tools.T3Code:capture-window"))
 
 layout.setup_events()
 
@@ -89,11 +90,14 @@ hl.bind("SUPER + SHIFT + F", misc.toggle_btop_special)
 
 local player = "soloist"
 local spotify_players = "soloist,spotifast,spotify" -- ignored by the -i binds so they hit yt/vlc/etc
-hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_SINK@ 5%+"))
-hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_SINK@ 5%-"))
-hl.bind("XF86AudioMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"))
-hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl -p " .. player .. " play-pause"))
-hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl -p " .. player .. " pause"))
+-- Audio keys also work on the lock screen; volume repeats while held, capped at 100%.
+local held = { locked = true, repeating = true }
+local locked = { locked = true }
+hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+"), held)
+hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"), held)
+hl.bind("XF86AudioMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"), locked)
+hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl -p " .. player .. " play-pause"), locked)
+hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl -p " .. player .. " pause"), locked)
 -- bind = , XF86AudioNext, exec, playerctl -p $player next
 -- bind = , XF86AudioPrev, exec, playerctl -p $player previous
 hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl -p " .. player .. " volume 0.05+"))
@@ -115,4 +119,4 @@ hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("bash -c '" .. loop_cycle .. "'
 -- bind = , Cancel, exec, wpctl set-mute @DEFAULT_SOURCE@ toggle
 -- bind = , XF86Reload, exec, wpctl set-volume @DEFAULT_SOURCE@ 5%+
 -- bind = , XF86Favorites, exec, wpctl set-volume @DEFAULT_SOURCE@ 5%-
-hl.bind("XF86AudioMicMute", hl.dsp.exec_cmd("pactl set-source-mute @DEFAULT_SOURCE@ toggle"))
+hl.bind("XF86AudioMicMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"), locked)

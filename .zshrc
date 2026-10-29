@@ -1,4 +1,9 @@
 
+# tty8 starts Hyprland straight away, before any plugins or fastfetch load
+if [ -z "$WAYLAND_DISPLAY" ] && [ "$(tty 2>/dev/null)" = "/dev/tty8" ]; then
+	exec start-hyprland
+fi
+
 # Keep PATH clean and deduplicated
 typeset -U path PATH
 
@@ -59,7 +64,7 @@ export GOPATH=$HOME/go
 path=($path $GOROOT/bin $GOPATH/bin)
 export LD_LIBRARY_PATH=/usr/local/lib
 
-path=($path "$HOME/.spicetify" "$HOME/.wakatime")
+path=($path "$HOME/.wakatime")
 
 
 if command -v zoxide >/dev/null 2>&1; then
@@ -102,6 +107,3 @@ if command -v terminal-wakatime >/dev/null 2>&1; then
     eval "$(terminal-wakatime init)"
 fi
 
-if [ -z "$WAYLAND_DISPLAY" ] && [ "$(tty 2>/dev/null)" = "/dev/tty8" ]; then
-	exec start-hyprland
-fi

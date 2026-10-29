@@ -19,4 +19,3 @@ if custom_file then
     require("conf.custom")
 end
 
-hl.bind("CTRL + SHIFT + 2", hl.dsp.global("com.t3tools.T3Code:capture-window"))
