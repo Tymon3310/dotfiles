@@ -7,7 +7,7 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("/usr/lib/polkit-kde-authentication-agent-1")
     hl.exec_cmd("/usr/lib/pam_kwallet_init")
 
-    hl.exec_cmd("linux-wallpaper-engine-ux")
+    hl.exec_cmd("hyprpaper")
     hl.exec_cmd(SCRIPTS .. "/gtk.sh")
     hl.exec_cmd("hypridle")
     hl.exec_cmd("wl-paste --watch cliphist store")

@@ -77,10 +77,6 @@ tesseract-data-eng
 tesseract-data-pol
 zbar
 
-# Wallpaper Engine
-linux-wallpaperengine-git
-linux-wallpaper-engine-ux
-
 # Audio & Media
 pipewire
 pipewire-pulse
