@@ -60,8 +60,3 @@ Modifier: `SUPER` (Windows key)
 - `SUPER + Shift + S` / `Print` — Screenshot (Quickshell)
 - `SUPER + L` — Lock screen
 - `SUPER + 1-9, 0` — Workspaces (per-monitor)
-
-## Credits
-
-- Started from [ML4W dotfiles](https://github.com/mylinuxforwork/dotfiles).
-- The SDDM theme (*nocturne*) and parts of the Quickshell config (`.config/quickshell/`) began as [impasto](https://github.com/andreumassanet/impasto) by Andreu Massanet, GPL-3.0; both folders keep its license.
