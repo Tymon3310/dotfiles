@@ -53,7 +53,6 @@ Item {
         field.forceActiveFocus()
     }
 
-    // SDDM userModel adapter
     Instantiator {
         id: rows
         model: root.users
@@ -136,7 +135,6 @@ Item {
     implicitWidth: pill.width
     implicitHeight: root.pillHeight + 40
 
-    // Shake animation on failed attempt
     SequentialAnimation {
         id: refusal
 
@@ -184,7 +182,6 @@ Item {
             ColorAnimation { duration: Theme.durationFast }
         }
 
-        // Subtle drop shadow backing
         Rectangle {
             anchors.fill: parent
             anchors.margins: -2
@@ -217,7 +214,6 @@ Item {
                 }
             }
 
-            // Scanning indicator ring around avatar
             RingIndicator {
                 id: scannerRing
                 anchors.centerIn: parent

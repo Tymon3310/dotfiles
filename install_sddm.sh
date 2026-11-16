@@ -26,7 +26,6 @@ for pamf in /etc/pam.d/sddm*; do backup "$pamf"; done
 backup /usr/share/sddm/scripts/Xsetup
 backup /usr/share/sddm/scripts/Xstop
 
-# Provide restore script in system_backups
 cp -pv "$DOTFILES_DIR/sddm/scripts/restore_sddm_backup.sh" "$DOTFILES_DIR/system_backups/restore_sddm_backup.sh"
 chmod 755 "$DOTFILES_DIR/system_backups/restore_sddm_backup.sh"
 
@@ -39,22 +38,6 @@ find "$THEME_DST" -type f -exec chmod 644 {} +
 
 mkdir -p /var/lib/nocturne/faces
 chmod 755 /var/lib/nocturne/faces
-
-# The theme used to be called impasto: take its faces along and remove
-# what it installed.
-if [ -d /var/lib/impasto/faces ]; then
-    cp -rpn /var/lib/impasto/faces/. /var/lib/nocturne/faces/ 2>/dev/null || true
-    rm -rf /var/lib/impasto
-fi
-rm -rf /usr/share/sddm/themes/impasto
-if [ -f /etc/systemd/system/sddm-impasto-helper.service ]; then
-    systemctl disable sddm-impasto-helper.service 2>/dev/null || true
-    rm -f /etc/systemd/system/sddm-impasto-helper.service
-    # It was the Wayland greeter's helper: put its replacement in place.
-    install -m 644 -v "$DOTFILES_DIR/sddm/systemd/sddm-nocturne-helper.service" /etc/systemd/system/
-    systemctl daemon-reload
-    systemctl enable sddm-nocturne-helper.service
-fi
 
 echo "Installing SDDM UEFI reboot helper & password validation helper..."
 mkdir -p /usr/share/sddm/scripts
@@ -83,8 +66,6 @@ fi
 
 echo "Configuring SDDM theme..."
 mkdir -p /etc/sddm.conf.d
-
-rm -f /etc/sddm.conf.d/90-impasto.conf /etc/sddm.conf.d/zz-impasto.conf
 
 # zz- prefix sorts after all other .conf files so our settings win.
 # (AMD_DEBUG=nodcc in the file avoids DCC tile corruption on AMD GPUs under X11.)

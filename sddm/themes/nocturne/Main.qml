@@ -232,7 +232,6 @@ Rectangle {
         }
     }
 
-    // Face authentication through SDDM's PAM transaction.
     function attemptFace(): void {
         // fadingOut: a login or power action is already on its way out
         if (!root.isPrimary || root.authenticating || root.fadingOut)
@@ -415,7 +414,6 @@ Rectangle {
         root.exitFrom = ""
         root.pendingPowerAction = action
 
-        // Notify local helper daemon of power intent & firmware-setup state
         root.helperPost((action === "reboot-uefi") ? "reboot-uefi"
                         : (action === "shutdown") ? "shutdown" : "reboot-normal")
 
