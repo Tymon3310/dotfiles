@@ -7,8 +7,8 @@ import json
 import os
 import signal
 import sys
-import threading
 import tempfile
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -190,6 +190,11 @@ class SpotifyQueueWorker:
                 sys.stderr.write(f"Queue update failed: {error}\n")
 
 
+def is_spotify(name):
+    # "spotif" also catches Spotify clients like Spotifast.
+    return "spotif" in name.name.lower()
+
+
 class SpotifyQueueListener:
     def __init__(self):
         self.worker = SpotifyQueueWorker()
@@ -202,7 +207,7 @@ class SpotifyQueueListener:
 
     def find_spotify(self):
         for name in self.manager.props.player_names:
-            if "spotify" in name.name.lower() and self.init_player(name):
+            if is_spotify(name) and self.init_player(name):
                 return
         self.worker.player_present = False
         self.worker.changed.set()
@@ -221,7 +226,7 @@ class SpotifyQueueListener:
             return False
 
     def on_player_appeared(self, manager, name):
-        if self.player is None and "spotify" in name.name.lower():
+        if self.player is None and is_spotify(name):
             self.init_player(name)
 
     def on_player_vanished(self, manager, player):

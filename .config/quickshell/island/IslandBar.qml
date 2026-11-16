@@ -1,0 +1,621 @@
+import QtQuick
+import Quickshell
+import Quickshell.Hyprland
+import Quickshell.Io
+import Quickshell.Wayland
+import Quickshell.Services.SystemTray
+
+import "../theme"
+import "../services"
+import "../components"
+import "widgets"
+import "."
+import "controls"
+
+PanelWindow {
+    id: bar
+
+    property var modelData
+    screen: modelData
+
+
+    // "dashboard", "session", "tray" or "".
+    property string openId: ""
+    readonly property bool expanded: bar.openId !== ""
+    readonly property bool dashboardOpen: bar.openId === "dashboard"
+
+    // Dropped as soon as the menu closes: a menu handle kept past that goes
+    // stale when the application rebuilds its menu (some do when a device
+    // connects), and a list later built from it crashes Quickshell.
+    property var trayMenu: null
+    property var trayItem: null
+
+    onOpenIdChanged: {
+        if (bar.openId !== "tray") {
+            bar.trayMenu = null
+            bar.trayItem = null
+        }
+        if (bar.openId !== "") {
+            bar.contentLinger.stop()
+            bar.shownId = bar.openId
+        } else if (bar.shownId === "tray") {
+            // Its menu handle was just dropped; nothing left to show.
+            bar.shownId = ""
+        } else {
+            bar.contentLinger.restart()
+        }
+    }
+
+    // What the detail area draws. Follows openId on open, but outlives a
+    // close by one retract, so the content fades out while the island
+    // shrinks around it instead of the island shrinking empty. Kept within
+    // Theme.durationIslandGone so the lock capture never sees it.
+    property string shownId: ""
+    readonly property Timer contentLinger: Timer {
+        interval: Theme.durationIslandRetract
+        onTriggered: bar.shownId = ""
+    }
+
+    Connections {
+        target: SystemTray.items
+        function onValuesChanged(): void {
+            if (bar.trayItem && SystemTray.items.values.indexOf(bar.trayItem) < 0)
+                bar.close()
+        }
+    }
+
+    readonly property bool isFullscreen: HyprlandService.isFullscreenOn(bar.screen ? bar.screen.name : "")
+    readonly property bool headsUpActive: (SettingsService.notificationHeadsUpMode === "always")
+        || (SettingsService.notificationHeadsUpMode === "fullscreen" && bar.isFullscreen)
+
+    // Popups show on one monitor only (NotificationService.popupScreen).
+    readonly property bool notifying: NotificationService.showsOn(bar.screen ? bar.screen.name : "")
+        && !bar.expanded && !bar.headsUpActive
+    readonly property bool recording: ScreenRecorderService.recording
+
+    // Growing (a panel, the OSD, an alert) springs; shrinking back to rest
+    // stays the quick retract the lock capture is timed against.
+    readonly property bool growing: bar.below !== "" || OsdService.active || bar.alerting
+        || motion.unfurling
+
+    // An agent alert takes the resting island for a few seconds; it waits
+    // behind anything expanded, an OSD, and the lock morph.
+    readonly property bool alerting: AgentService.alertActive && bar.below === ""
+        && !OsdService.active && !bar.isDemorphed
+
+    function toggle(id: string): void {
+        bar.openId = bar.openId === id ? "" : id
+    }
+
+    function close(): void {
+        bar.openId = ""
+    }
+
+    // `qs-ipc.sh call island-DP-1 toggle dashboard` (one target per screen),
+    // e.g. for a keybind. Ids: dashboard, session, glance.
+    IpcHandler {
+        target: "island-" + (bar.screen ? bar.screen.name : "unknown")
+        function toggle(id: string): void { bar.toggle(id) }
+        function close(): void { bar.close() }
+    }
+
+    // Suspend OSD requests while expanded so no stale OSD flashes on close.
+    onExpandedChanged: OsdService.suspended = bar.expanded
+
+    readonly property string below: bar.expanded ? bar.openId
+        : bar.notifying ? "notification" : ""
+
+    readonly property size belowSize: bar.sizeFor(bar.below)
+
+    function sizeFor(id: string): size {
+        switch (id) {
+        case "notification":
+            return notificationLoader.item
+                ? Qt.size(notificationLoader.item.wantWidth, notificationLoader.item.wantHeight)
+                : Qt.size(430, 56)
+        case "glance":
+            return Qt.size(450, 56)
+        case "tray":
+            return Qt.size(280, Math.min(460, detailLoader.item?.contentHeight ?? 60))
+        case "session":
+            return Qt.size(560, 100)
+        case "dashboard":
+            return Qt.size(1084, 724)
+        }
+        return Qt.size(0, 0)
+    }
+
+    // this bar only binds to it and suspends it while expanded.
+
+    property bool holdTriggered: false
+
+    readonly property Timer holdTimer: Timer {
+        interval: 280
+        repeat: false
+        onTriggered: {
+            if (islandCapsuleMouse.pressed && bar.openId === "") {
+                bar.holdTriggered = true
+                bar.openId = "glance"
+            }
+        }
+    }
+
+    readonly property Timer hoverGraceTimer: Timer {
+        interval: 350
+        repeat: false
+        onTriggered: {
+            if (bar.openId === "glance" && !islandHover.hovered) {
+                bar.close()
+            }
+        }
+    }
+
+    property alias notchYOffset: motion.notchYOffset
+    property alias islandsEmergeProgress: motion.islandsEmergeProgress
+    property alias isDemorphed: motion.isDemorphed
+    // The capsule rect, for IslandMotion's explicit lock morph.
+    property alias capsule: island
+
+    IslandMotion {
+        id: motion
+        island: bar
+    }
+
+
+    anchors {
+        top: true
+        left: true
+        right: true
+    }
+
+    readonly property int capsuleH: Theme.capsuleHeight
+    readonly property int barTopMargin: Theme.barTopMargin
+    readonly property int pad: bar.openId === "glance" ? 8 : 14
+    readonly property int openRadius: Theme.radiusLarge + 4
+
+    // Room for the dashboard plus its spring overshoot.
+    implicitHeight: 820
+    // Reduced exclusiveZone to reduce the gap between the bar and tiled windows
+    exclusiveZone: bar.capsuleH + bar.barTopMargin - 8
+    color: "transparent"
+
+    mask: Region {
+        item: island
+        Region { item: leftZone }
+        Region { item: rightZone }
+    }
+
+    WlrLayershell.keyboardFocus: bar.expanded
+        ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+
+    HyprlandFocusGrab {
+        active: bar.expanded
+        windows: [bar]
+        onCleared: bar.close()
+    }
+
+
+    Row {
+        id: leftZone
+        z: 1
+
+        x: island.x - (width + Theme.capsuleSpacing) * bar.islandsEmergeProgress
+        y: bar.barTopMargin
+        spacing: Theme.capsuleSpacing
+
+        opacity: Math.min(1, bar.islandsEmergeProgress * 1.5)
+        visible: opacity > 0
+
+        Rectangle {
+            height: bar.capsuleH
+            width: wsWidget.implicitWidth + 12
+            radius: height / 2
+            color: Theme.island
+
+            WorkspacesWidget {
+                id: wsWidget
+                anchors.centerIn: parent
+                monitor: bar.screen ? bar.screen.name : ""
+                chromeless: true
+            }
+        }
+    }
+
+
+    Rectangle {
+        id: island
+        z: 2
+
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: bar.notchYOffset
+
+        width: bar.below !== ""
+            ? bar.belowSize.width + 2 * bar.pad
+            : OsdService.active
+                ? Math.max(260, osdLayerItem.implicitWidth + 36)
+                : bar.alerting
+                    ? Math.max(260, agentAlertItem.implicitWidth + 40)
+                : bar.recording
+                    ? recordingItem.implicitWidth + 24
+                    : bar.isDemorphed
+                        ? 72
+                        : IslandMetrics.notchWidth
+
+        height: bar.below !== ""
+            ? bar.belowSize.height + 2 * bar.pad
+            : bar.capsuleH + bar.barTopMargin
+
+        color: Theme.island
+        border.width: 0
+        clip: true
+
+        topLeftRadius: 0
+        topRightRadius: 0
+        bottomLeftRadius: bar.below !== "" ? bar.openRadius : Theme.radiusLarge
+        bottomRightRadius: bottomLeftRadius
+
+        // Corners travel with the morph instead of snapping on its first frame.
+        Behavior on bottomLeftRadius {
+            NumberAnimation { duration: bar.growing ? Theme.durationMorph : Theme.durationIslandRetract; easing.type: Theme.easing }
+        }
+
+        // Closing/demorphing is fast (the capture waits on it); opening
+        // keeps the full graceful morph. Branched on `below` (not the
+        // demorph flag): width/height depend on `below`, so it is
+        // guaranteed fresh before they re-evaluate — no duration race.
+        Behavior on width {
+            NumberAnimation {
+                duration: bar.growing ? Theme.durationSpring : Theme.durationIslandRetract
+                easing.type: bar.growing ? Theme.easingSpring : Theme.easing
+                easing.overshoot: Theme.springOvershoot
+            }
+        }
+        Behavior on height {
+            NumberAnimation {
+                duration: bar.growing ? Theme.durationSpring : Theme.durationIslandRetract
+                easing.type: bar.growing ? Theme.easingSpring : Theme.easing
+                easing.overshoot: Theme.springOvershoot
+            }
+        }
+
+        focus: bar.expanded
+        Keys.onEscapePressed: bar.close()
+
+        HoverHandler {
+            id: islandHover
+            enabled: bar.openId === "glance"
+            onHoveredChanged: {
+                if (!hovered && bar.openId === "glance")
+                    bar.hoverGraceTimer.restart()
+                else
+                    bar.hoverGraceTimer.stop()
+            }
+        }
+
+        MouseArea {
+            id: islandCapsuleMouse
+            anchors.top: parent.top
+            anchors.topMargin: bar.barTopMargin
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: parent.width
+            height: bar.capsuleH
+            enabled: bar.below === ""
+            z: 10
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+
+            onPressed: mouse => {
+                if (mouse.button === Qt.LeftButton && bar.openId === "") {
+                    bar.holdTriggered = false
+                    bar.holdTimer.restart()
+                }
+            }
+
+            onReleased: mouse => {
+                bar.holdTimer.stop()
+            }
+
+            onClicked: mouse => {
+                bar.holdTimer.stop()
+                bar.hoverGraceTimer.stop()
+                if (mouse.button === Qt.RightButton) {
+                    MediaService.toggle()
+                    return
+                }
+                if (bar.holdTriggered) {
+                    bar.holdTriggered = false
+                    return
+                }
+                bar.toggle("dashboard")
+            }
+
+            onWheel: event => MediaService.nudgeVolume(event.angleDelta.y > 0 ? 0.05 : -0.05)
+        }
+
+        // z above the capsule mouse so the agent icon takes its own clicks
+        // (it has the row's only MouseArea; clicks elsewhere fall through).
+        IslandRestRow {
+            z: 11
+            anchors.top: parent.top
+            anchors.topMargin: bar.barTopMargin
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            readonly property bool shown: !(bar.below !== "" || OsdService.active || bar.isDemorphed || bar.recording || bar.alerting)
+            opacity: shown ? 1 : 0
+            scale: shown ? 1 : 0.9
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+            Behavior on scale { NumberAnimation { duration: Theme.durationEnter; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot } }
+        }
+
+        // z above the capsule mouse so pause/stop stay clickable.
+        RecordingIndicator {
+            id: recordingItem
+            z: 11
+            anchors.top: parent.top
+            anchors.topMargin: bar.barTopMargin
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            // Recording overrides demorph: the island stays wide to show it.
+            readonly property bool shown: bar.recording && bar.below === "" && !OsdService.active && !bar.alerting
+            opacity: shown ? 1 : 0
+            scale: shown ? 1 : 0.85
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+            Behavior on scale { NumberAnimation { duration: Theme.durationEnter; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot } }
+        }
+
+        // z above the capsule mouse: a click focuses that session's window.
+        AgentAlert {
+            id: agentAlertItem
+            z: 11
+            anchors.top: parent.top
+            anchors.topMargin: bar.barTopMargin
+            anchors.horizontalCenter: parent.horizontalCenter
+            height: bar.capsuleH
+
+            opacity: bar.alerting ? 1 : 0
+            scale: bar.alerting ? 1 : 0.8
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: Theme.durationMedium } }
+            Behavior on scale { NumberAnimation { duration: Theme.durationSpring; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot } }
+
+            MouseArea {
+                anchors.fill: parent
+                anchors.margins: -6
+                cursorShape: Qt.PointingHandCursor
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                onClicked: mouse => {
+                    if (mouse.button === Qt.LeftButton)
+                        AgentService.focusAgent(AgentService.alert)
+                    AgentService.dismissAlert()
+                }
+            }
+        }
+
+        // A tinted glow along the island's lower edge, in the colour of
+        // whatever the island has morphed into: an agent alert, an OSD, a
+        // new notification, or a recording in progress.
+        // While a session waits for input (or has errored), it stays lit
+        // and breathes in that colour until you get to it.
+        Rectangle {
+            id: edgeGlow
+
+            // Lit only because something is waiting: nothing else showing.
+            readonly property bool attentionOnly: AgentService.needsAttention && bar.below === ""
+                && !bar.alerting && !OsdService.active && !bar.recording
+            readonly property color tint: bar.alerting ? agentAlertItem.tint
+                : (OsdService.active && bar.below === "") ? osdLayerItem.tint
+                : bar.below === "notification" ? Theme.accent
+                : edgeGlow.attentionOnly ? (AgentService.attentionState === "error" ? Theme.indicatorBad : Theme.indicatorWarn)
+                : Theme.red
+            readonly property bool lit: bar.alerting
+                || (OsdService.active && bar.below === "")
+                || bar.below === "notification"
+                || (bar.recording && bar.below === "")
+                || edgeGlow.attentionOnly
+
+            property real breath: 1
+            SequentialAnimation on breath {
+                running: edgeGlow.attentionOnly
+                loops: Animation.Infinite
+                onRunningChanged: if (!running) edgeGlow.breath = 1
+                NumberAnimation { from: 1; to: 0.35; duration: 900; easing.type: Easing.InOutSine }
+                NumberAnimation { from: 0.35; to: 1; duration: 900; easing.type: Easing.InOutSine }
+            }
+
+            anchors.bottom: parent.bottom
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: edgeGlow.lit ? parent.width * 0.6 : 0
+            height: 2
+            radius: 1
+            opacity: !edgeGlow.lit ? 0
+                : edgeGlow.attentionOnly ? edgeGlow.breath
+                : (bar.recording && !bar.alerting && !OsdService.active ? 0.6 : 0.9)
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0; color: "transparent" }
+                GradientStop { position: 0.5; color: edgeGlow.tint }
+                GradientStop { position: 1; color: "transparent" }
+            }
+
+            Behavior on width { NumberAnimation { duration: Theme.durationMorph; easing.type: Theme.easing } }
+            Behavior on opacity { NumberAnimation { duration: Theme.durationMedium } }
+        }
+
+        OsdLayer {
+            id: osdLayerItem
+            anchors.top: parent.top
+            anchors.topMargin: bar.barTopMargin
+            anchors.horizontalCenter: parent.horizontalCenter
+            height: bar.capsuleH
+
+            icon: OsdService.icon
+            label: OsdService.label
+            progress: OsdService.progress
+            opacity: (OsdService.active && bar.below === "") ? 1 : 0
+            scale: (OsdService.active && bar.below === "") ? 1 : 0.85
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+            Behavior on scale { NumberAnimation { duration: Theme.durationEnter; easing.type: Theme.easingSpring; easing.overshoot: Theme.springOvershoot } }
+        }
+
+        Loader {
+            id: detailLoader
+            anchors.top: parent.top
+            anchors.topMargin: bar.pad
+            anchors.horizontalCenter: parent.horizontalCenter
+            // Sized by shownId, not below: while closing, the content keeps
+            // its layout and is clipped by the shrinking island.
+            width: bar.sizeFor(bar.shownId).width
+            height: bar.sizeFor(bar.shownId).height
+            active: bar.shownId !== ""
+            enabled: bar.expanded
+            // Building the dashboard in the click frame stalls the first
+            // frames of the morph. Incubate it across frames while the island
+            // grows (its size is fixed up front), then fade it in.
+            asynchronous: true
+            opacity: detailLoader.status === Loader.Ready && bar.expanded ? 1 : 0
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: bar.expanded ? Theme.durationMedium : Theme.durationFast
+                    easing.type: bar.expanded ? Theme.easing : Easing.OutQuad
+                }
+            }
+
+            sourceComponent: {
+                switch (bar.shownId) {
+                case "glance":    return glanceComponent
+                case "dashboard": return dashboardComponent
+                case "session":   return sessionComponent
+                case "tray":      return trayComponent
+                default:          return null
+                }
+            }
+        }
+
+        Component {
+            id: glanceComponent
+            IslandGlance {
+                onExpandRequested: bar.openId = "dashboard"
+                onClosed: bar.close()
+            }
+        }
+
+        Component {
+            id: dashboardComponent
+            IslandDashboard {
+                onClosed: bar.close()
+            }
+        }
+
+        Component {
+            id: sessionComponent
+            SessionPanel {
+                onClosed: bar.close()
+            }
+        }
+
+        Component {
+            id: trayComponent
+            TrayMenuList {
+                menu: bar.trayMenu
+                item: bar.trayItem
+                onItemTriggered: bar.close()
+            }
+        }
+
+        Loader {
+            id: notificationLoader
+            anchors.top: parent.top
+            anchors.topMargin: bar.pad
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: bar.belowSize.width
+            height: bar.belowSize.height
+            active: bar.notifying
+            opacity: bar.notifying ? 1 : 0
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: Theme.durationMedium } }
+            sourceComponent: NotificationStack {}
+        }
+    }
+
+    // Notch fillets where the island meets the screen edge. Siblings of the
+    // island, not children: it clips, and they sit just outside it.
+    NotchFillet {
+        z: 2
+        x: island.x - width
+        y: island.y
+        mirrored: true
+        opacity: Math.max(0, 1 + bar.notchYOffset / 10)
+    }
+
+    NotchFillet {
+        z: 2
+        x: island.x + island.width
+        y: island.y
+        opacity: Math.max(0, 1 + bar.notchYOffset / 10)
+    }
+
+
+    Row {
+        id: rightZone
+        z: 1
+
+        x: (island.x + island.width - width) + (width + Theme.capsuleSpacing) * bar.islandsEmergeProgress
+        y: bar.barTopMargin
+        spacing: Theme.capsuleSpacing
+
+        opacity: Math.min(1, bar.islandsEmergeProgress * 1.5)
+        visible: opacity > 0
+
+        Rectangle {
+            height: bar.capsuleH
+            width: trayWidget.implicitWidth + 16
+            radius: height / 2
+            color: Theme.island
+            visible: !trayWidget.empty
+
+            TrayWidget {
+                id: trayWidget
+                anchors.centerIn: parent
+                onMenuRequested: (menu, centerX, item) => {
+                    bar.trayItem = item
+                    bar.trayMenu = menu
+                    bar.openId = "tray"
+                }
+            }
+        }
+
+        Rectangle {
+            height: bar.capsuleH
+            width: bar.capsuleH
+            radius: height / 2
+            color: bar.openId === "session" || powerMouse.containsMouse
+                ? Theme.islandSurfaceHover : Theme.island
+
+            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+            Text {
+                anchors.centerIn: parent
+                text: "󰐥"
+                font.family: Theme.fontMono
+                font.pixelSize: 13
+                color: Theme.text
+                scale: powerMouse.pressed ? 0.88 : 1
+                Behavior on scale {
+                    NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutBack }
+                }
+            }
+
+            MouseArea {
+                id: powerMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: bar.toggle("session")
+            }
+        }
+    }
+}

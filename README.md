@@ -64,4 +64,4 @@ Modifier: `SUPER` (Windows key)
 ## Credits
 
 - Started from [ML4W dotfiles](https://github.com/mylinuxforwork/dotfiles).
-- The SDDM theme (*nocturne*) and parts of the Quickshell components (`.config/quickshell/parts/`) began as [impasto](https://github.com/andreumassanet/impasto) by Andreu Massanet, GPL-3.0; those folders keep its license.
+- The SDDM theme (*nocturne*) and parts of the Quickshell config (`.config/quickshell/`) began as [impasto](https://github.com/andreumassanet/impasto) by Andreu Massanet, GPL-3.0; both folders keep its license.

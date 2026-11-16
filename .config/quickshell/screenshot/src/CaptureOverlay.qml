@@ -274,7 +274,6 @@ FreezeScreen {
                         return
                     }
 
-                    // Otherwise clear selection and capture just this screen
                     freezeWindow.controller.selectedWindows = []
                     freezeWindow.controller.selectedScreens = []
 

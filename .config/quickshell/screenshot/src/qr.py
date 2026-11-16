@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Find QR codes and barcodes in an image. Prints x|y|width|height|data per code."""
 import json
-import queue
 import os
+import queue
 import shutil
 import subprocess
 import sys
@@ -29,7 +29,7 @@ def log(msg):
 # linear=True restricts decoding to 1D barcodes.
 
 class Variant:
-    __slots__ = ("name", "img", "sx", "sy", "ox", "oy", "binarizers", "linear")
+    __slots__ = ("binarizers", "img", "linear", "name", "ox", "oy", "sx", "sy")
 
     def __init__(self, name, img, scale=1.0, ox=0, oy=0, binarizers=("local",),
                  sx=None, sy=None, linear=False):
@@ -88,10 +88,10 @@ def connected_boxes(occ, cell):
         while stack:
             cy, cx = stack.pop()
             n += 1
-            if cy < y0: y0 = cy
-            if cy > y1: y1 = cy
-            if cx < x0: x0 = cx
-            if cx > x1: x1 = cx
+            y0 = min(y0, cy)
+            y1 = max(y1, cy)
+            x0 = min(x0, cx)
+            x1 = max(x1, cx)
             for ny, nx in ((cy - 1, cx), (cy + 1, cx), (cy, cx - 1), (cy, cx + 1)):
                 if 0 <= ny < gh and 0 <= nx < gw and occ[ny, nx] and not labels[ny, nx]:
                     labels[ny, nx] = True

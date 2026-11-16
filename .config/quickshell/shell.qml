@@ -1,12 +1,14 @@
 import Quickshell
 import Quickshell.Io
 import QtQuick
+import "island"
 import "components"
-import "parts/services"
-import "parts/lock"
+import "screenshot"
+import "services"
+import "lock"
 
 ShellRoot {
-    // The notification daemon is parts/services/NotificationService,
+    // The notification daemon is services/NotificationService,
     // shown in the island by IslandBar. Singletons are built on first use, so
     // it is touched here to own the name from startup.
     Component.onCompleted: void NotificationService.server

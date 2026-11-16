@@ -7,10 +7,6 @@ QtObject {
     property color islandSurfaceHover: "#1f1f1f"
     property color islandBorder: "#262626"
 
-    property color background: "#0c0c0c"
-    property color surface: "#141414"
-    property color surfaceHover: "#202020"
-    property color border: "#282828"
     property color text: "#ffffff"
     property color textMuted: "#8e8e93"
     property color accent: "#0070D8"

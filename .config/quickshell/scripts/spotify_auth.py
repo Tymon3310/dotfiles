@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
+import base64
+import json
 import os
 import sys
-import json
-import base64
-import urllib.request
 import urllib.parse
+import urllib.request
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_DIR = os.path.join(
     os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "quickshell-spotify"
 )

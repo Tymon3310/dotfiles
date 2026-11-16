@@ -199,8 +199,8 @@ step_shell() {
 }
 
 # Claude Code and OpenCode report each session's state for the island's agent
-# indicator: Claude through hooks (parts/scripts/claude_status.sh), OpenCode
-# through a TUI plugin (parts/scripts/opencode-agent-status/), which also lets
+# indicator: Claude through hooks (scripts/claude_status.sh), OpenCode
+# through a TUI plugin (scripts/opencode-agent-status/), which also lets
 # the island switch an OpenCode window to the clicked session's tab.
 step_agents() {
     agents_opencode
@@ -216,14 +216,14 @@ agents_opencode() {
     # the folder itself is not part of the dotfiles. OpenCode v2 loads only
     # folders from plugins/; drop the old single-file plugin it would reject.
     rm -f "$HOME/.config/opencode/plugins/agent-status.js"
-    link "$DOTFILES_DIR/.config/quickshell/parts/scripts/opencode-agent-status" \
+    link "$DOTFILES_DIR/.config/quickshell/scripts/opencode-agent-status" \
          "$HOME/.config/opencode/plugins/agent-status"
     ok "OpenCode status plugin linked (restart OpenCode windows to load it)"
 }
 
 agents_claude() {
     command -v jq >/dev/null 2>&1 || { warn "jq not installed, skipping Claude Code hooks"; return; }
-    local hook="~/.config/quickshell/parts/scripts/claude_status.sh"
+    local hook="~/.config/quickshell/scripts/claude_status.sh"
     local events='{
         "UserPromptSubmit": "working",
         "PreToolUse": "working",

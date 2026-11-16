@@ -163,7 +163,7 @@ def open_keyboards(exclude=()):
         try:
             dev = evdev.InputDevice(path)
             if device_usable(dev):
-                # Crucial: set non-blocking so dev.read() never hangs!
+                # Keeps dev.read() from blocking the loop.
                 os.set_blocking(dev.fd, False)
                 devices.append(dev)
             else:
@@ -252,7 +252,6 @@ def locks_main():
                 devices.extend(open_keyboards(exclude=known))
                 leds = has_leds(devices)
 
-            # Rescan devices periodically (15s when active, 5s throttle when no devices accessible)
             now = time.time()
             if now - last_scan_time > (5.0 if not devices else 15.0):
                 known = set(dev.path for dev in devices)

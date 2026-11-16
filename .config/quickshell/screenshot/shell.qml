@@ -112,8 +112,7 @@ Scope {
     property real selectionWidth: Math.abs(globalEndX - globalStartX)
     property real selectionHeight: Math.abs(globalEndY - globalStartY)
 
-    // Hyprland 0.54 fix: track frozen state separately from ready,
-    // so FreezeScreens survive when ready is toggled during save
+    // Separate from `ready`, which is toggled during save; the frozen overlays must survive that.
     property bool screensFrozen: false
 
     Timer {
@@ -136,12 +135,8 @@ Scope {
         const envInstant = root.isLoadedDynamically ? "" : (Quickshell.env("QS_INSTANT") || "")
         const envId = root.isLoadedDynamically ? "" : (Quickshell.env("QS_ID") || "")
         const validModes = ["region", "window", "screen", "analyze", "record"]
-        const legacyEngines = { ocr: "text", lens: "lens", ai: "ai" }
-        if (envMode && validModes.includes(envMode)) {
+        if (validModes.includes(envMode)) {
             root.mode = envMode
-        } else if (envMode && envMode in legacyEngines) {
-            root.mode = "analyze"
-            root.analyzeEngine = legacyEngines[envMode]
         }
         const envEngine = root.isLoadedDynamically ? "" : (Quickshell.env("QS_ENGINE") || "")
         if (root.mode === "analyze" && ["text", "ai", "lens"].includes(envEngine)) {
@@ -149,7 +144,7 @@ Scope {
         }
         root.instantCapture = root.instantCapture || envInstant === "1"
         if (root.instantCapture && !root.externalGeom && (root.mode === "screen" || root.mode === "window")) {
-            // Fetch geometry upfront via hyprctl (Hyprland QML API isn't available yet)
+            // Hyprland's QML API isn't available yet, so geometry comes from hyprctl.
             if (root.mode === "screen") {
                 instantGeoProcess.command = ["sh", "-c", "hyprctl monitors -j | jq -r '[.[] | select(.focused)][0] | [.x, .y, .width, .height] | @tsv'"]
             } else {
@@ -212,7 +207,6 @@ Scope {
             compositeArgs += ` "${tmpFile}" -geometry +${offsetX}+${offsetY} -composite`
         }
 
-        // Stage 2 cmd (runs in background after UI shows)
         root._stitchCmd = `magick -size ${totalW}x${totalH} canvas:black${compositeArgs} -define png:compression-level=1 "${tempPath}" && rm -f ${root._stitchTmpFiles.map(f => `"${f}"`).join(" ")}`
 
         if (root.externalTimestamp || envId) {
@@ -347,7 +341,7 @@ Scope {
             }
         }
 
-        // Create a copy of the array to ensure change detection works
+        // Reassigned as a copy: QML only notices a changed array reference.
         let newSelection = []
         for (let i = 0; i < selectedWindows.length; i++) {
             newSelection.push(selectedWindows[i])
@@ -535,12 +529,8 @@ Scope {
                     }
 
 
-                    // Note: -define applies to the write.
-
-                    // Logic reuse: If editor, construct edit command. Else construct save command.
                      if (openEditor) {
                         const cropPath = Quickshell.cachePath(`screenshot-crop-${Date.now()}.png`)
-                        // Inject cropPath into the command
                          cmd += `"${cropPath}" && satty --filename "${cropPath}" && rm "${tempPath}"`
                     } else {
                         cmd += `-define png:compression-level=1 "${outputPath}" && ` +
@@ -561,12 +551,9 @@ Scope {
             }
         }
 
-        // Standard single region logic below...
         // Ignore tiny accidental drags
         if (width < 10 || height < 10) return
 
-        // Normalize coordinates: subtract the minimum screen offset
-        // grim's output image starts at (0,0) for the bounding box of all monitors
         const normalizedX = Math.round(x - root.minScreenX)
         const normalizedY = Math.round(y - root.minScreenY)
         const scaledWidth = Math.round(width)
@@ -574,7 +561,6 @@ Scope {
 
         root.ready = false
 
-        // If shift is held and mode supports editing, open in Satty editor
         const editableModes = ["region", "window", "screen"]
         if (openEditor && editableModes.includes(mode)) {
             const timestamp = Date.now()
@@ -584,8 +570,6 @@ Scope {
             Quickshell.execDetached(["sh", "-c", cmd])
 
             tempPath = ""
-            // Satty handles UI, so maybe no flash? Or flash before?
-            // Flash + Quit
             root.requestFlash()
             quitTimer.start()
             return
@@ -618,7 +602,6 @@ Scope {
 
             Quickshell.execDetached(["sh", "-c", cmd])
 
-            // Protect tempPath from cleanup
             tempPath = ""
 
             root.requestFlash()
@@ -636,15 +619,16 @@ Scope {
             const timestamp = Date.now()
             cropPath = Quickshell.cachePath(`screenshot-crop-${timestamp}.png`)
             const cmd = `magick "${tempPath}" -crop ${scaledWidth}x${scaledHeight}+${normalizedX}+${normalizedY} "${cropPath}" && ` +
-                `imageLink=$(curl -sF files[]=@"${cropPath}" 'https://uguu.se/upload' | jq -r '.files[0].url') && ` +
-                `xdg-open "https://lens.google.com/uploadbyurl?url=\${imageLink}" && ` +
-                `rm "${tempPath}" "${cropPath}"`
+                // Lens answers the upload with a redirect to the results page;
+                // opening that URL needs no cookies from this request.
+                `lensUrl=$(curl -s --max-time 30 -o /dev/null -w '%{redirect_url}' ` +
+                `-F "encoded_image=@${cropPath};type=image/png" "https://lens.google.com/v3/upload?ep=ccm&s=&st=$(date +%s%3N)") && ` +
+                `[ -n "$lensUrl" ] && xdg-open "$lensUrl" || notify-send 'Google Lens' 'Upload failed'; ` +
+                `rm -f "${tempPath}" "${cropPath}"`
 
             Quickshell.execDetached(["sh", "-c", cmd])
 
             tempPath = ""
-            // No flash for Lens usually, but let's add it for consistency or user feedback? keeping as is (sync? no, detached)
-            // Original code didn't flash Lens in previous step, but user asked for flash. adding it.
             root.requestFlash()
             quitTimer.start()
 
@@ -664,13 +648,10 @@ Scope {
 
             tempPath = ""
 
-            // Visual Flash
             root.requestFlash()
             quitTimer.start()
         }
     }
-
-    // Flash removed from here (moved to FreezeScreen)
 
     Variants {
         // Wait until grim releases screencopy before creating frozen overlays.

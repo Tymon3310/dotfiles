@@ -2,8 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 
-import "../parts/theme"
-import "../parts/services"
+import "../services"
 
 PanelWindow {
     id: root

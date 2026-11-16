@@ -13,8 +13,8 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 
-import "parts/lock"
-import "parts/services"
+import "lock"
+import "services"
 
 ShellRoot {
     id: root
