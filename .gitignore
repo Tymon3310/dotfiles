@@ -10,3 +10,4 @@ system_backups/
 .config/quickshell/spotify_tokens.json
 .config/quickshell/key.pem
 .config/quickshell/cert.pem
+.ruff_cache/

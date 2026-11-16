@@ -1,4 +1,3 @@
-# Keep PATH clean and deduplicated
 typeset -U path PATH
 
 _zsh_cache="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
@@ -59,7 +58,6 @@ eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/EDM115-newline.omp.json)
 
 export EDITOR=nvim
 
-# Core path directories
 path=(
     $HOME/.local/bin
     /usr/lib/ccache/bin
@@ -84,7 +82,6 @@ fi
 export GOROOT=/usr/local/go
 export GOPATH=$HOME/go
 path=($path $GOROOT/bin $GOPATH/bin)
-export LD_LIBRARY_PATH=/usr/local/lib
 
 path=($path "$HOME/.wakatime")
 
@@ -112,7 +109,6 @@ for f in ~/.config/zshrc/functions/*.zsh; do
 done
 
 
-# Don't run fastfetch in VSCode integrated terminal
 if [[ -z $VSCODE_INJECTION ]]; then
     fastfetch -c ~/.config/fastfetch/arch
 fi

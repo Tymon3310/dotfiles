@@ -1,15 +1,5 @@
 #!/usr/bin/env zsh
 
-function gaa() {
-  local title
-  if [[ -z "$1" ]]; then
-    title=$(gum input --placeholder "Commit message...")
-  else
-    title="$1"
-  fi
-  git add . && git commit -m "$title" && git push
-}
-
 _installlibs() {
     local libfile="$HOME/.personal/commonlibs.txt"
     if [ ! -f "$libfile" ]; then
@@ -42,14 +32,18 @@ _makevenv() {
         return 0
     fi
 
-    if [ -d ".venv" ]; then
-        echo "Corrupted .venv directory found, removing..."
-        rm -rf .venv
-    fi
-    if [ -d "venv" ]; then
-        echo "Corrupted venv directory found, removing..."
-        rm -rf venv
-    fi
+    local broken
+    for broken in .venv venv; do
+        [ -d "$broken" ] || continue
+        echo "$broken exists but has no bin/activate:"
+        command ls -A "$broken" | head -5
+        if gum confirm "Delete $broken and create a fresh .venv?" --selected.background '#09F'; then
+            rm -rf -- "$broken"
+        else
+            echo 'Leaving it alone'
+            return 1
+        fi
+    done
 
     gum spin --title "Creating venv..." --spinner.foreground "#09F" -- uv venv .venv
     source .venv/bin/activate
