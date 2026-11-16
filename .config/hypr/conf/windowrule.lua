@@ -143,40 +143,26 @@ hl.window_rule {
 }
 
 hl.window_rule {
-  name = "streamcontroller_workspace",
-  match = {
-    class = "(com.core447.StreamController)",
-  },
-  workspace = "10 silent",
-}
-
-hl.window_rule {
-  name = "opendeck_workspace",
-  match = {
-    class = "(opendeck)",
-  },
-  workspace = "10 silent",
-}
-
-hl.window_rule {
   name = "spotify_workspace",
   match = {
     class = "(spotify|spotifast)",
   },
-  workspace = "23 silent",
+  workspace = "41 silent",
 }
 
 
 hl.window_rule {
   name = "bitwarden",
   match = {
-    class = "(bitwarden)",
+    class = "(bitwarden|dev.vwk.app)",
   },
   float = true,
   size = "1200 700",
   center = true,
-  no_screen_share = 1,
+  no_screen_share = 0,
 }
+
+
 
 hl.window_rule {
   name = "private_browsing",

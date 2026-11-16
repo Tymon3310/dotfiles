@@ -12,10 +12,13 @@ hl.config({
         key_press_enables_dpms = true,
         animate_manual_resizes = true,
         force_default_wallpaper = 1,
+        -- vrr = 1,
     },
     render = {
         -- Fullscreen content-type infoframes make the AOC (HDMI) go black.
         send_content_type = false,
+        -- Don't switch a monitor to HDR when a fullscreen app (e.g. Obsidian/Electron) asks for it.
+        cm_auto_hdr = 0,
     }
 })
 

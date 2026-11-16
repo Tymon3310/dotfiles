@@ -9,7 +9,7 @@ hl.config({
         kb_model = "",
         numlock_by_default = true,
         kb_options = "fkeys:basic_13-24",
-        mouse_refocus = false, -- on steals focus back from vicinae (layer) when it opens over a window
+        -- mouse_refocus = false, -- on steals focus back from vicinae (layer) when it opens over a window
         follow_mouse = 1,
     }
 })
@@ -87,7 +87,7 @@ hl.bind("SUPER + CTRL + G", layout.recover_rogue_windows)
 
 hl.bind("SUPER + SHIFT + F", misc.toggle_btop_special)
 
-local player = "soloist"
+local player = "spotifast,soloist"                  -- playerctl uses the first one running
 local spotify_players = "soloist,spotifast,spotify" -- ignored by the -i binds so they hit yt/vlc/etc
 -- Audio keys also work on the lock screen; volume repeats while held, capped at 100%.
 local held = { locked = true, repeating = true }
@@ -97,12 +97,8 @@ hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO
 hl.bind("XF86AudioMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"), locked)
 hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl -p " .. player .. " play-pause"), locked)
 hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl -p " .. player .. " pause"), locked)
--- bind = , XF86AudioNext, exec, playerctl -p $player next
--- bind = , XF86AudioPrev, exec, playerctl -p $player previous
 hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl -p " .. player .. " volume 0.05+"))
 hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl -p " .. player .. " volume 0.05-"))
--- bind = , XF86AudioForward, exec, playerctl -p $player next
--- bind = , XF86AudioBackward, exec, playerctl -p $player previous
 hl.bind("XF86AudioForward", hl.dsp.exec_cmd("playerctl -i " .. spotify_players .. " position 1+"))
 hl.bind("XF86AudioRewind", hl.dsp.exec_cmd("playerctl -i " .. spotify_players .. " position 1-"))
 hl.bind("XF86AudioStop", hl.dsp.exec_cmd("playerctl -i " .. spotify_players .. " play-pause"))
@@ -115,7 +111,7 @@ local loop_cycle = string.format(
     'p=%s; case "$(playerctl -p "$p" loop)" in Track) n=Playlist;; Playlist) n=None;; *) n=Track;; esac; playerctl -p "$p" loop "$n"',
     player)
 hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("bash -c '" .. loop_cycle .. "'"))
--- bind = , Cancel, exec, wpctl set-mute @DEFAULT_SOURCE@ toggle
--- bind = , XF86Reload, exec, wpctl set-volume @DEFAULT_SOURCE@ 5%+
--- bind = , XF86Favorites, exec, wpctl set-volume @DEFAULT_SOURCE@ 5%-
 hl.bind("XF86AudioMicMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"), locked)
+
+
+hl.bind("SUPER + SHIFT + V", hl.dsp.exec_cmd("vwk-app --panel"))

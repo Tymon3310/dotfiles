@@ -13,7 +13,8 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("wl-paste --watch cliphist store")
     -- Hyprland closing each query socket logs a warning; HyprlandService is the
     -- only socket user, so muting the category hides nothing else.
-    hl.exec_cmd("quickshell --log-rules 'quickshell.io.socket.warning=false'")
+    -- GEMINI_API_KEY lives only in ~/private/quickshell.env (not sourced by zsh).
+    hl.exec_cmd("sh -c \"[ -f \\\"$HOME/private/quickshell.env\\\" ] && . \\\"$HOME/private/quickshell.env\\\"; exec quickshell --log-rules 'quickshell.io.socket.warning=false'\"")
     hl.exec_cmd("kbuildsycoca6 --noincremental")
     hl.exec_cmd("playerctld daemon")
     hl.exec_cmd("vicinae server")

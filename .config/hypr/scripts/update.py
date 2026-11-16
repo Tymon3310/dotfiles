@@ -23,7 +23,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 
 import click
@@ -189,7 +189,7 @@ def arch_news(since: datetime | None) -> list[tuple[str, str, datetime]]:
     except Exception:
         return []
     if since.tzinfo is None:
-        since = since.replace(tzinfo=timezone.utc)
+        since = since.replace(tzinfo=UTC)
     items = []
     for item in root.iter("item"):
         try:
